@@ -204,25 +204,12 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
 
 ## Limites conhecidos (de propósito)
 
-- **Seleção só por célula**: sem duplo-clique por palavra e sem modo
-  bloco/retangular.
-- **Gráficos sem animação/z-index**: `a=f`/`a=a` são ignorados, sem
-  `t=f`/`t=t`/`t=s` (arquivo, temp file, shared memory) e sem `z=` (z-index).
-- **Caractere largo (CJK/emoji) ocupa uma célula**: a grade não tem `wcwidth`,
-  então o glifo é desenhado na largura da célula e o espaçamento de app que
-  conta coluna dupla (tabela em CJK) sai errado. Ligadura depende da fonte: com
-  a Monospace padrão (DejaVu) quase não há, mas o shaping está lá.
-- **Kitty keyboard protocol parcial**: sem `report alternate keys` (a flag 4
-  exige o keysym alternativo, que o Gdk não entrega direto), sem repeat
-  distinguido de press (o Gdk repete como key-press) e sem o modo de teclado
-  numérico.
-- **Sem busca no scrollback** e sem barra de rolagem clicável: só teclado e
-  wheel, com o `↑N` no canto como indicador.
-- **Sem arquivo de configuração/tema**: fonte e paleta são fixas no código, de
-  propósito — o que está sendo medido é o caminho quente, não a customização.
-- **Reflow só no buffer principal**: alt-screen (`mc`, `vim`) recorta/preenche
-  de propósito — quem está em tela cheia se redesenha no SIGWINCH, e re-quebrar
-  por cima do que ele escreveu só atrapalharia.
+Lista completa, com a razão de cada um e o que quebra na prática, em
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). Em resumo: seleção só por célula (sem
+palavra/bloco), gráficos sem animação/z-index, caractere largo ocupando uma
+célula só (sem `wcwidth`), protocolo de teclado do kitty parcial, sem busca no
+scrollback e sem arquivo de configuração/tema — tudo de propósito, porque o que
+está sendo medido é o caminho quente.
 
 ## O que a medição realmente mostra (corrigido)
 

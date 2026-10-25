@@ -15,6 +15,8 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 - AGENTS.md (este) — convenções, arquitetura, scripts, ferramentas.
 - TASK-bzmux.md — ficha magra: status, por onde retomar, fila.
 - docs/BACKLOG.md — backlog pendente (vazio hoje).
+- docs/LIMITATIONS.md — o que não é feito e por quê (decisão/limite aceito, não
+  fila). Antes de implementar algo "óbvio", checar aqui: pode ser decisão.
 - docs/HISTORY.md — backlog concluído (P1–P18), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
 - docs/DOOM-FIRE.md — a carga de medição: por que ela existe, como rodar, o
@@ -27,6 +29,8 @@ Ao fechar um item do backlog: mover de docs/BACKLOG.md para o fim de
 "Backlog concluído" em docs/HISTORY.md, com o bug que apareceu no caminho e
 como foi verificado. Bug corrigido fora de item de backlog entra na lista
 numerada de bugs do HISTORY.md (e o quirk, se for armadilha de ambiente).
+Decisão de NÃO fazer algo vai para docs/LIMITATIONS.md, não para o backlog; se o
+limite deixar de existir, sai de lá e vira item concluído no HISTORY.md.
 
 ## Arquitetura
 

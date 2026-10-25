@@ -1,8 +1,9 @@
 # bzmux — histórico
 
 Memória do projeto: backlog concluído, bugs corrigidos, quirks e git.
-Não é tarefa. Pendências: [BACKLOG.md](BACKLOG.md). Status, escopo,
-arquitetura, medições e como testar: [../TASK-bzmux.md](../TASK-bzmux.md).
+Não é tarefa. Pendências: [BACKLOG.md](BACKLOG.md). O que não é feito e por quê:
+[LIMITATIONS.md](LIMITATIONS.md). Status, escopo, arquitetura, medições e
+como testar: [../TASK-bzmux.md](../TASK-bzmux.md).
 Convenções: [../AGENTS.md](../AGENTS.md).
 
 ## Backlog concluído

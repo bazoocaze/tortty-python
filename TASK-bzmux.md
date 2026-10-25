@@ -25,9 +25,11 @@ custo medido no [`docs/HISTORY.md`](docs/HISTORY.md) e a linha de base nova no
 [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md): bzmux 0,5 MB/s contra 15,9 MB/s do
 kitty, 32x, com desenho em 41% e parse em 57%).
 
-O que não é item de backlog, e sim limite registrado: caractere largo sem
-`wcwidth`, protocolo de teclado do kitty parcial, sequências não implementadas —
-lista em "Limites conhecidos" no [`README.md`](README.md).
+O que não é item de backlog, e sim limite registrado — caractere largo sem
+`wcwidth`, protocolo de teclado do kitty parcial, sequência não interpretada,
+sem configuração/tema, vazão ~30x menor que nativo — está em
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md), com a razão de cada um. Antes de tratar algo
+como falta, checar lá: pode ser decisão.
 
 ## Documentos
 
