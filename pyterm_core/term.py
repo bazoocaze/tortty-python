@@ -30,6 +30,10 @@ class Term:
         self.mouse_mode = 0           # ?1000=1 ?1002=2 ?1003=3 (0 = off)
         self.mouse_sgr = False        # ?1006: coordenadas SGR
         self.focus_report = False     # ?1004: avisar foco in/out
+        # protocolo de teclado do kitty (P5): flags atuais + pilha para
+        # push/pop (CSI > flags u / CSI < n u / CSI = flags ; modo u)
+        self.kbd_flags = 0
+        self.kbd_stack = []
         self.charset_dec = False      # ESC ( 0 ativo?
         self.saved = None
         self.child_out = bytearray()  # respostas ao filho (DA, CPR...)
@@ -415,9 +419,10 @@ class Term:
                 pass
             # bracketed paste (2004): fora de escopo (P7)
 
-    def csi_dispatch(self, final, params, private):
+    def csi_dispatch(self, final, params, prefix=""):
         get = lambda i, d: (params[i] if i < len(params)
                             and params[i] is not None else d)
+        private = prefix == "?"
 
         if final == "m":
             self.sgr(params or [0])
@@ -468,6 +473,8 @@ class Term:
                 self.cursor_to(0, 0)
         elif final == "s":
             self.saved = (self.cx, self.cy)
+        elif final == "u" and prefix:
+            self._kbd_protocol(params, prefix)
         elif final == "u":
             if self.saved:
                 self.cx, self.cy = self.saved
@@ -526,8 +533,12 @@ class Term:
                     self.csi += ch
                 else:
                     body = self.csi
-                    private = body.startswith("?")
-                    body = body.lstrip("?")
+                    # prefixo privado: ?, <, =, > (o > e o < são do protocolo
+                    # de teclado do kitty, o ? dos modos DEC)
+                    prefix = ""
+                    while body and body[0] in "?<=>":
+                        prefix += body[0]
+                        body = body[1:]
                     parts = []
                     for tok in body.split(";") if body else []:
                         tok = tok.strip()
@@ -539,7 +550,7 @@ class Term:
                             except ValueError:
                                 parts.append(None)
                     nums = [p if p is not None else 0 for p in parts]
-                    self.csi_dispatch(ch, nums, private)
+                    self.csi_dispatch(ch, nums, prefix)
                     self.state = "ground"
             elif st == "osc":
                 if ch == "\x07":
@@ -564,6 +575,27 @@ class Term:
             self.title = self.osc[2:]
         self.osc = ""
         self.state = "ground"
+
+    def _kbd_protocol(self, params, prefix):
+        """CSI > flags u (push) / CSI < n u (pop) / CSI = flags ; modo u (set)
+        / CSI ? u (query). Modo: 1 = substitui, 2 = acrescenta, 3 = remove."""
+        if prefix == "?":
+            self.child_out += f"\x1b[?{self.kbd_flags}u".encode()
+        elif prefix == ">":
+            self.kbd_stack.append(self.kbd_flags)
+            self.kbd_flags = params[0] if params else 0
+        elif prefix == "<":
+            for _ in range(params[0] if params else 1):
+                self.kbd_flags = self.kbd_stack.pop() if self.kbd_stack else 0
+        elif prefix == "=":
+            flags = params[0] if params else 0
+            mode = params[1] if len(params) > 1 else 1
+            if mode == 1:
+                self.kbd_flags = flags
+            elif mode == 2:
+                self.kbd_flags |= flags
+            elif mode == 3:
+                self.kbd_flags &= ~flags
 
     def row_text(self, y):
         return "".join(c[0] for c in self.grid[y])

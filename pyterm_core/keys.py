@@ -6,6 +6,7 @@ pendente e devolve o novo), então dá para testar sem GTK de verdade.
 
 import unicodedata
 
+from . import kitty_kbd
 from .gui import Gdk
 
 # Dead keys do X11: keysym -> marca combinante.
@@ -64,18 +65,30 @@ def is_modifier(kv):
     return kv in MODIFIER_KEYS
 
 
-def encode_key(kv, state, dead_mark=0, app_cursor=False):
+def encode_key(kv, state, dead_mark=0, app_cursor=False, kbd_flags=0,
+               event=kitty_kbd.PRESS, text=""):
     """Traduz uma tecla.
 
     Devolve `(out, dead_mark, handled)`:
       out        bytes (str) a mandar pro filho, ou None
       dead_mark  marca combinante ainda pendente (0 = nenhuma)
       handled    True se o evento foi consumido (mesmo sem mandar nada)
+
+    `kbd_flags` é o estado do protocolo de teclado do kitty (?P5): com ele
+    ligado, quem decide o formato é `kitty_kbd.encode`; se ela devolver None,
+    cai no caminho legado daqui (que é o que o próprio kitty faz).
     """
     ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
     alt = bool(state & Gdk.ModifierType.MOD1_MASK)
     shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
     out = None
+
+    if kbd_flags and not dead_mark:
+        kitty = kitty_kbd.encode(
+            kv, shift, alt, ctrl,
+            bool(state & Gdk.ModifierType.SUPER_MASK), kbd_flags, event, text)
+        if kitty is not None:
+            return kitty, dead_mark, True
 
     if kv == Gdk.KEY_ISO_Left_Tab:
         out = "\x1b[Z"

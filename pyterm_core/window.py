@@ -57,6 +57,7 @@ class PyTermWindow(Gtk.Window):
         self.area.connect("button-press-event", self.on_button_press)
         self.area.connect("button-release-event", self.on_button_release)
         self.area.connect("motion-notify-event", self.on_motion)
+        self.connect("key-release-event", self.on_key_release)
         self.area.connect("scroll-event", self.on_scroll)
         self.connect("focus-in-event", self.on_focus_in)
         self.connect("focus-out-event", self.on_focus_out)
@@ -461,6 +462,17 @@ class PyTermWindow(Gtk.Window):
             # só modificador não, senão o Shift do Shift+PgUp já resetava
             self.back_to_live()
         out, self.dead_mark, handled = encode_key(
-            ev.keyval, ev.state, self.dead_mark, self.term.app_cursor)
+            ev.keyval, ev.state, self.dead_mark, self.term.app_cursor,
+            self.term.kbd_flags, text=ev.string or "")
+        self._write_child(out or "")
+        return handled
+
+    def on_key_release(self, widget, ev):
+        """Só existe release com a flag `report event types` (P5)."""
+        if not (self.term.kbd_flags & 2):
+            return False
+        out, _, handled = encode_key(
+            ev.keyval, ev.state, 0, self.term.app_cursor,
+            self.term.kbd_flags, event=3)
         self._write_child(out or "")
         return handled

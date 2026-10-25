@@ -77,6 +77,12 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   cubo 6×6×6 + 24 cinzas); truecolor é aproximado para essa paleta.
 - **Desenho** com cairo: runs agrupados por atributos, bold, sublinhado,
   inverso, cursor em bloco.
+- **Kitty keyboard protocol** (`pyterm_core/kitty_kbd.py`): `CSI > flags u`
+  (push), `CSI < n u` (pop), `CSI = flags ; modo u` (set/add/remove) e
+  `CSI ? u` (query). Com `disambiguate`, Esc/Enter/Tab/Backspace e
+  Ctrl/Alt/Super+tecla saem como `CSI codigo ; mods u`, então `Ctrl+Shift+letra`
+  deixa de se confundir com `Ctrl+letra`; `report event types` acrescenta
+  `:1`/`:2`/`:3`; `report all keys as escape codes` manda tudo em CSI-u.
 - **Reflow no resize**: linhas que quebraram mole são re-quebradas na largura
   nova (uma linha longa vira várias ao estreitar, volta a ser uma ao alargar),
   o cursor fica sobre o mesmo caractere e o scrollback é re-aproveitado. Fundo
@@ -96,11 +102,12 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
 - **Seleção só por célula**: sem duplo-clique por palavra e sem modo
   bloco/retangular.
 - **Truecolor aproximado** para a paleta de 16 cores.
-- **Sem protocolo de gráficos** (nada de `kitten icat`) e sem kitty keyboard
-  protocol.
+- **Sem protocolo de gráficos** (nada de `kitten icat`).
 - **Sem ligaduras**, sem fontes fallback para emoji/CJK.
-- **Sem kitty keyboard protocol**: modificadores não são reportados ao app,
-  então Ctrl+Shift+letra chega como Ctrl+letra.
+- **Kitty keyboard protocol parcial**: sem `report alternate keys` (a flag 4
+  exige o keysym alternativo, que o Gdk não entrega direto), sem repeat
+  distinguido de press (o Gdk repete como key-press) e sem o modo de teclado
+  numérico.
 - **Histórico sem barra de rolagem** clicável: só teclado/wheel, com o `↑N`
   no canto como indicador.
 - **Reflow só no buffer principal**: alt-screen (`mc`, `vim`) recorta/preenche

@@ -4,7 +4,7 @@ Roda sem display e sem PyGObject: só importa `term`, `palette` e `mouse`,
 nunca `window`/`gui`.
 """
 
-from . import mouse
+from . import kitty_kbd, mouse
 from .palette import DEF_FG
 from .term import Term
 
@@ -68,6 +68,25 @@ def selftest():
     t = Term()
     t.feed("\x1b]0;titulo\x07")
     check("OSC título", t.title, "titulo")
+
+    # -- kitty keyboard (P5): o essencial do CSI-u ---------------------
+    enc = kitty_kbd.encode
+    check("kitty: 'a' sem flags vira legado", enc(0x61, 0, 0, 0, 0, 0), None)
+    check("kitty: Enter com disambiguate", enc(0xff0d, 0, 0, 0, 0, 1),
+          "\x1b[13u")
+    check("kitty: Ctrl+a", enc(0x61, 0, 0, 1, 0, 1), "\x1b[97;5u")
+    check("kitty: Ctrl+Shift+a", enc(0x61, 1, 0, 1, 0, 1), "\x1b[97;6u")
+    check("kitty: Shift+Up (legado com mods)", enc(0xff52, 1, 0, 0, 0, 1),
+          "\x1b[1;2A")
+    check("kitty: 'a' com report all", enc(0x61, 0, 0, 0, 0, 8), "\x1b[97u")
+    check("kitty: release com event types",
+          enc(0x61, 0, 0, 1, 0, 3, event=kitty_kbd.RELEASE), "\x1b[97;5:3u")
+
+    t = Term()
+    t.feed("\x1b[>1u\x1b[=2;2u")
+    check("kitty: flags somam", (t.kbd_flags, t.kbd_stack), (3, [0]))
+    t.feed("\x1b[<u")
+    check("kitty: pop volta", t.kbd_flags, 0)
 
     # -- reflow (P3): re-quebra mantendo a linha lógica ---------------
     t = Term(cols=20, rows=4)
