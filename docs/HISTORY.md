@@ -726,6 +726,22 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     coalescimento eram dezenas de draws por frame e a vazão caía para 7,9 fps.
     Resultado: tela anima e vazão de 0,6 MB/s (11,8 fps a 68×20).
 
+13. **Texto espremido e coluna errada depois da fonte em pontos.** A célula era
+    medida com o contexto do widget (130 dpi na tela: 14×28 px) e o texto era
+    desenhado por layouts criados a partir do `cr`, cujo contexto vem **sem
+    resolução** (96 dpi): avanço de 10 px por caractere dentro de células de
+    14. Resultado visível: run de N caracteres ocupando 71% da largura que a
+    grade reserva (espaço entre palavras sumindo, box-drawing com fresta,
+    linha de 70 `M` terminando em 700 px de 980) e wrap parecendo cair na
+    coluna errada, porque quem quebra linha é a grade (70 colunas), não o
+    desenho. Fix: `PangoCairo.context_set_resolution(ctx, dpi)` em **todo**
+    layout (o do frame e os do cache de runs), com o DPI tirado do contexto do
+    widget e, se vier vazio, de `Gdk.Screen.get_resolution()`. Medido depois:
+    70 `M` ocupando 0..979 px, linha de 70 + 10 caracteres quebrando em 140 px
+    na fileira de baixo (10 células exatas). O `PYTERM_DIAG=1` (abaixo) nasceu
+    aqui: imprime avanço, célula, resolução e colunas no primeiro draw — foi o
+    que separou "métrica errada" de "desenho com outra resolução".
+
 ## Quirks registrados (não redescobrir)
 
 - **`pkill -f bzmux.py` mata o próprio shell** de quem chama (o padrão casa com

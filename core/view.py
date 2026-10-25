@@ -125,7 +125,11 @@ class TermView(Gtk.DrawingArea):
         self.font_size = font_size
         self._metrics = None
         self._font_desc = None        # Pango.FontDescription (P9)
-        self._bold_attrs = None       # Pango.AttrList do negrito
+        self._attrs_plain = None      # Pango.AttrList: espaçamento nas células
+        self._attrs_bold = None       # idem + negrito
+        self._advance = None          # avanço real da fonte, em px (float)
+        self._dpi = None              # resolução do display (Xft.dpi)
+        self._diag_done = False
         self._layouts = {}            # (texto, negrito) -> Pango.Layout
 
         self.master = None
@@ -359,6 +363,16 @@ class TermView(Gtk.DrawingArea):
             self._font_desc = d
         return self._font_desc
 
+    def dpi(self):
+        """Resolução do display (Xft.dpi), a mesma que a grade usa."""
+        if self._dpi is None:
+            dpi = PangoCairo.context_get_resolution(self.get_pango_context())
+            if dpi <= 0:
+                scr = Gdk.Screen.get_default()
+                dpi = scr.get_resolution() if scr else 96.0
+            self._dpi = dpi
+        return self._dpi
+
     def metrics(self):
         if self._metrics:
             return self._metrics
@@ -366,15 +380,44 @@ class TermView(Gtk.DrawingArea):
         # ponto->pixel depende da resolução do contexto (Xft.dpi), e métrica
         # tirada com resolução diferente da que desenha desalinha a grade.
         layout = Pango.Layout(self.get_pango_context())
+        PangoCairo.context_set_resolution(layout.get_context(), self.dpi())
         layout.set_font_description(self.font_desc())
         layout.set_text("M", -1)
         # largura = avanço do glifo; altura = ascent + descent do layout. Sai da
         # MESMA fonte que desenha, então não existe divergência de arredondamento
         # entre a grade e o texto.
-        w, h = layout.get_pixel_size()
-        self._metrics = (math.ceil(w), math.ceil(h))
+        w, h = layout.get_size()
+        # avanço fica em px porque a célula é o teto dele e a diferença vira
+        # letter_spacing (o run tem que ocupar exatamente N células)
+        self._advance = w / Pango.SCALE
+        self._metrics = (math.ceil(self._advance), math.ceil(h / Pango.SCALE))
         self.term.cell_size = self._metrics   # o protocolo de imagem usa isso
         return self._metrics
+
+    def new_layout(self, cr):
+        """Layout com a fonte e a resolução da grade."""
+        lay = PangoCairo.create_layout(cr)
+        PangoCairo.context_set_resolution(lay.get_context(), self.dpi())
+        lay.set_font_description(self.font_desc())
+        return lay
+
+    def text_attrs(self, bold):
+        """AttrList do run: espaçamento que faz N caracteres ocuparem N células."""
+        cached = self._attrs_bold if bold else self._attrs_plain
+        if cached is not None:
+            return cached
+        cw, _ = self.metrics()
+        al = Pango.AttrList()
+        # letter_spacing vale entre glifos (o último não recebe): run de N fecha
+        # N*cw com erro menor que 1 px
+        al.insert(Pango.attr_letter_spacing_new(
+            round((cw - self._advance) * Pango.SCALE)))
+        if bold:
+            al.insert(Pango.attr_weight_new(Pango.Weight.BOLD))
+            self._attrs_bold = al
+        else:
+            self._attrs_plain = al
+        return al
 
     def on_resize(self, widget, alloc):
         if alloc.width < 10 or alloc.height < 10:
@@ -443,13 +486,17 @@ class TermView(Gtk.DrawingArea):
         cw, ch = self.metrics()
         cw, ch = int(cw), int(ch)
         # um layout por draw, reaproveitado em cada run (criar por run custaria
-        # mais que o próprio desenho)
-        layout = PangoCairo.create_layout(cr)
-        layout.set_font_description(self.font_desc())
-        if self._bold_attrs is None:
-            al = Pango.AttrList()
-            al.insert(Pango.attr_weight_new(Pango.Weight.BOLD))
-            self._bold_attrs = al
+        # mais que o próprio desenho). A resolução vem do cr (96 dpi) e NÃO é a
+        # da tela: sem pôr a do widget, o texto sai com avanço menor que a
+        # célula e a grade inteira desalinha.
+        layout = self.new_layout(cr)
+        if os.environ.get("PYTERM_DIAG") and not self._diag_done:
+            self._diag_done = True
+            layout.set_text("MMMMMMMMMM", -1)
+            sys.stderr.write("DIAG: avanco %r cell %r res %r cols %r\n" % (
+                layout.get_size()[0] / Pango.SCALE / 10, self.metrics(),
+                PangoCairo.context_get_resolution(layout.get_context()),
+                self.term.cols))
         # fundo
         r, g, b = [c / 255 for c in BG_DEFAULT]
         cr.set_source_rgb(r, g, b)
@@ -503,10 +550,8 @@ class TermView(Gtk.DrawingArea):
                 if lay is None:
                     if len(self._layouts) > 800:
                         self._layouts.clear()
-                    lay = PangoCairo.create_layout(cr)
-                    lay.set_font_description(self.font_desc())
-                    lay.set_attributes(self._bold_attrs if fl & BOLD
-                                       else None)
+                    lay = self.new_layout(cr)
+                    lay.set_attributes(self.text_attrs(bool(fl & BOLD)))
                     lay.set_text(txt, -1)
                     self._layouts[key] = lay
                 cr.move_to(x * cw, y * ch)
@@ -556,14 +601,14 @@ class TermView(Gtk.DrawingArea):
             cell = t.grid[t.cy][t.cx]
             bgc = cell_rgb(cell[2], BG_DEFAULT)
             cr.set_source_rgb(*[c / 255 for c in bgc])
-            layout.set_attributes(None)
+            layout.set_attributes(self.text_attrs(False))
             layout.set_text(cell[0], -1)
             cr.move_to(t.cx * cw, t.cy * ch)
             PangoCairo.show_layout(cr, layout)
         if self.view_off:
             # marcador de histórico no canto ("↑") com o quanto se voltou
             label = f"↑{self.view_off} "
-            layout.set_attributes(None)
+            layout.set_attributes(self.text_attrs(False))
             layout.set_text(label, -1)
             lw = layout.get_pixel_size()[0]
             x0 = (t.cols - 1) * cw - lw

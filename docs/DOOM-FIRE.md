@@ -39,16 +39,18 @@ contamina o número):
 
 | | fps | MB/s de escapes | bytes/frame |
 |---|---|---|---|
-| bzmux | 9,8 | 0,5 | ~52 KB |
+| bzmux | 8,2 | 0,5 | ~55 KB |
 | kitty | 275,9 | 15,8 | ~57 KB |
 
-O bzmux fica com **98% de um core**: ~102 ms por frame de 1470 células. O kitty
-faz o mesmo em ~3,6 ms. A distância é de **31x**.
+O bzmux fica com **98% de um core**: ~122 ms por frame de 1470 células. O kitty
+faz o mesmo em ~3,6 ms. A distância é de **34x**.
 
-Este número é o **depois do P9** (desenho por Pango) e da fonte em pontos: o
-desenho subiu de 12,8 para ~16,8 ms por frame e a vazão caiu de 0,6 para
-0,5 MB/s. É o preço de shaping + fallback de fonte; o antes/depois está no
-HISTORY, item P9.
+Este número é o **depois do P9** (desenho por Pango), da fonte em pontos e do
+bug 13: o desenho subiu de 12,8 para 22,7 ms por frame e a vazão caiu de 0,6
+para 0,5 MB/s. Parte da subida é shaping + fallback de fonte e parte é tamanho
+de glifo — até o bug 13 o texto era desenhado a 96 dpi (glifo de 10×22 px) com
+a grade a 130 dpi, ou seja os números anteriores a 2026-10-26 mediam **menos
+pixels pintados** por célula. Compare fps daqui pra frente, não com os de trás.
 
 O fps depende da grade (célula maior = menos frames por segundo com a mesma
 vazão); **MB/s é o número que compara**. A grade do kitty sai 68×19, não 68×20 —
@@ -60,10 +62,10 @@ uniforme, este mede uma tela que troca de cor em toda célula.
 
 ### Onde o tempo vai
 
-`PYTERM_PROF=1` (ver abaixo) decompõe, 8 s de fogo a 70×21: **parse 55%** (4,4 ms
-por leitura, ~998 leituras) e **desenho 42%** (16,8 ms por frame, ~25 draws/s).
-Desenho roda ~25x/s mas só 9,8 frames/s completos chegam à tela: o parse não
-acompanha.
+`PYTERM_PROF=1` (ver abaixo) decompõe, 36,5 s de fogo a 70×21 (300 frames):
+**parse 48%** (4,2 ms por leitura, 4102 leituras) e **desenho 52%** (22,7 ms por
+frame, ~22 draws/s). Desenho roda ~22x/s mas só 8,2 frames/s completos chegam à
+tela: o parse não acompanha.
 
 O desenho custa caro pelo número de *runs* de cor, não de células: 37 tons por
 linha fazem quase toda célula ser um run próprio, e o custo por célula sai
@@ -83,12 +85,15 @@ tela muda — é o teste de três capturas abaixo.
 de chamadas de `on_pty` (parse) e `on_draw` (desenho), impressos no stderr
 (portanto no `/tmp/bzmux.log` do `debug.sh`) quando a sessão fecha:
 
-    PYTERM_PROF=1 ./debug.sh --cmd 'python3 tools/doomfire.py --fps 0' \
-        --quit-after 30
+    PYTERM_PROF=1 ./debug.sh --cmd 'python3 tools/doomfire.py --fps 0 \
+        --frames 300 --stats-to /tmp/df.txt'
     grep prof: /tmp/bzmux.log
-    # prof: draw 230x 12.83ms/call (2950ms) | pty 1144x 4.29ms/call (4902ms)
+    # prof: draw 821x 22.67ms/call (18610ms) | pty 4102x 4.22ms/call (17314ms)
 
 Sem a variável o código não faz nada (só o `if not _PROF` na entrada).
+`PYTERM_DIAG=1` é outra sonda, de geometria e não de tempo: no primeiro draw
+imprime avanço da fonte, célula da grade, resolução e colunas — os dois têm que
+casar, senão o texto não cai nas células (bug 13 do HISTORY).
 
 ## Protocolo (para comparar dois terminais)
 

@@ -118,7 +118,9 @@ experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
   MB/s na saída, então dá para comparar dois terminais na mesma grade. Por que,
   resultados e protocolo: docs/DOOM-FIRE.md. Com PYTERM_PROF=1 no ambiente o
   app imprime, ao fechar a sessão, o custo de parse (on_pty) e de desenho
-  (on_draw) — é o que decompõe a vazão.
+  (on_draw) — é o que decompõe a vazão. Com PYTERM_DIAG=1 no primeiro draw ele
+  imprime avanço da fonte, célula da grade, resolução e colunas: é o par que
+  tem que bater (bug 13 do HISTORY — grade a 130 dpi e desenho a 96).
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
 - Medição não é teste: os números do README.md vêm de execução real e não
