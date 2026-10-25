@@ -1,31 +1,58 @@
-# Diretrizes do projeto
+# bzmux
 
-## Testes: poucos e focados
+Terminal em Python puro: pty + parser VT + grade + desenho com cairo.
+Experimento funcional que existe para medir o custo do caminho quente em Python
+(não é produto). Roda shell, mc e vim; tem mouse com seleção/cópia, histórico
+com wheel, reflow, truecolor, protocolo de teclado e de imagens do kitty,
+bracketed paste, abas e workspaces. Escopo, medições, bugs e backlog ficam em
+TASK-bzmux.md.
 
-Diretriz do autor, vale para o repositório inteiro:
+## Arquitetura
 
-> "Não me oponho que tenha testes, mas apenas alguns poucos focando nas coisas
-> mais importantes, ao invés de testes exaustivos."
+bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core/:
 
-Na prática:
+    bzmux.py       ponto de entrada, só delega
+    core/
+      palette.py   célula [char, fg, bg, flags], paleta xterm-256, charset DEC
+      term.py      grade, cursor, parser VT — não conhece GTK
+      keys.py      keyval do X11 -> bytes do filho (dead keys, DECCKM)
+      kitty_kbd.py protocolo de teclado do kitty (CSI ... u)
+      mouse.py     protocolo de mouse (SGR e o antigo) — puro
+      graphics.py  protocolo de imagens do kitty (APC G) — puro
+      gui.py       único import de Gtk/Gdk/GLib/cairo
+      view.py      TermView: uma sessão (pty, cairo, eventos)
+      window.py    Workspace + BzmuxWindow (abas, lateral, atalhos globais)
+      selftest.py  checks sem display
+      cli.py       argv e arranque
+    tools/         xtest.py, pixel.py — teste manual com X11
 
-- **Poucos checks nos caminhos críticos** — parser, protocolos, e tudo que já
-  quebrou uma vez (regressão vale mais que cobertura).
-- **Sem suíte exaustiva**: nada de matriz de casos gerada por combinação de
-  parâmetros, nada de teste que só reescreve o código na forma de asserção,
-  nada de perseguir 100% de cobertura.
-- **Um bug corrigido = um check** (quando der), não uma bateria em volta dele.
-- **Teste tem que ser barato de rodar**: um comando (`python3 bzmux.py
-  --selftest`) e, de preferência, sem display. Se precisar de X11/GUI, documente
-  o comando manual no `TASK-bzmux.md` em vez de montar infraestrutura de teste.
-- **Sem infraestrutura de suíte** (pytest, `tests/`, `pyproject.toml`, CI) sem o
-  autor pedir: os checks vivem em `core/selftest.py` e rodam com `--selftest`.
-- **`tools/` é manual, não suíte**: `tools/xtest.py` (injeção XTest) e
-  `tools/pixel.py` (cor de pixel) precisam de display/X11 e são chamados à mão
-  durante a verificação, como o `TASK-bzmux.md` descreve.
-- **Medição não é teste**: os números do `TASK-bzmux.md` vêm de execução real;
-  não transformar isso em benchmark automatizado sem necessidade.
+O que sustenta essa divisão: o caminho do --selftest importa só palette, term,
+kitty_kbd e mouse, e nenhum deles puxa gi/cairo — é isso que deixa os checks
+rodarem sem display e sem GTK (keys fica de fora: usa as constantes de keyval do
+Gdk). Cada aba tem o seu Term; a janela só orquestra, sem estado de sessão.
 
-## Commits
+## Convenções
 
-- Não usar `Co-Authored-By:` em commits/PRs.
+- Textos, descrições e comentários concisos.
+- Docstrings e comentários no código: no máximo uma linha.
+- Formato pensado para agente, não precisa ser agradável para humano.
+- Não atualizar a documentação a cada iteração de código. Quando o usuário
+  terminar uma iteração, mencionar discretamente que a doc está pendente; a
+  decisão de sincronizar é dele.
+- Evitar backticks.
+
+## Testes
+
+- Poucos testes, nas partes mais importantes: parser, protocolos e tudo que já
+  quebrou uma vez (regressão vale mais do que cobertura).
+- Sem suíte exaustiva: nada de matriz de casos por combinação de parâmetros,
+  nada de teste que só reescreve o código na forma de asserção, nada de perseguir
+  cobertura.
+- Um bug corrigido = um check, quando der; não uma bateria em volta dele.
+- Teste barato de rodar: um comando (python3 bzmux.py --selftest), sem display
+  se possível. O que precisar de X11 fica documentado como comando manual no
+  TASK-bzmux.md, não vira infraestrutura.
+- tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
+  chamados à mão durante a verificação.
+- Medição não é teste: os números do TASK-bzmux.md vêm de execução real e não
+  viram benchmark automatizado sem necessidade.
