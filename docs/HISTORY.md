@@ -491,16 +491,16 @@ truecolor **por célula**, sem agrupar nada — o pior caso para o parser e para
 desenho, sem depender de app real. `--fps 0` solta a mão: quem limita passa a
 ser o terminal, e o fps alcançado é a medida de vazão dele.
 
-Medido, mesma grade de 51 colunas, `--fps 0`, terminais um de cada vez:
+Medido, mesma grade de 68 colunas (68×20, a padrão desde o P17), `--fps 0`,
+terminais um de cada vez:
 
 | | fps | MB/s de escapes |
 |---|---|---|
-| bzmux | 16,2 | 0,6 |
-| kitty | 412,6 | 15,6 |
+| bzmux | 11,8 | 0,6 |
+| kitty | 314,2 | 15,9 |
 
-O `PYTERM_PROF=1` decompõe o tempo no bzmux (150 frames): **parse 63%**
-(4,2 ms por leitura de 64 KiB) e **desenho 34%** (11,2 ms por frame de 1020
-células, ~30 draws/s). O desenho custa caro aqui não pelo número de células, e
+O `PYTERM_PROF=1` decompõe o tempo no bzmux: **parse 61%** (4,3 ms por leitura)
+e **desenho 37%** (12,8 ms por frame de 1360 células, ~29 draws/s). O desenho custa caro aqui não pelo número de células, e
 sim pelo número de *runs* de cor: com 37 tons por linha quase toda célula é um
 run próprio, e o custo por célula sai ~11 µs, contra ~1 µs do caso uniforme que
 o README mede. É a linha de base do P9 (Pango muda exatamente esse custo).
@@ -636,7 +636,7 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     0,3 MB/s. Fix: watch do pty em `PRIORITY_DEFAULT_IDLE` (200, abaixo do
     redraw) e desenho coalescido em ~16 ms (`request_draw`, 60 Hz) — sem o
     coalescimento eram dezenas de draws por frame e a vazão caía para 7,9 fps.
-    Resultado: tela anima e vazão de 16,2 fps / 0,6 MB/s.
+    Resultado: tela anima e vazão de 0,6 MB/s (11,8 fps a 68×20).
 
 ## Quirks registrados (não redescobrir)
 
@@ -695,9 +695,11 @@ Todos foram achados com medição, não por leitura — vale registrar o método
   `DEFAULT` (0), que é *maior* que qualquer coisa de desenho. Um fd sempre
   pronto em prioridade 0 congela a tela; `PRIORITY_DEFAULT_IDLE` (200) deixa o
   redraw (120) passar na frente. O mesmo vale para `timeout_add` de animação.
-- **Custo de desenho depende de runs, não de células**: 1020 células com 37
-  cores por linha custam ~11 ms; o mesmo número de células com uma cor custa
+- **Custo de desenho depende de runs, não de células**: 1360 células com 37
+  cores por linha custam ~13 ms; o mesmo número de células com uma cor custa
   ~1 ms. Medir desenho com tela uniforme subestima o pior caso por 10x.
+- **fps de carga depende da grade**: a vazão em MB/s fica parada (0,6) e o fps
+  cai quando a célula cresce; comparar fps entre grades diferentes não diz nada.
 
 ## Git e origem do repositório
 

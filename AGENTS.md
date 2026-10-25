@@ -19,8 +19,8 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 - docs/HISTORY.md — backlog concluído (P1–P8, P11–P17), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
 - docs/DOOM-FIRE.md — a carga de medição: por que ela existe, como rodar, o
-  número (bzmux 24,6 fps / 1,0 MB/s contra kitty 412 fps / 15,6 MB/s) e o
-  protocolo de comparação.
+  número (bzmux 0,6 MB/s contra 15,9 MB/s do kitty, 26x) e o protocolo de
+  comparação.
 - README.md — visão para humano: como rodar, ferramentas, ambiente, o que
   funciona, limites, medição, licença.
 

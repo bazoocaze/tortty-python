@@ -23,9 +23,9 @@ Nada pela metade: árvore limpa, tudo commitado.
 P9 (ligaduras/shaping) e P10 (fallback de fonte) — caem juntos na migração para
 Pango, e são os dois últimos. O P10 já aparece no `pi` (as barras `bh/P/X` são
 glifos que a fonte não tem). O doom-fire (P16, feito) deixou a linha de base do
-antes/depois do P9: 16,2 fps / 0,6 MB/s contra 412 fps / 15,6 MB/s do kitty na
-mesma grade, com parse em 63% do tempo e desenho em 34% (11,2 ms por frame de
-1020 células). Detalhe, protocolo e armadilhas em
+antes/depois do P9: 0,6 MB/s contra 15,9 MB/s do kitty (26x) na mesma grade
+68×20, com parse em 61% do tempo e desenho em 37% (12,8 ms por frame de 1360
+células). Detalhe, protocolo e armadilhas em
 [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md); o backlog em
 [`docs/BACKLOG.md`](docs/BACKLOG.md).
 

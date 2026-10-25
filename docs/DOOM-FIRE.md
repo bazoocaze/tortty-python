@@ -33,16 +33,20 @@ e o arquivo evita depender de ler a tela. Grade = tamanho do terminal
 
 ## O número
 
-Uma execução, grade de 51 colunas, `--fps 0`, **um terminal de cada vez** (rodar
-os dois juntos contamina o número):
+Uma execução, grade de 68 colunas (a padrão hoje: 68×20, 1360 células),
+`--fps 0`, **um terminal de cada vez** (rodar os dois juntos contamina o número):
 
 | | fps | MB/s de escapes | bytes/frame |
 |---|---|---|---|
-| bzmux | 16,2 | 0,6 | ~38 KB |
-| kitty | 412,6 | 15,6 | ~38 KB |
+| bzmux | 11,8 | 0,6 | ~49 KB |
+| kitty | 314,2 | 15,9 | ~50 KB |
 
-O bzmux fica com **100% de um core**: ~62 ms por frame de ~1020 células. O kitty
-faz o mesmo em ~2,4 ms.
+O bzmux fica com **98% de um core**: ~85 ms por frame de 1360 células. O kitty
+faz o mesmo em ~3,2 ms. A distância é de **26x**.
+
+O fps depende da grade (célula maior = menos frames por segundo com a mesma
+vazão); **MB/s é o número que compara**. A grade do kitty sai 68×19, não 68×20 —
+arredondamento de célula dele, e a diferença de bytes/frame é essa.
 
 O 0,6 MB/s é o dobro *abaixo* do 0,7–1,9 MiB/s de "parse + grade" do README, e a
 diferença é exatamente o desenho: o número do README mede um despejo de texto
@@ -50,8 +54,10 @@ uniforme, este mede uma tela que troca de cor em toda célula.
 
 ### Onde o tempo vai
 
-`PYTERM_PROF=1` (ver abaixo) decompõe, 150 frames: **parse 63%** (4,2 ms por
-leitura de 64 KiB) e **desenho 34%** (11,2 ms por frame, ~30 draws/s).
+`PYTERM_PROF=1` (ver abaixo) decompõe, 8 s de fogo a 68×20: **parse 61%** (4,3 ms
+por leitura, 1144 leituras) e **desenho 37%** (12,8 ms por frame, ~29 draws/s).
+Desenho roda ~29x/s mas só 11,8 frames/s completos chegam à tela: o parse não
+acompanha.
 
 O desenho custa caro pelo número de *runs* de cor, não de células: 37 tons por
 linha fazem quase toda célula ser um run próprio, e o custo por célula sai
@@ -74,7 +80,7 @@ de chamadas de `on_pty` (parse) e `on_draw` (desenho), impressos no stderr
     PYTERM_PROF=1 ./debug.sh --cmd 'python3 tools/doomfire.py --fps 0' \
         --quit-after 30
     grep prof: /tmp/bzmux.log
-    # prof: pty 1396x 4.21ms/call (5884ms) | draw 280x 11.20ms/call (3137ms)
+    # prof: draw 230x 12.83ms/call (2950ms) | pty 1144x 4.29ms/call (4902ms)
 
 Sem a variável o código não faz nada (só o `if not _PROF` na entrada).
 
@@ -83,16 +89,17 @@ Sem a variável o código não faz nada (só o `if not _PROF` na entrada).
 0. **um de cada vez** — dois terminais desenhando ao mesmo tempo disputam CPU
    e os dois números saem piores;
 1. mesmas colunas e mesmas linhas nos dois (no kitty:
-   `kitty --override remember_window_size=no --override initial_window_width=51c
+   `kitty --override remember_window_size=no --override initial_window_width=68c
    --override initial_window_height=20c -e ...`; a janela do bzmux é 680 px, o
-   que dá 51×20 com a lateral visível);
+   que dá 68×20 com um workspace só e 51×20 com dois — abrir ou fechar a lateral
+   muda a grade e o fps, então compare com a mesma quantidade de workspaces);
 2. `--fps 0 --frames 1200 --stats-to ARQ` nos dois;
 3. comparar fps e MB/s (o bytes/frame varia um pouco com o tamanho do escape).
 
 ## Como saber que está desenhando
 
 Dump do bzmux (`kill -USR1 $(cat /tmp/bzmux.pid)`) traz `▀` em todas as linhas
-da viewport (1020 células em 51×20). Isso prova que o parser está recebendo —
+da viewport (1360 células em 68×20). Isso prova que o parser está recebendo —
 **não** prova que a tela está mudando. O teste que prova são duas capturas com
 ~1,5 s de intervalo e comparação de pixels:
 
@@ -107,6 +114,10 @@ Foi assim que se achou o bug 12 (três capturas idênticas com 0,3 MB/s correndo
 - **Fonte sem `▀`**: a célula ainda tem bg e fg, então o fogo aparece como
   faixas de cor mesmo sem o glifo; se nem as faixas aparecem, o problema não é o
   glifo.
+- **`render` não emite `\r\n`**: cada linha sai com exatamente `cols`
+  meias-células e a quebra é mole (autowrap), quem decide a próxima linha é o
+  emulador. Grade em diagonal = quebra errada — foi assim que se viu o bug do
+  P15 (controle depois de linha cheia avançando duas linhas).
 - **SGR na saída**: sem `\033[0m` as estatísticas herdam a última cor do fogo
   (texto com fundo amarelo). Já corrigido no tool.
 - **SIGTERM no meio**: sem handler a tela fica no alt-screen. Já corrigido
