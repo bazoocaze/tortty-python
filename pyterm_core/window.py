@@ -377,6 +377,13 @@ class PyTermWindow(Gtk.Window):
         cr.paint()
         sel = self.sel_range()
         rows = self.visible_rows()
+        # sobra sub-célula: quase nunca a janela é múltiplo exato de (cw, ch).
+        # A faixa que sobra embaixo/à direita pertence à última fileira/coluna
+        # e recebe o fundo DELA, senão um app com fundo colorido (vim com
+        # termguicolors, htop) ganha um rodapé preto.
+        og_w = self.area.get_allocated_width()
+        og_h = self.area.get_allocated_height()
+        last_y = len(rows) - 1
         for y, row in enumerate(rows):
             x = 0
             while x < t.cols:
@@ -400,7 +407,9 @@ class PyTermWindow(Gtk.Window):
                     fgc, bgc = bgc, fgc      # inverso / seleção = reverso
                 if bgc != BG_DEFAULT:
                     cr.set_source_rgb(*[c / 255 for c in bgc])
-                    cr.rectangle(x * cw, y * ch, (j - x) * cw, ch)
+                    rw = (og_w if j >= t.cols else j * cw) - x * cw
+                    rh = max(ch, og_h - y * ch) if y == last_y else ch
+                    cr.rectangle(x * cw, y * ch, rw, rh)
                     cr.fill()
                 cr.set_source_rgb(*[c / 255 for c in fgc])
                 txt = "".join(c[0] for c in row[x:j])
