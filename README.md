@@ -3,6 +3,9 @@
 > Repositório `pybzmux`; o projeto se chama **bzmux**. Nasceu como `pyterm`
 > dentro do experimento `kitty` e virou repo próprio em 2026-10-25 — por isso
 > os commits antigos falam `pyterm` e os caminhos da época eram `pyterm/...`.
+> A referência de comparação — o `gtkterm`, com o `native-port/` que linka o
+> núcleo C do kitty como `libkittycore.a` — ficou **naquele** repositório: aqui
+> não há C, não há compilação e nada do bzmux é compartilhado com ela.
 
 Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**,
 para sentir na pele o custo do caminho quente em Python comparado ao núcleo C
@@ -236,5 +239,5 @@ seleção, paste, truecolor, teclado do kitty, gráficos e argv.
 kitty, então a licença dele não é ditada pelo núcleo: importa apenas `pty`,
 `termios`, `unicodedata`, `gi` (Gtk3, LGPL-2.1+) e `pycairo` (LGPL/MPL).
 Estar no mesmo repositório não contamina — arquivos separados, sem linkagem
-nem import. O `native-port/` continua
-**GPL-3.0-only** porque linka `libkittycore.a` (derivado do kitty).
+nem import. O lado C, que ficou no outro repositório, continua GPL-3.0-only
+por derivar do kitty.

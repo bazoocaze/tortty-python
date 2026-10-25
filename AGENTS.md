@@ -65,8 +65,8 @@ Célula é uma lista [char, fg, bg, flags]: fg/bg em índice xterm (0-255,
 desenho agrupa células vizinhas de atributos iguais num show_text só — foi o
 que trouxe o frame de 1920 células para ~2 ms.
 
-Não objetivo: virar o app. Nada daqui é compartilhado com o native-port/ (a
-parte C/GTK, GPL-3.0-only, que ficou no repositório do kitty).
+Não objetivo: virar o app. A parte C/GTK de referência ficou no repositório do
+experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
 
 ## Convenções
 

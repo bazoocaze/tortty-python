@@ -123,7 +123,7 @@ sublinhado colorido.
 responde `CSI ?<flags>u`.
 
 Encoding espelhado no `encode_key()`/`encode_function_key()` do kitty
-(`repos/kitty/kitty/key_encoding.c`), que foi a referência:
+(o `key_encoding.c` dele, que foi a referência):
 
 - `disambiguate` (1): Esc/Enter/Tab/Backspace viram `CSI 27u`/`13u`/`9u`/`127u`;
   Ctrl/Alt/Super+tecla viram `CSI codigo ; mods u`; setas/F1–F12 com
@@ -518,8 +518,7 @@ Todos foram achados com medição, não por leitura — vale registrar o método
 Nasceu no repositório do experimento `kitty`
 (`~/dados/workflows/temp/kitty`), na pasta `pyterm/`, com o nome **pyterm**.
 Em 2026-10-25 virou repositório próprio, `pybzmux`, com o nome **bzmux**. A
-parte C/GTK do kitty (`native-port/`, GPL-3.0-only) ficou lá: não é compilada
-nem testada aqui, e nada do bzmux é compartilhado com ela.
+parte C/GTK ficou lá (ver README.md): não é compilada nem testada aqui.
 
 Os commits até a separação vieram por `git subtree split`, que **reescreve
 hashes**: os do repositório de origem não existem aqui nem no GitHub, e as

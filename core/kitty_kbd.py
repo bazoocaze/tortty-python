@@ -2,8 +2,8 @@
 
 Puro (ints e str, sem Gtk): a decisão de *quando* usar é do `Term`, que guarda
 as flags (`kbd_flags`); aqui só mora a codificação. Espelha o
-`encode_key()`/`encode_function_key()` do kitty (`repos/kitty/kitty/
-key_encoding.c`), que é a referência de verdade.
+`encode_key()`/`encode_function_key()` do kitty (`key_encoding.c`), que é a
+referência de verdade.
 
 Flags (bitmask, empilháveis por `CSI > flags u`):
 
