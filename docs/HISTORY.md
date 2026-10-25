@@ -257,6 +257,50 @@ interativo fecha; `sleep 120 & ... exit` fecha e o job morre no SIGHUP;
 fechar a janela pelo WM mata o filho (o master fecha → SIGHUP do kernel no grupo
 da frente).
 
+### P9 — Ligaduras e shaping — **feito**
+
+O desenho era `cairo.show_text` (API toy): sem shaping, então ligadura não saía,
+árabe não ligava, marca combinante se separava do corpo da letra. Migrado para
+**Pango**: um `Pango.Layout` por draw, reaproveitado em cada run, com
+`PangoCairo.show_layout`.
+
+Decisões que custaram teste:
+
+- **`set_absolute_size` (pixels), não `set_size` (pontos)**: com `set_size` o
+  Pango aplica o DPI 96 e a fonte muda de tamanho em relação ao cairo antigo.
+- **Métricas saem do mesmo layout que desenha**: largura = avanço de "M",
+  altura = `get_pixel_size()` do layout. Antes eram `text_extents`/`font_extents`
+  do cairo; misturar as duas fontes de número desalinha a grade.
+- **`move_to` na quina da célula e o layout desenha dali**: a linha de base sai
+  do ascent do próprio layout, então não existe mais `+ ascent + 1` na mão.
+- **Cache de layout por `(texto, negrito)`**, teto de 800 (limpa quando estoura):
+  `set_text` é a parte cara, e run se repete muito. Sem o cache o desenho dobra
+  de custo (ver números abaixo).
+- Sublinhado continua sendo retângulo do cairo, não atributo do Pango: é o mesmo
+  pixel em qualquer fonte e não depende de métrica de underline.
+
+Medido com o doom-fire (P16), 68×20, `PYTERM_PROF=1`:
+
+| desenho | ms/frame | fps | MB/s |
+|---|---|---|---|
+| `cairo.show_text` (antes) | 12,8 | 11,8 | 0,6 |
+| Pango sem cache | 30,5 | 8,1 | 0,4 |
+| Pango com cache de layout | 15,2–15,6 | 11,0 | 0,5 |
+
+Ou seja: shaping + fallback custam **~20% do frame** com cache, **2,4x** sem.
+O parse não mudou (4,3 ms por leitura), como esperado — a migração é só desenho.
+
+### P10 — Fallback de fonte (emoji/CJK) — **feito**
+
+Caiu junto com o P9: o fontconfig acha a fonte que tem o glifo, então CJK e
+emoji em cor passam a desenhar sem nenhum código a mais. Verificado na tela com
+`printf '\u4e2d\u6587 \U0001F600'` no bzmux.
+
+Limite que fica (e não é bug do fallback): a grade **não tem `wcwidth`**, então
+caractere largo ocupa uma célula só e o glifo é espremido/estourado nela. App que
+conta coluna dupla (tabela em CJK) sai desalinhado; resolver isso é mexer no
+modelo de célula, não no desenho.
+
 ### P11 — Abas — **feito**
 
 `Ctrl+Shift+T` abre aba nova; `Alt+1` … `Alt+9` selecionam a aba N (`Alt+0` =
@@ -483,6 +527,38 @@ o `:hover` não enganar a amostra).
 De quebra, `Pango` entrou no `gui.py` (ponto único de import) e o `Entry` de
 renomear ganhou `width_chars(6)` — ele também publicava largura.
 
+### P15 — Tela do `pi` estabilizava bagunçada — **feito**
+
+Relato: abrir o `pi` no bzmux, esperar a subida, e a tela parar incoerente (no
+kitty ficava certa). O que se via: os blocos de aviso do startup com a linha de
+status e a barra `bh/P/X` *no meio deles*, bordas repetidas e linhas em branco
+entre uma linha e outra — layout "dobrado".
+
+Causa: **o `\r\n` depois de uma linha que enche a largura avançava DUAS linhas.**
+Em `put()`, a quebra pendente (`wrap_pending`, a que marca "esta linha cheia
+continua na de baixo") era executada ANTES do tratamento de `\r`, `\n`, `\b` e
+`\t`; então o `\r\n` pagava a quebra pendente + o próprio LF. App que preenche
+a linha inteira até o fim — pi renderiza com padding até a última coluna, como
+todo renderizador Ink — crescia uma linha por linha, a tela rolava sem parar e
+o conteúdo se sobrepunha.
+
+Fix: controle primeiro, quebra depois. `\r`/`\n`/`\b`/`\t` zeram
+`wrap_pending` e só então fazem o que fazem; a quebra pendente continua valendo
+para texto (aí sim a linha quebra). Check novo: `wrap_and_control`.
+
+Verificação (foi o que fechou o diagnóstico, depois de duas tentativas erradas):
+com `PYTERM_RAWLOG` gravou-se a saída do `pi` e ela foi reproduzida no `Term` sem
+display — a bagunça aparecia igual. Comparada com um emulador de referência
+(`uv pip install pyte`, temporário), a nossa grade passou de **38 linhas
+diferentes em 45** para **0**, com o mesmo cursor e zero scrollback espúrio.
+Depois, ao vivo: janela de 140x45, `pi` renderizado igual ao kitty.
+
+Duas pistas falsas, registradas porque custaram tempo: (1) faltar resposta às
+consultas `CSI 16t` e `OSC 10/11/4` *não* era a causa — implementar as respostas
+não mudou o layout; (2) rodar os dois terminais ao mesmo tempo contamina a
+medição e a comparação visual. O que resolveu foi replay determinístico contra
+referência, não screenshot de screenshot.
+
 ### P16 — Doom fire como carga de medição — **feito**
 
 `tools/doomfire.py`: o efeito do port de PSX do Doom (buffer 0..36 propagado de
@@ -533,38 +609,6 @@ e quem manda na visibilidade é só o nosso `set_visible`. Verificado por pixel
 (ponto da lateral preto/ocupado com 2+ workspaces, sem lateral com 1) e pelo
 dump (`68x20` com um workspace, `51x20` com dois).
 
-### P15 — Tela do `pi` estabilizava bagunçada — **feito**
-
-Relato: abrir o `pi` no bzmux, esperar a subida, e a tela parar incoerente (no
-kitty ficava certa). O que se via: os blocos de aviso do startup com a linha de
-status e a barra `bh/P/X` *no meio deles*, bordas repetidas e linhas em branco
-entre uma linha e outra — layout "dobrado".
-
-Causa: **o `\r\n` depois de uma linha que enche a largura avançava DUAS linhas.**
-Em `put()`, a quebra pendente (`wrap_pending`, a que marca "esta linha cheia
-continua na de baixo") era executada ANTES do tratamento de `\r`, `\n`, `\b` e
-`\t`; então o `\r\n` pagava a quebra pendente + o próprio LF. App que preenche
-a linha inteira até o fim — pi renderiza com padding até a última coluna, como
-todo renderizador Ink — crescia uma linha por linha, a tela rolava sem parar e
-o conteúdo se sobrepunha.
-
-Fix: controle primeiro, quebra depois. `\r`/`\n`/`\b`/`\t` zeram
-`wrap_pending` e só então fazem o que fazem; a quebra pendente continua valendo
-para texto (aí sim a linha quebra). Check novo: `wrap_and_control`.
-
-Verificação (foi o que fechou o diagnóstico, depois de duas tentativas erradas):
-com `PYTERM_RAWLOG` gravou-se a saída do `pi` e ela foi reproduzida no `Term` sem
-display — a bagunça aparecia igual. Comparada com um emulador de referência
-(`uv pip install pyte`, temporário), a nossa grade passou de **38 linhas
-diferentes em 45** para **0**, com o mesmo cursor e zero scrollback espúrio.
-Depois, ao vivo: janela de 140x45, `pi` renderizado igual ao kitty.
-
-Duas pistas falsas, registradas porque custaram tempo: (1) faltar resposta às
-consultas `CSI 16t` e `OSC 10/11/4` *não* era a causa — implementar as respostas
-não mudou o layout; (2) rodar os dois terminais ao mesmo tempo contamina a
-medição e a comparação visual. O que resolveu foi replay determinístico contra
-referência, não screenshot de screenshot.
-
 ### P18 — Teclas dobradas dentro do `pi` — **feito**
 
 Sintoma: digitando no `pi` cada tecla entrava duas vezes; shell, `vim` e `mc`
@@ -587,50 +631,6 @@ press novo).
 Verificação: check no `kitty_keyboard` (com flags=7, `a` no press e `""` no
 release) e ao vivo no `pi` — digitar `abcabc` e ler a linha de entrada: sai
 `abcabc`, não `aabbcc…`.
-
-### P9 — Ligaduras e shaping — **feito**
-
-O desenho era `cairo.show_text` (API toy): sem shaping, então ligadura não saía,
-árabe não ligava, marca combinante se separava do corpo da letra. Migrado para
-**Pango**: um `Pango.Layout` por draw, reaproveitado em cada run, com
-`PangoCairo.show_layout`.
-
-Decisões que custaram teste:
-
-- **`set_absolute_size` (pixels), não `set_size` (pontos)**: com `set_size` o
-  Pango aplica o DPI 96 e a fonte muda de tamanho em relação ao cairo antigo.
-- **Métricas saem do mesmo layout que desenha**: largura = avanço de "M",
-  altura = `get_pixel_size()` do layout. Antes eram `text_extents`/`font_extents`
-  do cairo; misturar as duas fontes de número desalinha a grade.
-- **`move_to` na quina da célula e o layout desenha dali**: a linha de base sai
-  do ascent do próprio layout, então não existe mais `+ ascent + 1` na mão.
-- **Cache de layout por `(texto, negrito)`**, teto de 800 (limpa quando estoura):
-  `set_text` é a parte cara, e run se repete muito. Sem o cache o desenho dobra
-  de custo (ver números abaixo).
-- Sublinhado continua sendo retângulo do cairo, não atributo do Pango: é o mesmo
-  pixel em qualquer fonte e não depende de métrica de underline.
-
-Medido com o doom-fire (P16), 68×20, `PYTERM_PROF=1`:
-
-| desenho | ms/frame | fps | MB/s |
-|---|---|---|---|
-| `cairo.show_text` (antes) | 12,8 | 11,8 | 0,6 |
-| Pango sem cache | 30,5 | 8,1 | 0,4 |
-| Pango com cache de layout | 15,2–15,6 | 11,0 | 0,5 |
-
-Ou seja: shaping + fallback custam **~20% do frame** com cache, **2,4x** sem.
-O parse não mudou (4,3 ms por leitura), como esperado — a migração é só desenho.
-
-### P10 — Fallback de fonte (emoji/CJK) — **feito**
-
-Caiu junto com o P9: o fontconfig acha a fonte que tem o glifo, então CJK e
-emoji em cor passam a desenhar sem nenhum código a mais. Verificado na tela com
-`printf '\u4e2d\u6587 \U0001F600'` no bzmux.
-
-Limite que fica (e não é bug do fallback): a grade **não tem `wcwidth`**, então
-caractere largo ocupa uma célula só e o glifo é espremido/estourado nela. App que
-conta coluna dupla (tabela em CJK) sai desalinhado; resolver isso é mexer no
-modelo de célula, não no desenho.
 
 ## Bugs encontrados e corrigidos (histórico útil)
 

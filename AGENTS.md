@@ -44,7 +44,7 @@ bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core
       kitty_kbd.py protocolo de teclado do kitty (CSI ... u)
       mouse.py     protocolo de mouse (SGR e o antigo) — puro
       graphics.py  protocolo de imagens do kitty (APC G) — puro
-      gui.py       único import de Gtk/Gdk/GLib/Pango/cairo
+      gui.py       único import de Gtk/Gdk/GLib/Pango/PangoCairo/cairo
       style.py     tokens de cor do cromo + CSS gerado + contraste (puro)
       view.py      TermView: uma sessão (pty, cairo + Pango, eventos)
       window.py    Workspace + BzmuxWindow (abas, lateral, atalhos globais)
@@ -70,8 +70,10 @@ BzmuxWindow (Gtk.Stack + atalhos globais + dump/quit-after/SIGUSR1).
 
 Célula é uma lista [char, fg, bg, flags]: fg/bg em índice xterm (0-255,
 256=fg default, 257=bg default), flags bitmask (bold/underline/inverse). O
-desenho agrupa células vizinhas de atributos iguais num show_text só — foi o
-que trouxe o frame de 1920 células para ~2 ms.
+desenho agrupa células vizinhas de atributos iguais num run só e cada run vira
+um Pango.Layout cacheado por (texto, negrito): agrupar trouxe o frame uniforme
+de 1920 células para ~2 ms, e o Pango cobrou ~20% num frame de 1360 células com
+37 cores (números em docs/HISTORY.md, P9).
 
 Não objetivo: virar o app. A parte C/GTK de referência ficou no repositório do
 experimento do kitty (ver README.md); nada daqui é compartilhado com ela.

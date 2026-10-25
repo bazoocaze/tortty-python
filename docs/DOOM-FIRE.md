@@ -131,8 +131,11 @@ Foi assim que se achou o bug 12 (três capturas idênticas com 0,3 MB/s correndo
 - **Janela do bzmux não é a grade**: `size_request` da lateral e a barra de abas
   comem largura; a grade é o que o dump diz (`=== viewport CxR ===`).
 
-## Uso futuro
+## Para que serve
 
-É o antes/depois do P9: trocar `show_text` por `PangoCairo` muda o custo do
-frame, que é a medida do experimento. Rodar esta mesma carga antes e depois,
-mesma grade e mesmos frames, e comparar com a linha de base acima.
+A carga existe para medir mudança no caminho quente: rodar esta mesma carga
+antes e depois da mudança, na mesma grade, e comparar com a linha de base
+acima. Foi assim que o P9 (desenho por Pango) foi avaliado — desenho de 12,8
+para 15,4 ms por frame, com e sem cache de layout (30,5 sem cache). O número
+vivo desta tabela muda quando o desenho muda; o registro do antes/depois fica no
+HISTORY.

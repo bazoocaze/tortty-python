@@ -86,7 +86,7 @@ core/
 ├── kitty_kbd.py # protocolo de teclado do kitty (CSI ... u)
 ├── mouse.py     # protocolo de mouse: SGR e o antigo (puro)
 ├── graphics.py  # protocolo de imagens do kitty (APC G, puro)
-├── gui.py       # import único de Gtk/Gdk/GLib/Pango/cairo (require_version)
+├── gui.py       # import único de Gtk/Gdk/GLib/Pango/PangoCairo/cairo
 ├── style.py     # tokens de cor do cromo + CSS gerado + contraste WCAG
 ├── view.py      # TermView: uma sessão (pty, desenho cairo+Pango, eventos)
 ├── window.py    # Workspace (Gtk.Notebook + cartão) e BzmuxWindow
@@ -259,7 +259,9 @@ fielmente: o dump bate byte a byte com o que o `mc` escreve.
 `uv run pytest -q` exercita parser e protocolos sem GTK: texto, SGR/EL/ED,
 CUP, alt-screen (ida e volta), scroll, charset DEC, DA/DSR/CPR, CSI com
 intermediário, região de scroll, título por OSC, reflow, histórico, mouse,
-seleção, paste, truecolor, teclado do kitty, gráficos e argv.
+seleção, paste, truecolor, teclado do kitty (inclusive release que não volta
+pelo caminho legado), gráficos, quebra de linha com controle (a linha que enche
+a largura e depois `\r\n`) e argv.
 
 ## Licença
 
