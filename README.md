@@ -18,6 +18,27 @@ cd pyterm
 python3 pyterm.py --selftest  # testa o parser sem abrir janela (14 checks)
 ```
 
+## Como o código está organizado
+
+`pyterm.py` é só o ponto de entrada; o código vive em `pyterm_core/`:
+
+```
+pyterm.py                 # 20 linhas: só chama pyterm_core.cli.main
+pyterm_core/
+├── palette.py   # célula [char,fg,bg,flags], paleta xterm-256, charset DEC
+├── term.py      # grade, cursor, parser VT — NÃO conhece Gtk
+├── keys.py      # keyval do X11 -> bytes do filho (dead keys, DECCKM)
+├── gui.py       # import único de Gtk/Gdk/GLib/cairo (require_version)
+├── window.py    # janela GTK: pty, io_add_watch, desenho cairo, eventos
+├── selftest.py  # 14 checks do parser
+└── cli.py       # argv e arranque
+```
+
+A regra é a dependência apontar para dentro: `term`/`palette` não importam
+`window` nem `gui`. Por isso `--selftest` roda em máquina **sem PyGObject**
+(o import de Gtk é tardio, dentro de `cli.main`), e a janela pode ser trocada
+sem tocar no núcleo de emulação.
+
 O `run.sh` controla a instância por **PID file** (`/tmp/pyterm.pid`) de
 propósito: `pkill -f pyterm.py` casa com a linha de comando de quem chama e
 mata o próprio shell (já aconteceu, deixando janelas órfãs).
