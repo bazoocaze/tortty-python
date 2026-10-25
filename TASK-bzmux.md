@@ -21,7 +21,8 @@ Nada pela metade: árvore limpa, tudo commitado.
 ## Fila
 
 P9 (ligaduras/shaping) e P10 (fallback de fonte) — na prática caem juntos na
-migração para Pango. P14 (largura da lateral que não fica fixa) é independente.
+migração para Pango. P14 (largura da lateral que não fica fixa) vem antes do
+P15 (tela bagunçada ao subir o `pi`), que provavelmente é consequência do P14.
 Detalhe em [`docs/BACKLOG.md`](docs/BACKLOG.md).
 
 ## Documentos
