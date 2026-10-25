@@ -245,6 +245,10 @@ class Workspace:
             box.reorder_child(self.name_label, 0)
             self.name_label.show()
             self.update_card()
+            # o Entry removido leva o foco embora: sem isto a digitação e os
+            # atalhos param de chegar até alguém (a sessão ficava surda)
+            if self.view is not None:
+                self.view.grab_focus()
             return False
 
         entry.connect("activate", lambda *_: finish(True))
@@ -285,6 +289,10 @@ class PyTermWindow(Gtk.Window):
         self.add(hbox)
         self.set_default_size(680, 420)
         self.connect("destroy", self.on_destroy)
+        # a view trata e retorna True (o sinal não sobe); este handler é a
+        # rede pra quando o foco NÃO está numa sessão (cartão da lateral,
+        # Entry de renomear, notebook)
+        self.connect("key-press-event", self.on_window_key)
 
         self.new_workspace()
         if quit_after:
@@ -399,6 +407,9 @@ class PyTermWindow(Gtk.Window):
             if n is not None and ws is not None:
                 return ws.select_tab(9 if n == 0 else n - 1)
         return False
+
+    def on_window_key(self, widget, ev):
+        return self.handle_shortcut(ev)
 
     # -- cwd herdado ----------------------------------------------------
     def current_cwd(self, ws=None):
