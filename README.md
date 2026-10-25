@@ -127,7 +127,7 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
   `t=f`/`t=t`/`t=s` (arquivo, temp file, shared memory) e sem `z=` (z-index).
 - **Sem ligaduras**, sem fontes fallback para emoji/CJK (backlog P9/P10:
   `show_text` não faz shaping; Pango resolveria os dois de uma vez).
-- **Sem abas** (backlog P11): uma janela = uma sessão.
+- **Sem abas nem workspaces** (backlog P11/P12): uma janela = uma sessão.
 - **Kitty keyboard protocol parcial**: sem `report alternate keys` (a flag 4
   exige o keysym alternativo, que o Gdk não entrega direto), sem repeat
   distinguido de press (o Gdk repete como key-press) e sem o modo de teclado
