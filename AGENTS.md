@@ -16,8 +16,11 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 - TASK-bzmux.md — ficha magra: status, por onde retomar, fila.
 - docs/BACKLOG.md — backlog pendente (P9 shaping, P10 fallback de fonte,
   P15 tela bagunçada ao subir o `pi`, P17 lateral visível com um workspace só).
-- docs/HISTORY.md — backlog concluído (P1–P8, P11–P13), bugs corrigidos,
+- docs/HISTORY.md — backlog concluído (P1–P8, P11–P14, P16), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
+- docs/DOOM-FIRE.md — a carga de medição: por que ela existe, como rodar, o
+  número (bzmux 24,6 fps / 1,0 MB/s contra kitty 412 fps / 15,6 MB/s) e o
+  protocolo de comparação.
 - README.md — visão para humano: como rodar, ferramentas, ambiente, o que
   funciona, limites, medição, licença.
 
@@ -107,7 +110,8 @@ experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
 - tools/doomfire.py — carga de medição, não teste: doom-fire em meio-bloco
   truecolor (fg e bg por célula, pior caso), sem dependência de X.
   python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to ARQ imprime fps e
-  MB/s na saída, então dá para comparar dois terminais na mesma grade.
+  MB/s na saída, então dá para comparar dois terminais na mesma grade. Por que,
+  resultados e protocolo: docs/DOOM-FIRE.md.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
 - Medição não é teste: os números do README.md vêm de execução real e não

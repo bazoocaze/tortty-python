@@ -231,6 +231,10 @@ Medido nesta máquina (2026-10-26):
 | parse + grade, despejo contínuo | **0,7–1,9 MiB/s** | 300–800 MiB/s (`rio-vt`, `alacritty_terminal`, `vt100`) |
 | `seq 1 100000` (575 KiB) | **~0,8 s** | milissegundos |
 | desenho de 1 frame (1920 células) | ~2,0 ms | ~1 ms (T2→T3 do `lat-battery`) |
+| doom-fire, tela cheia trocando de cor (`tools/doomfire.py`) | **24,6 fps / 1,0 MB/s** | 412 fps / 15,6 MB/s (kitty) |
+
+A carga do doom-fire (tela toda trocando de cor, pior caso do parser) tem
+detalhe, protocolo e armadilhas em [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md).
 
 Conclusão honesta: **na interação o bzmux é imperceptível** — digitar, andar
 no `mc`, abrir `vim` custa microssegundos por tecla, porque a carga por evento
