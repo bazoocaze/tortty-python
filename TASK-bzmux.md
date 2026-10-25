@@ -22,8 +22,8 @@ Nada pela metade: árvore limpa, tudo commitado.
 
 Vazia: P1–P18 concluídos (o P9/P10, o último par, saiu com o desenho por Pango —
 custo medido no [`docs/HISTORY.md`](docs/HISTORY.md) e a linha de base nova no
-[`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md): bzmux 0,5 MB/s contra 15,9 MB/s do
-kitty, 32x, com desenho em 41% e parse em 57%).
+[`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md): bzmux 0,5 MB/s contra 15,8 MB/s do
+kitty, 31x, com desenho em 42% e parse em 55%).
 
 O que não é item de backlog, e sim limite registrado — caractere largo sem
 `wcwidth`, protocolo de teclado do kitty parcial, sequência não interpretada,

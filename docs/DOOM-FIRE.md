@@ -33,20 +33,22 @@ e o arquivo evita depender de ler a tela. Grade = tamanho do terminal
 
 ## O número
 
-Uma execução, grade de 68 colunas (a padrão hoje: 68×20, 1360 células),
-`--fps 0`, **um terminal de cada vez** (rodar os dois juntos contamina o número):
+Uma execução, grade padrão (janela de 980x640, fonte de 13 pontos → 70×21,
+1470 células), `--fps 0`, **um terminal de cada vez** (rodar os dois juntos
+contamina o número):
 
 | | fps | MB/s de escapes | bytes/frame |
 |---|---|---|---|
-| bzmux | 11,0 | 0,5 | ~49 KB |
-| kitty | 314,2 | 15,9 | ~50 KB |
+| bzmux | 9,8 | 0,5 | ~52 KB |
+| kitty | 275,9 | 15,8 | ~57 KB |
 
-O bzmux fica com **98% de um core**: ~91 ms por frame de 1360 células. O kitty
-faz o mesmo em ~3,2 ms. A distância é de **32x**.
+O bzmux fica com **98% de um core**: ~102 ms por frame de 1470 células. O kitty
+faz o mesmo em ~3,6 ms. A distância é de **31x**.
 
-Este número é o **depois do P9** (desenho por Pango): o desenho subiu de 12,8
-para ~15,4 ms por frame e a vazão caiu de 0,6 para 0,5 MB/s. É o preço de
-shaping + fallback de fonte; o antes/depois está no HISTORY, item P9.
+Este número é o **depois do P9** (desenho por Pango) e da fonte em pontos: o
+desenho subiu de 12,8 para ~16,8 ms por frame e a vazão caiu de 0,6 para
+0,5 MB/s. É o preço de shaping + fallback de fonte; o antes/depois está no
+HISTORY, item P9.
 
 O fps depende da grade (célula maior = menos frames por segundo com a mesma
 vazão); **MB/s é o número que compara**. A grade do kitty sai 68×19, não 68×20 —
@@ -58,9 +60,9 @@ uniforme, este mede uma tela que troca de cor em toda célula.
 
 ### Onde o tempo vai
 
-`PYTERM_PROF=1` (ver abaixo) decompõe, 8 s de fogo a 68×20: **parse 57%** (4,3 ms
-por leitura, ~1065 leituras) e **desenho 41%** (15,4 ms por frame, ~27 draws/s).
-Desenho roda ~27x/s mas só 11 frames/s completos chegam à tela: o parse não
+`PYTERM_PROF=1` (ver abaixo) decompõe, 8 s de fogo a 70×21: **parse 55%** (4,4 ms
+por leitura, ~998 leituras) e **desenho 42%** (16,8 ms por frame, ~25 draws/s).
+Desenho roda ~25x/s mas só 9,8 frames/s completos chegam à tela: o parse não
 acompanha.
 
 O desenho custa caro pelo número de *runs* de cor, não de células: 37 tons por
@@ -92,18 +94,20 @@ Sem a variável o código não faz nada (só o `if not _PROF` na entrada).
 
 0. **um de cada vez** — dois terminais desenhando ao mesmo tempo disputam CPU
    e os dois números saem piores;
-1. mesmas colunas e mesmas linhas nos dois (no kitty:
-   `kitty --override remember_window_size=no --override initial_window_width=68c
-   --override initial_window_height=20c -e ...`; a janela do bzmux é 680 px, o
-   que dá 68×20 com um workspace só e 51×20 com dois — abrir ou fechar a lateral
-   muda a grade e o fps, então compare com a mesma quantidade de workspaces);
+1. mesmas colunas e mesmas linhas nos dois — mais fácil pedindo o mesmo tamanho
+   de janela em pixels, já que fonte e DPI são as mesmas (no kitty:
+   `kitty --override remember_window_size=no --override initial_window_width=980
+   --override initial_window_height=640 -e ...`; a janela padrão do bzmux é
+   980×640, o que dá 70×21 com um workspace e 57×21 com dois — abrir ou fechar a
+   lateral muda a grade e o fps, então compare com a mesma quantidade de
+   workspaces);
 2. `--fps 0 --frames 1200 --stats-to ARQ` nos dois;
 3. comparar fps e MB/s (o bytes/frame varia um pouco com o tamanho do escape).
 
 ## Como saber que está desenhando
 
 Dump do bzmux (`kill -USR1 $(cat /tmp/bzmux.pid)`) traz `▀` em todas as linhas
-da viewport (1360 células em 68×20). Isso prova que o parser está recebendo —
+da viewport (1470 células em 70×21). Isso prova que o parser está recebendo —
 **não** prova que a tela está mudando. O teste que prova são duas capturas com
 ~1,5 s de intervalo e comparação de pixels:
 

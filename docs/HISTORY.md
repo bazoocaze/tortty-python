@@ -291,6 +291,22 @@ Medido com o doom-fire (P16), 68×20, `PYTERM_PROF=1`:
 Ou seja: shaping + fallback custam **~20% do frame** com cache, **2,4x** sem.
 O parse não mudou (4,3 ms por leitura), como esperado — a migração é só desenho.
 
+**Emenda: a fonte passou a ser em PONTOS (13 pt), sem flag.** O `font_size` veio
+do `cairo.show_text`, onde "tamanho de fonte" é unidade de usuário (pixel); na
+migração para Pango eu preservei isso com `set_absolute_size` para não mudar o
+visual no meio da mudança. Mas todo terminal expõe pontos (kitty, alacritty,
+GTK/fontconfig, xterm `-fs`), e o motivo é DPI: em tela com `Xft.dpi: 130`
+(desta máquina) 13 pt = 23,5 px, contra os 16 px antigos — é por isso que o
+"13" do kitty parecia maior que o "16" daqui. Agora usa `set_size` (pontos), e o
+bzmux e o kitty dão a MESMA grade para a mesma janela (70×21 em 980×640).
+
+Duas armadilhas dessa troca: (1) a métrica tem que sair do **contexto Pango do
+próprio widget** (`self.get_pango_context()`), não de uma `ImageSurface` solta,
+senão ponto→pixel usa resolução diferente da que desenha e a grade desalinha —
+foi o que aconteceu na primeira tentativa (48 colunas em vez de 70); (2) a janela
+padrão de 680×420 estava calibrada para a fonte de 16 px e passou a dar 48×14,
+então virou 980×640.
+
 ### P10 — Fallback de fonte (emoji/CJK) — **feito**
 
 Caiu junto com o P9: o fontconfig acha a fonte que tem o glifo, então CJK e
@@ -576,9 +592,9 @@ terminais um de cada vez:
 | bzmux | 11,8 | 0,6 |
 | kitty | 314,2 | 15,9 |
 
-Essa é a medição da época do P16, com o desenho do cairo. Depois do P9 (Pango) o
-bzmux ficou em 11,0 fps / 0,5 MB/s — o número vivo está no
-[DOOM-FIRE.md](DOOM-FIRE.md).
+Essa é a medição da época do P16, com o desenho do cairo. Depois vieram o P9
+(Pango) e a fonte em pontos (13 pt), que mudaram grade e desenho; o número vivo
+está no [DOOM-FIRE.md](DOOM-FIRE.md).
 
 O `PYTERM_PROF=1` decompõe o tempo no bzmux: **parse 61%** (4,3 ms por leitura)
 e **desenho 37%** (12,8 ms por frame de 1360 células, ~29 draws/s). O desenho custa caro aqui não pelo número de células, e

@@ -85,7 +85,7 @@ class TermView(Gtk.DrawingArea):
     o seu notebook.
     """
 
-    def __init__(self, cmd=None, cwd=None, font_size=16, on_exit=None,
+    def __init__(self, cmd=None, cwd=None, font_size=13, on_exit=None,
                  on_title=None, shortcuts=None):
         super().__init__()
         self.on_exit = on_exit        # chamada quando o shell sai
@@ -349,22 +349,23 @@ class TermView(Gtk.DrawingArea):
 
     # -- métricas ----------------------------------------------------
     def font_desc(self):
-        """Fonte do desenho: Pango (P9), tamanho em PIXELS como era no cairo."""
+        """Fonte do desenho em PONTOS, como todo terminal (kitty, alacritty,
+        GTK/fontconfig): o Pango converte para pixel com o DPI do display, então
+        a fonte acompanha tela HiDPI sem mudar de config."""
         if self._font_desc is None:
             d = Pango.FontDescription()
             d.set_family("Monospace")
-            # set_absolute_size (device units), não set_size (pontos): senão o
-            # DPI do Pango (96) mudaria o tamanho da fonte em relação ao cairo
-            d.set_absolute_size(self.font_size * Pango.SCALE)
+            d.set_size(round(self.font_size * Pango.SCALE))
             self._font_desc = d
         return self._font_desc
 
     def metrics(self):
         if self._metrics:
             return self._metrics
-        surf = cairo.ImageSurface(cairo.FORMAT_A1, 8, 8)
-        cr = cairo.Context(surf)
-        layout = PangoCairo.create_layout(cr)
+        # Layout do contexto do PRÓPRIO widget, não de uma ImageSurface solta: o
+        # ponto->pixel depende da resolução do contexto (Xft.dpi), e métrica
+        # tirada com resolução diferente da que desenha desalinha a grade.
+        layout = Pango.Layout(self.get_pango_context())
         layout.set_font_description(self.font_desc())
         layout.set_text("M", -1)
         # largura = avanço do glifo; altura = ascent + descent do layout. Sai da

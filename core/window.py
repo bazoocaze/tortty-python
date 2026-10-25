@@ -309,7 +309,7 @@ class BzmuxWindow(Gtk.Window):
         self.dump_to = dump_to
         self.quit_after = quit_after
         self.workspaces = []
-        self.font_size = 16
+        self.font_size = 13          # pontos (convenção de terminal)
         self._closing = False
 
         apply_style()
@@ -327,7 +327,9 @@ class BzmuxWindow(Gtk.Window):
         hbox.pack_start(self.sidebar, False, False, 0)
         hbox.pack_start(self.stack, True, True, 0)
         self.add(hbox)
-        self.set_default_size(680, 420)
+        # 680x420 casava com a fonte de 16 px; com 13 pontos (23 px nesta tela)
+        # a grade caía para 48x14. 980x640 devolve ~70x20.
+        self.set_default_size(980, 640)
         self.connect("destroy", self.on_destroy)
         # a view trata e retorna True (o sinal não sobe); este handler é a
         # rede pra quando o foco NÃO está numa sessão (cartão da lateral,

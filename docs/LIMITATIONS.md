@@ -11,9 +11,9 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 
 ## Desempenho (o custo do experimento)
 
-- **Vazão ~30x menor que um terminal nativo**: 0,5 MB/s contra 15,9 MB/s do
-  kitty na mesma carga (doom-fire, 68x20). Não é bug: é a medida. Parse ~57% do
-  tempo, desenho ~41%.
+- **Vazão ~31x menor que um terminal nativo**: 0,5 MB/s contra 15,8 MB/s do
+  kitty na mesma carga (doom-fire, 70x21). Não é bug: é a medida. Parse ~55% do
+  tempo, desenho ~42%.
 - **Interação não sofre**: tecla custa microssegundos; o limite só aparece em
   volume (cat de log grande, seq 100000, scroll de saída massiva).
 - **Um core por sessão ativa**: sob despejo contínuo o bzmux satura um core. O
@@ -111,7 +111,8 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 - **Sem arquivo de configuração/tema**: fonte, tamanho e paleta são fixos no
   código (`core/palette.py`, `core/style.py`), de propósito — o que está sendo
   medido é o caminho quente, não customização. Também não há flag de linha de
-  comando para mudar fonte ou cor.
+  comando para mudar fonte ou cor. O tamanho é **13 pontos** (convenção de
+  terminal: pontos, convertidos pelo DPI do display), não pixels.
 - **Sem abas/workspaces persistentes**: abas e workspaces vivem só na execução;
   fechar a janela perde o layout.
 - **Sem modo de cópia/scrollback**: sem editor de texto sobre o histórico.
