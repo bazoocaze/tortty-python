@@ -121,7 +121,11 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
 - **Truecolor aproximado** para a paleta de 16 cores.
 - **Gráficos sem animação/z-index**: `a=f`/`a=a` são ignorados, sem
   `t=f`/`t=t`/`t=s` (arquivo, temp file, shared memory) e sem `z=` (z-index).
-- **Sem ligaduras**, sem fontes fallback para emoji/CJK.
+- **Sem ligaduras**, sem fontes fallback para emoji/CJK (backlog P9/P10:
+  `show_text` não faz shaping; Pango resolveria os dois de uma vez).
+- **Sem abas** (backlog P11): uma janela = uma sessão.
+- **Sem bracketed paste** (backlog P7): colar multi-linha no shell executa
+  tudo.
 - **Kitty keyboard protocol parcial**: sem `report alternate keys` (a flag 4
   exige o keysym alternativo, que o Gdk não entrega direto), sem repeat
   distinguido de press (o Gdk repete como key-press) e sem o modo de teclado
