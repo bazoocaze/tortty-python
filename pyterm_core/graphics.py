@@ -66,17 +66,29 @@ class Graphics:
         self.placements.clear()
         self._buf = None
 
-    def scroll(self, top, bottom):
-        """Acompanha o scroll da região: placements sobem junto com o texto."""
+    def scroll(self, top, bottom, floor=None):
+        """Acompanha o scroll: placements sobem junto com o texto.
+
+        `floor`: até que linha (negativa, ou seja dentro do scrollback) guardar
+        uma colocação que saiu pelo topo. `None` = descarta (scroll de região,
+        onde não existe histórico). Sem isso a imagem sumia na primeira linha
+        que rolava e não voltava ao subir no histórico com o wheel.
+        """
         keep = []
         for p in self.placements:
             if p.row > bottom:
                 keep.append(p)          # fora da região: não mexe
                 continue
             p.row -= 1
-            if p.row >= top:
+            if floor is not None and p.row >= floor:
+                keep.append(p)
+            elif floor is None and p.row >= top:
                 keep.append(p)
         self.placements = keep
+
+    def drop_above(self, floor):
+        """Descarta o que saiu de vez do scrollback (as linhas mais antigas)."""
+        self.placements = [p for p in self.placements if p.row >= floor]
 
     def _place(self, img, kv, cursor, cell):
         cw, ch = cell

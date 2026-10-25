@@ -15,7 +15,7 @@ cd pyterm
 ./run.sh --cmd 'mc'           # comando inicial
 ./run.sh --kill               # fecha a instância do runner
 ./run.sh --status             # pid / rodando?
-python3 pyterm.py --selftest  # testa parser/mouse/histórico/reflow/gráficos (37 checks, sem janela)
+python3 pyterm.py --selftest  # testa parser/mouse/histórico/reflow/gráficos (39 checks, sem janela)
 ```
 
 ## Como o código está organizado
@@ -33,7 +33,7 @@ pyterm_core/
 ├── graphics.py  # protocolo de imagens do kitty (APC G, puro)
 ├── gui.py       # import único de Gtk/Gdk/GLib/cairo (require_version)
 ├── window.py    # janela GTK: pty, io_add_watch, desenho cairo, eventos
-├── selftest.py  # 37 checks, sem abrir janela
+├── selftest.py  # 39 checks, sem abrir janela
 └── cli.py       # argv e arranque
 ```
 
@@ -92,8 +92,10 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   os offsets `X=`/`Y=` em pixels dentro da célula (é assim que o `icat`
   centraliza e posiciona). O `kitten icat` funciona inteiro, inclusive
   `--place` e `--scale-up` (detecta via `a=q` + `DA`, transmite em stream ou
-  comprimido e desenha). As imagens rolam junto com o texto e são desenhadas
-  por cima das células.
+  comprimido e desenha). As imagens rolam junto com o texto **inclusive para
+  dentro do histórico**: `Shift+PgUp`/wheel trazem a imagem de volta na linha
+  certa (a colocação vive na grade e pode ter linha negativa, como no kitty) e
+  são desenhadas por cima das células.
 - **Fecha quando o shell termina**: `GLib.child_watch_add` reapa o filho (sem
   zumbi) e fecha a janela no `Ctrl+D`/`exit`; antes de fechar drena o que
   sobrou no pty (senão some a última tela) e manda `SIGHUP` pro grupo do filho

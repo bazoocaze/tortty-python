@@ -420,7 +420,12 @@ class PyTermWindow(Gtk.Window):
         # do cursor — é onde o kitty põe
         for pl in t.graphics.placements:
             img = t.graphics.images.get(pl.image_id)
-            if img is None or pl.col >= t.cols or pl.row >= t.rows:
+            # No histórico a tela deslizou `view_off` linhas pra dentro do
+            # scrollback: a colocação vive em coordenadas da GRADE, então a
+            # linha na tela é `row + view_off` (sem isso a imagem ficava
+            # parada enquanto o texto rolava por baixo dela).
+            vr = pl.row + self.view_off
+            if img is None or pl.col >= t.cols or vr < 0 or vr >= t.rows:
                 continue
             entry = self._img_cache.get(pl.image_id)
             if entry is None:
@@ -433,7 +438,7 @@ class PyTermWindow(Gtk.Window):
             w = max(1, pl.cols) * cw
             h = max(1, pl.rows) * ch
             x0 = pl.col * cw + pl.dx     # X=/Y=: offset em pixels (centralização)
-            y0 = pl.row * ch + pl.dy
+            y0 = vr * ch + pl.dy
             cr.save()
             cr.rectangle(x0, y0, w, h)
             cr.clip()

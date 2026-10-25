@@ -112,6 +112,22 @@ def selftest():
     t.feed(f"\x1b_Ga=T,f=24,o=z,s=4,v=2,C=1,X=3;{b64}\x1b\\")
     pl = t.graphics.placements[0]
     check("gráficos: o=z + offset X", (pl.dx, pl.cols, pl.rows), (3, 1, 1))
+    # a imagem que sai pelo topo tem que ir pro histórico (linha negativa),
+    # não desaparecer: é o que faz o wheel/Shift+PgUp mostrarem ela de novo
+    t = Term(cols=20, rows=4)
+    rgba = base64.b64encode(bytes([9, 8, 7, 255] * 4)).decode()
+    t.feed(f"\x1b_Ga=T,f=32,s=2,v=2,i=7;{rgba}\x1b\\")   # cursor em (0,0)
+    for _ in range(6):
+        t.feed("\r\n")
+    pl = t.graphics.placements[0]
+    check("gráficos: imagem sai pro histórico",
+          (pl.row < 0, pl.row + len(t.scrollback) >= 0), (True, True))
+    # e o reflow não deixa colocação inalcançável pra trás
+    t.resize(40, 4)
+    check("gráficos: reflow poda o que saiu do histórico",
+          all(p.row >= -len(t.scrollback)
+              for p in t.graphics.placements), True)
+
     # CSI com intermediário (`CSI * x` = DECSACE, que o icat manda antes de
     # desenhar) não pode terminar no `*` e imprimir o `x` como texto
     t = Term(cols=20, rows=2)

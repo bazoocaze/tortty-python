@@ -203,6 +203,14 @@ class Term:
             self.grid.append([blank() for _ in range(cols)])
             self.row_wrapped.append(False)
 
+        # As colocações de imagem vivem em LINHAS DE TELA, e o reflow acabou
+        # de mudar quantas linhas existem acima da grade: quem ficou fora do
+        # histórico virou inalcançável (nem com o wheel) e nunca mais seria
+        # desenhado — melhor descartar do que guardar lixo. As que continuam
+        # na faixa ficam onde estão (imagem não acompanha reflow linha a linha,
+        # como no kitty).
+        self.graphics.drop_above(-len(self.scrollback))
+
         self.cols, self.rows = cols, rows
         self.top, self.bottom = 0, rows - 1
         self.wrap_pending = False
@@ -217,7 +225,11 @@ class Term:
         return [" ", DEF_FG, DEF_BG, 0]
 
     def scroll_up(self):
-        self.graphics.scroll(self.top, self.bottom)
+        # rolagem de tela cheia: a linha que sai pelo topo vai pro histórico,
+        # então a imagem que estava nela continua existindo (com linha
+        # negativa) e reaparece quando a visão sobe no scrollback
+        self.graphics.scroll(self.top, self.bottom,
+                            -1001 if self.top == 0 else None)
         if self.alt_grid is not None:
             self.grid.pop(self.top)
             self.grid.insert(self.bottom, self._blank_row())
@@ -230,6 +242,8 @@ class Term:
                 if len(self.scrollback) > 1000:
                     self.scrollback.pop(0)
                     self.sb_wrapped.pop(0)
+                    # o que estava preso nessa linha morreu de vez
+                    self.graphics.drop_above(-len(self.scrollback))
                 self.grid.append(self._blank_row())
                 self.row_wrapped.append(False)
             else:
