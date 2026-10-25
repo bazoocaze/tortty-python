@@ -1,6 +1,6 @@
 # TASK-bzmux — status
 
-Status (2026-10-26): experimento funcional. Roda shell, `mc` e `vim`; tem mouse
+Status (2026-10-25): experimento funcional. Roda shell, `mc` e `vim`; tem mouse
 com seleção/cópia, histórico com wheel, reflow, truecolor, protocolos de teclado
 e de imagens do kitty, bracketed paste, abas e workspaces. O que funciona, os
 limites de propósito e o resultado da medição estão no `README.md`; não é
@@ -23,7 +23,7 @@ Nada pela metade: árvore limpa, tudo commitado.
 Vazia: P1–P18 concluídos (o P9/P10, o último par, saiu com o desenho por Pango —
 custo medido no [`docs/HISTORY.md`](docs/HISTORY.md) e a linha de base nova no
 [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md): bzmux 0,5 MB/s contra 15,8 MB/s do
-kitty, 31x, com desenho em 42% e parse em 55%).
+kitty, 34x, com desenho em 52% e parse em 48%).
 
 O que não é item de backlog, e sim limite registrado — caractere largo sem
 `wcwidth`, protocolo de teclado do kitty parcial, sequência não interpretada,

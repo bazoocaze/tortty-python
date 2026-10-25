@@ -288,6 +288,10 @@ Medido com o doom-fire (P16), 68×20, `PYTERM_PROF=1`:
 | Pango sem cache | 30,5 | 8,1 | 0,4 |
 | Pango com cache de layout | 15,2–15,6 | 11,0 | 0,5 |
 
+Estes três números foram medidos com o desenho ainda a 96 dpi (bug 13): servem
+para comparar um com o outro, não com a linha de base de hoje (22,7 ms/frame,
+8,2 fps em [DOOM-FIRE.md](DOOM-FIRE.md)).
+
 Ou seja: shaping + fallback custam **~20% do frame** com cache, **2,4x** sem.
 O parse não mudou (4,3 ms por leitura), como esperado — a migração é só desenho.
 
@@ -593,8 +597,9 @@ terminais um de cada vez:
 | kitty | 314,2 | 15,9 |
 
 Essa é a medição da época do P16, com o desenho do cairo. Depois vieram o P9
-(Pango) e a fonte em pontos (13 pt), que mudaram grade e desenho; o número vivo
-está no [DOOM-FIRE.md](DOOM-FIRE.md).
+(Pango), a fonte em pontos (13 pt → grade 70×21) e o bug 13 (que só então passou
+a desenhar na resolução da tela); o número vivo está no
+[DOOM-FIRE.md](DOOM-FIRE.md).
 
 O `PYTERM_PROF=1` decompõe o tempo no bzmux: **parse 61%** (4,3 ms por leitura)
 e **desenho 37%** (12,8 ms por frame de 1360 células, ~29 draws/s). O desenho custa caro aqui não pelo número de células, e
@@ -724,7 +729,8 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     0,3 MB/s. Fix: watch do pty em `PRIORITY_DEFAULT_IDLE` (200, abaixo do
     redraw) e desenho coalescido em ~16 ms (`request_draw`, 60 Hz) — sem o
     coalescimento eram dezenas de draws por frame e a vazão caía para 7,9 fps.
-    Resultado: tela anima e vazão de 0,6 MB/s (11,8 fps a 68×20).
+    Resultado: tela anima e vazão de 0,6 MB/s (11,8 fps a 68×20, medição com o
+    desenho do cairo e antes do bug 13).
 
 13. **Texto espremido e coluna errada depois da fonte em pontos.** A célula era
     medida com o contexto do widget (130 dpi na tela: 14×28 px) e o texto era

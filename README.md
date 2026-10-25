@@ -213,14 +213,14 @@ está sendo medido é o caminho quente.
 
 ## O que a medição realmente mostra (corrigido)
 
-Medido nesta máquina (2026-10-26):
+Medido nesta máquina (2026-10-25, depois do bug 13):
 
 | cenário | bzmux (Python) | núcleo nativo (referência) |
 |---|---|---|
 | **uma tecla** (eco de 1 char) | **0,4 µs por caractere** | ~1 ms de ponta a ponta (dominado por desenho) |
 | parse + grade, despejo contínuo | **0,7–1,9 MiB/s** | 300–800 MiB/s (`rio-vt`, `alacritty_terminal`, `vt100`) |
 | `seq 1 100000` (575 KiB) | **~0,8 s** | milissegundos |
-| desenho de 1 frame (1920 células) | ~2,0 ms | ~1 ms (T2→T3 do `lat-battery`) |
+| desenho de 1 frame (1470 células, texto uniforme) | ~1,2 ms | ~1 ms (T2→T3 do `lat-battery`) |
 | doom-fire, tela cheia trocando de cor (`tools/doomfire.py`) | **8,2 fps / 0,5 MB/s** | 276 fps / 15,8 MB/s (kitty) |
 
 A carga do doom-fire (tela toda trocando de cor, pior caso do parser) tem

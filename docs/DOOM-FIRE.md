@@ -49,7 +49,7 @@ Este número é o **depois do P9** (desenho por Pango), da fonte em pontos e do
 bug 13: o desenho subiu de 12,8 para 22,7 ms por frame e a vazão caiu de 0,6
 para 0,5 MB/s. Parte da subida é shaping + fallback de fonte e parte é tamanho
 de glifo — até o bug 13 o texto era desenhado a 96 dpi (glifo de 10×22 px) com
-a grade a 130 dpi, ou seja os números anteriores a 2026-10-26 mediam **menos
+a grade a 130 dpi, ou seja os números anteriores a 2026-10-25 mediam **menos
 pixels pintados** por célula. Compare fps daqui pra frente, não com os de trás.
 
 O fps depende da grade (célula maior = menos frames por segundo com a mesma
@@ -145,6 +145,7 @@ Foi assim que se achou o bug 12 (três capturas idênticas com 0,3 MB/s correndo
 A carga existe para medir mudança no caminho quente: rodar esta mesma carga
 antes e depois da mudança, na mesma grade, e comparar com a linha de base
 acima. Foi assim que o P9 (desenho por Pango) foi avaliado — desenho de 12,8
-para 15,4 ms por frame, com e sem cache de layout (30,5 sem cache). O número
-vivo desta tabela muda quando o desenho muda; o registro do antes/depois fica no
-HISTORY.
+para 15,4 ms por frame, com e sem cache de layout (30,5 sem cache). Aqueles
+números são **anteriores ao bug 13** (desenho a 96 dpi, glifo menor): valem como
+comparação entre si, não contra a tabela de cima. O número vivo desta tabela muda
+quando o desenho muda; o registro do antes/depois fica no HISTORY.

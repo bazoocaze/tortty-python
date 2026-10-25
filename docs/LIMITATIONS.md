@@ -11,9 +11,9 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 
 ## Desempenho (o custo do experimento)
 
-- **Vazão ~31x menor que um terminal nativo**: 0,5 MB/s contra 15,8 MB/s do
-  kitty na mesma carga (doom-fire, 70x21). Não é bug: é a medida. Parse ~55% do
-  tempo, desenho ~42%.
+- **Vazão ~34x menor que um terminal nativo**: 0,5 MB/s contra 15,8 MB/s do
+  kitty na mesma carga (doom-fire, 70x21). Não é bug: é a medida. Parse ~48% do
+  tempo, desenho ~52%.
 - **Interação não sofre**: tecla custa microssegundos; o limite só aparece em
   volume (cat de log grande, seq 100000, scroll de saída massiva).
 - **Um core por sessão ativa**: sob despejo contínuo o bzmux satura um core. O
