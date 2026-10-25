@@ -707,48 +707,39 @@ workspace (lateral some com 1), `exit` na última aba do ws2 fecha só o ws2 e
 
 ## Git
 
-- `e87769e` — `bzmux: licenca MIT (codigo original, nao derivado do kitty)`
-  (LICENSE + docstring/README/task file).
-- `bd085ab` — `bzmux: task file proprio (escopo, medidas, bugs, backlog,
-  quirks)` — criado em `bzmux/` e depois movido para a raiz.
-- `a86ec5b` — `bzmux: terminal minimo em Python (experimento de custo do
-  caminho quente)` (bzmux.py, run.sh, README.md).
-- `25a8b01` — `xkey-latency: nomes de modificador e prefixo C-/S-/M-/A- correto`
-  (ferramenta do projeto C; o parser lia `<Menu>`/`<Caps_Lock>` como prefixo).
-- `305c3fa` — task files na raiz (move `TASK-bzmux.md`, atualiza estado).
-- `356d5b7` — P8 no backlog (fechar a janela quando o shell termina).
-- `e93fc28` — `bzmux: codigo em pacote core (um modulo por
-  responsabilidade)` — `bzmux.py` vira ponto de entrada; `palette`, `term`,
-  `keys`, `gui`, `window`, `selftest`, `cli` em `bzmux/core/`.
-  `--selftest` deixou de precisar de PyGObject (import tardio do Gtk).
-- `d7131d6` — `AGENTS.md`: diretriz de testes (poucos, focados nos caminhos
-  críticos, sem suíte exaustiva).
-- `361ec4b` — **P1** mouse: report a apps (SGR/antigo) + seleção e cópia.
-- `0314b0b` — **P2** histórico (`Shift+PgUp`) e scroll com o mouse/wheel.
-- `7d661de` — **P3** reflow no resize (linhas lógicas + corte de espaço à
-  direita).
-- `3ebf9cc` — **P5** protocolo de teclado do kitty (`CSI ... u`).
-- `281adcb` — **P6** protocolo de gráficos do kitty (`kitten icat` funciona).
-- `16900fc` — fix: sair da tela cheia depois de um resize não estoura mais
-  (`alt_grid` re-quebrado).
-- **P8** fechar a janela quando o shell termina (`child_watch_add`, dreno,
-  hangup e reset de disposição de sinal no filho).
-- `cf3175e` — **P12** workspaces: `Workspace` (notebook + cartão) +
-  `Gtk.Stack` + lateral, `Ctrl+Shift+N/1..9/Q`, duplo clique renomeia.
-- `99796f6` — **P11** abas: `TermView` em `view.py` + `BzmuxWindow` com
-  `Gtk.Notebook`, `Ctrl+Shift+T/W`, `Alt+N`, rótulo = OSC ou cwd, cwd herdado.
-- `906b841` — fix: a sobra sub-célula (rodapé) herda o fundo da última fileira
-  (era a tarja preta embaixo do `vim` com `guibg`).
-- `518f028` — **P4** truecolor de verdade (RGB na célula, bit 24; formas `;`
-  e `:`).
-- **P12** workspaces: `Workspace` (notebook + cartão) + `Gtk.Stack` + lateral,
-  `Ctrl+Shift+N/1..9/Q`, duplo clique renomeia.
-- **P11** abas: `TermView` em `view.py` + `BzmuxWindow` com `Gtk.Notebook`,
-  `Ctrl+Shift+T/W`, `Alt+N`, clique do meio, rótulo = OSC ou cwd, cwd herdado.
-- **P7** bracketed paste (`?2004`) + fix: `copy()` não põe mais `\n` no fim
-  da seleção (era isso que fazia o paste executar o comando).
-- **P6.1** gráficos: `o=z` (zlib), offsets `X=`/`Y=`, CSI com intermediários
-  (`icat --place` funcionando) e imagens acompanhando o histórico/wheel.
+Histórico completo é `git log --oneline`; a lista abaixo é o mesmo, na ordem.
+
+**Atenção aos hashes:** a história da pasta `pyterm/` veio por
+`git subtree split`, que **reescreve commits** — os hashes do repositório de
+origem (o experimento `kitty`) não existem aqui nem no GitHub. As mensagens
+antigas ainda dizem `pyterm` porque é o que estava escrito na época; o
+`520447b` é a renomeação para `bzmux`.
+
+- `0441f7d` — pyterm: terminal minimo em Python (experimento de custo do caminho quente)
+- `c823f23` — pyterm: task file proprio (escopo, medidas, bugs, backlog, quirks)
+- `be538a3` — pyterm: licenca MIT (codigo original, nao derivado do kitty)
+- `c0a8583` — Task files na raiz: move TASK-pyterm e atualiza estado dos dois
+- `87cddfa` — pyterm: codigo em pacote pyterm_core (um modulo por responsabilidade)
+- `622d2a4` — pyterm: P1 mouse (report a apps + selecao e copia)
+- `7848a39` — pyterm: P2 historico (Shift+PgUp) e scroll com o mouse
+- `122f5c5` — pyterm: P3 reflow no resize
+- `c8bef67` — pyterm: P5 kitty keyboard protocol
+- `1c6bd0e` — pyterm: P6 protocolo de graficos do kitty (kitten icat funciona)
+- `7d9afe0` — pyterm: corrige crash ao sair da tela cheia depois de um resize
+- `f093814` — docs: pyterm P1-P3/P5/P6 no estado, arquitetura e git log
+- `76a7d2a` — pyterm: P8 fecha a janela quando o shell termina
+- `156d051` — pyterm: hangup so uma vez e sem ruido no stderr
+- `bd68277` — pyterm: render de imagens funcionando de verdade (icat --place incluso)
+- `e9962ed` — pyterm: imagem acompanha o historico (wheel/Shift+PgUp nao perdiam o lugar)
+- `902702c` — docs: P7 desmembrado (P7 paste, P9 ligaduras, P10 fallback) + P11 abas
+- `f4a774a` — pyterm: P7 bracketed paste (e o Enter espurio ao colar)
+- `f40b40c` — docs: P12 workspaces (sidebar tipo cmux) no backlog
+- `dbb1517` — pyterm: P4 truecolor de verdade (RGB na celula, bit 24)
+- `a743336` — pyterm: sobra sub-celula herda o fundo da ultima fileira (rodape preto)
+- `894552b` — pyterm: P11 abas (TermView em view.py + PyTermWindow com Notebook)
+- `7d668d3` — pyterm: P12 workspaces (lateral tipo cmux, um notebook por workspace)
+- `7b3b8f3` — pyterm: foco volta pra sessao depois de renomear; atalhos globais na janela
+- `520447b` — bzmux: repo proprio, nome e caminhos novos (era pyterm)
 
 ## Licença
 
