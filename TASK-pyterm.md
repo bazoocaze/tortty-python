@@ -207,4 +207,15 @@ glifo ausente.
 
 ## Licença
 
-GPL-3.0-only, como o resto do projeto (derivado do kitty).
+**MIT** (2026-10-26), ver `pyterm/LICENSE`.
+
+Por que não GPL, se o resto do repo é GPL-3.0-only: o `pyterm.py` **não é
+derivado do kitty** — é código original que só importa `pty`, `termios`,
+`unicodedata`, `gi` (Gtk3, LGPL-2.1+) e `pycairo` (LGPL/MPL). Estar no mesmo
+repositório não contamina: são arquivos separados, sem linkagem nem import.
+Quem é GPL por derivação é o `native-port/`, que linka `libkittycore.a`
+compilado do kitty (GPLv3) — e lá os headers por arquivo continuam dizendo
+`GPL-3.0-only`, corretamente.
+
+A frase anterior neste arquivo ("GPL-3.0-only, como o resto do projeto
+(derivado do kitty)") estava **errada** na justificativa.

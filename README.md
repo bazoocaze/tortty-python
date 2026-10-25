@@ -104,4 +104,6 @@ scroll e título por OSC.
 
 ## Licença
 
-GPL-3.0-only (o resto do projeto é derivado do kitty, GPL-3.0).
+**MIT** (ver `LICENSE`). O `pyterm` é código original, sem uma linha do
+kitty, então a licença dele não é ditada pelo núcleo. O `native-port/` continua
+**GPL-3.0-only** porque linka `libkittycore.a` (derivado do kitty).

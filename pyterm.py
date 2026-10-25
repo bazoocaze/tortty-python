@@ -9,7 +9,8 @@ Uso:
     python3 pyterm.py [--cmd 'comando'] [--quit-after SEG] [--selftest]
 
 Só depende de PyGObject (Gtk3) + pycairo, que já existem no sistema.
-GPL-3.0-only.
+MIT (ver LICENSE). O native-port/ é GPL-3.0-only por derivar do kitty; este
+arquivo é código original e não usa nada do núcleo.
 """
 
 import codecs

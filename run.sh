@@ -15,7 +15,7 @@
 #   ./run.sh --quit-after N  fecha sozinho depois de N segundos
 #   ./run.sh --dump-to ARQ   salva a grade visível ao sair
 #
-# GPL-3.0-only.
+# MIT (ver LICENSE).
 set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd)
