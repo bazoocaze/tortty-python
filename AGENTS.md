@@ -33,7 +33,9 @@ Gdk). Cada aba tem o seu Term; a janela só orquestra, sem estado de sessão.
 
 ## Convenções
 
-- Textos, descrições e comentários concisos.
+- Textos, descrições e comentários concisos; podem ser em português.
+- Nomes de arquivo e símbolos no código (funções, variáveis, classes, constantes)
+  em inglês.
 - Docstrings e comentários no código: no máximo uma linha.
 - Formato pensado para agente, não precisa ser agradável para humano.
 - Não atualizar a documentação a cada iteração de código. Quando o usuário
