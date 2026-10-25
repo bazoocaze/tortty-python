@@ -516,6 +516,19 @@ fundo amarelo), e SIGTERM no meio deixava a tela no alt-screen — agora tem
 handler e o `finally` restaura pincel, cursor e tela. O handler também permite
 medir com `timeout -s TERM 20`, que é como as medições rápidas são feitas.
 
+### P17 — Lateral aparece com um workspace só — **feito**
+
+Com **um** workspace a lateral já aparecia (170 px), embora `new_workspace()`
+chame `set_visible(len(workspaces) > 1)`. Quem mostrava era o `show_all()` da
+janela: ele mostra todos os descendentes, inclusive a `ListBox` que tinha sido
+escondida antes. Custo medido: a grade caía de 68 para 51 colunas na janela
+padrão (680 px).
+
+Fix: `sidebar.set_no_show_all(True)` — o `show_all()` passa a ignorar a lateral
+e quem manda na visibilidade é só o nosso `set_visible`. Verificado por pixel
+(ponto da lateral preto/ocupado com 2+ workspaces, sem lateral com 1) e pelo
+dump (`68x20` com um workspace, `51x20` com dois).
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.
@@ -639,6 +652,9 @@ Todos foram achados com medição, não por leitura — vale registrar o método
   devolve **5** valores (ascent, descent, height, max_x_advance,
   max_y_advance) — não 6.
 
+- **`show_all()` desfaz `set_visible(False)`**: `Gtk.Widget.show_all()` mostra
+  todos os descendentes, então um widget escondido no construtor volta a
+  aparecer. Para controlar visibilidade na mão, `set_no_show_all(True)` nele.
 - **Prioridade de fonte do GLib**: `io_add_watch` sem prioridade explícita usa
   `DEFAULT` (0), que é *maior* que qualquer coisa de desenho. Um fd sempre
   pronto em prioridade 0 congela a tela; `PRIORITY_DEFAULT_IDLE` (200) deixa o

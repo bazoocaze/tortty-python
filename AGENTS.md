@@ -15,8 +15,8 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 - AGENTS.md (este) — convenções, arquitetura, scripts, ferramentas.
 - TASK-bzmux.md — ficha magra: status, por onde retomar, fila.
 - docs/BACKLOG.md — backlog pendente (P9 shaping, P10 fallback de fonte,
-  P15 tela bagunçada ao subir o `pi`, P17 lateral visível com um workspace só).
-- docs/HISTORY.md — backlog concluído (P1–P8, P11–P14, P16), bugs corrigidos,
+  P15 tela bagunçada ao subir o `pi`).
+- docs/HISTORY.md — backlog concluído (P1–P8, P11–P14, P16–P17), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
 - docs/DOOM-FIRE.md — a carga de medição: por que ela existe, como rodar, o
   número (bzmux 24,6 fps / 1,0 MB/s contra kitty 412 fps / 15,6 MB/s) e o

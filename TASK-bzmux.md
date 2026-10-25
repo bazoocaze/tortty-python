@@ -21,13 +21,13 @@ Nada pela metade: árvore limpa, tudo commitado.
 ## Fila
 
 P9 (ligaduras/shaping) e P10 (fallback de fonte) — na prática caem juntos na
-migração para Pango. P15 (tela bagunçada ao subir o `pi`), que provavelmente era consequência do P14
-(feito). P17 (lateral com um workspace só) é pequeno. O doom-fire (P16, feito) deixou
-a linha de base de vazão: 16,2 fps / 0,6 MB/s contra 412 fps / 15,6 MB/s do
-kitty na mesma grade, com parse em 63% do tempo e desenho em 34% — é o antes do
-P9. Detalhe, protocolo e armadilhas em
-[`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md).
-Detalhe em [`docs/BACKLOG.md`](docs/BACKLOG.md).
+migração para Pango. P15 (tela bagunçada ao subir o `pi`) vem antes: é
+investigação curta e o P14 e o bug 12 já saíram da frente. O doom-fire (P16,
+feito) deixou a linha de base do antes/depois do P9: 16,2 fps / 0,6 MB/s contra
+412 fps / 15,6 MB/s do kitty na mesma grade, com parse em 63% do tempo e desenho
+em 34% (11,2 ms por frame de 1020 células). Detalhe, protocolo e armadilhas em
+[`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md); o backlog em
+[`docs/BACKLOG.md`](docs/BACKLOG.md).
 
 ## Documentos
 

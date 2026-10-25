@@ -74,14 +74,3 @@ Armadilhas:
   no fim (ou no timeout), senão uma app que nunca manda o "fim" congela a tela.
 - O pi também costuma usar o título para progresso/spinner: oscilação rápida,
   não uma troca só.
-
-### P17 — Lateral aparece com um workspace só — não iniciado
-
-Descoberto na verificação do P14: com **um** workspace a lateral já aparece
-(170 px), embora `new_workspace()` chame `set_visible(len(workspaces) > 1)`.
-
-`self.show_all()` na janela desfaz: ele mostra todos os descendentes, inclusive
-a `ListBox` que tinha sido escondida antes. Custa 170 px de grade (51 colunas em
-vez de 73 na janela padrão).
-
-Fix: esconder depois do `show_all()` (ou marcar a lateral como `no_show_all`).

@@ -317,6 +317,9 @@ class BzmuxWindow(Gtk.Window):
         self.sidebar.set_name("sidebar")     # alvo do CSS (style.py)
         self.sidebar.set_size_request(SIDEBAR_W, -1)
         self.sidebar.set_visible(False)      # só com 2+ workspaces
+        # sem isto o show_all() da janela mostra a lateral de novo e ela come
+        # 170 px da grade mesmo com um workspace só (P17)
+        self.sidebar.set_no_show_all(True)
         self.stack = Gtk.Stack()
         self.stack.set_hexpand(True)
         self.stack.set_vexpand(True)
