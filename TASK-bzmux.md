@@ -12,8 +12,8 @@ mão com `tools/xtest.py`.
 ## Por onde retomar
 
 ```sh
-./run-tests.sh                  # bateria (selftest + pytest), sem display
-./run.sh --cmd 'mc -d /usr/share'
+./run-tests.sh                              # bateria, sem display
+./debug.sh --cmd 'mc -d /usr/share'         # abre com log em /tmp/bzmux.log
 ```
 
 Nada pela metade: árvore limpa, tudo commitado.

@@ -30,7 +30,8 @@ numerada de bugs do HISTORY.md (e o quirk, se for armadilha de ambiente).
 bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core/:
 
     bzmux.py       ponto de entrada, só delega
-    run.sh         abre/fecha o app por PID file
+    run.sh         roda o app (teste rápido; escolhe o python)
+    debug.sh       desenvolvimento: background, log, --kill/--status
     run-tests.sh   roda a bateria de testes
     core/
       __init__.py  fachada com import preguiçoso (core.Term não puxa o Gtk)
@@ -110,18 +111,22 @@ App:
 - python3 bzmux.py — o terminal. Opções: --cmd COMANDO, --quit-after SEG,
   --dump-to ARQUIVO, --selftest (roda os checks e sai), -h/--help (ajuda sem
   abrir janela; opção inválida também sai, com exit 2).
-- ./run.sh — abre/fecha o app. Modos: (nada) background com log em
-  /tmp/bzmux.log, --fg foreground, --kill, --status, --cmd, --quit-after,
-  --dump-to. Controla por PID file (/tmp/bzmux.pid) e só mata o processo que ele
-  mesmo subiu: use isto em vez de pkill -f bzmux.py, que casa com a linha de
-  comando de quem chama e mata o shell errado.
-- ./run-tests.sh — selftest (sem dependências) e depois pytest; argumentos
-  extras vão para o pytest (-k, -x). --selftest-only pula o pytest. Sai != 0 se
-  algo falhar. Não precisa de display.
-- ./run.sh escolhe o interpretador: .venv/bin/python quando ele importa gi,
+- ./run.sh — roda o app para testar rápido: passa os argumentos (--cmd,
+  --quit-after, --dump-to, -h) para o bzmux.py, em foreground, e sai com o
+  código dele. Escolhe o interpretador: .venv/bin/python quando ele importa gi,
   senão o python3 do sistema (com aviso). O venv precisa ser criado com
   uv venv --system-site-packages, porque o PyGObject vem da distro e o uv sync
   não passa essa flag.
+- ./debug.sh — o script do desenvolvimento: abre/fecha o app sem deixar
+  instância órfã. Modos: (nada) background com log em /tmp/bzmux.log, --fg
+  foreground, --kill, --status; o resto dos argumentos vai para o app. Sobe pelo
+  run.sh (mesmo interpretador) e controla por PID file (/tmp/bzmux.pid),
+  matando só o processo que ele mesmo subiu: use isto em vez de
+  pkill -f bzmux.py, que casa com a linha de comando de quem chama e mata o
+  shell errado.
+- ./run-tests.sh — selftest (sem dependências) e depois pytest; argumentos
+  extras vão para o pytest (-k, -x). --selftest-only pula o pytest. Sai != 0 se
+  algo falhar. Não precisa de display.
 - uv run pytest -q — só a parte pytest; uv sync instala o ambiente (pytest).
 - uv run python bzmux.py — o app direto pelo uv (mesmo interpretador do venv).
 
@@ -133,7 +138,7 @@ Teste manual, com display e python3-xlib (em tools/):
 - tools/pixel.py — cor de pixel num PNG: pontos X,Y, --scan X, --row Y. Serve
   para conferir desenho em captura (import -window).
 
-Fluxo de verificação com janela: ./run.sh; ferramenta; kill -USR1 $(cat
+Fluxo de verificação com janela: ./debug.sh; ferramenta; kill -USR1 $(cat
 /tmp/bzmux.pid) e ler /tmp/bzmux-dump.txt (cabeçalhos de workspace e de aba só
 quando há mais de um). Exemplo:
 

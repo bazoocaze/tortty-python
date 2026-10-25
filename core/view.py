@@ -127,7 +127,7 @@ class TermView(Gtk.DrawingArea):
     def spawn(self, cmd, cwd=None):
         pid, fd = pty.fork()
         if pid == 0:
-            # Herança de disposição de sinal é uma armadilha: o `run.sh` sobe
+            # Herança de disposição de sinal é uma armadilha: o debug.sh sobe
             # com `nohup` (SIGHUP ignorado) e o Python ignora SIGPIPE — o
             # filho herdava os dois. Com SIGHUP ignorado o hangup do grupo
             # não matava job nenhum; com SIGPIPE ignorado, `seq 1 100000 |

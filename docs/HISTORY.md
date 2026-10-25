@@ -237,7 +237,7 @@ aberta para sempre.
   non-blocking) com teto de 64 leituras, alimentando o `Term` — senão o
   `dump()`/última tela saíam sem a despedida do shell.
 - **Código de saída**: não-zero vai para o stderr (`bzmux: shell saiu com
-  código 3`), que o `run.sh` guarda em `/tmp/bzmux.log`.
+  código 3`), que o `debug.sh` guarda em `/tmp/bzmux.log`.
 - **Hangup**: `os.killpg(child_pid, SIGHUP)` no fechamento (o `pty.fork` fez do
   filho líder de sessão), então jobs em background não ficam órfãos segurando o
   pty.
@@ -245,7 +245,7 @@ aberta para sempre.
   `waitpid` antes do `EIO` → drena e fecha.
 
 Pegadinha que fez o hangup "não funcionar": **disposição de sinal é herdada**.
-O `run.sh` sobe com `nohup` (SIGHUP = ignorado) e o Python ignora SIGPIPE — o
+O `debug.sh` sobe com `nohup` (SIGHUP = ignorado) e o Python ignora SIGPIPE — o
 filho herdava os dois. Resultado: `killpg(SIGHUP)` não matava ninguém (o `sleep`
 aparecia com `SigIgn: 01001007`) e `seq 1 100000 | head -3` não parava no pipe
 quebrado. Fix: no filho do `pty.fork`, antes do `exec`, `SIGHUP`/`SIGPIPE`/
@@ -471,7 +471,7 @@ Todos foram achados com medição, não por leitura — vale registrar o método
 ## Quirks registrados (não redescobrir)
 
 - **`pkill -f bzmux.py` mata o próprio shell** de quem chama (o padrão casa com
-  a linha de comando) e já deixou janelas órfãs. Usar `./run.sh --kill`, que
+  a linha de comando) e já deixou janelas órfãs. Usar `./debug.sh --kill`, que
   confere o PID file contra `/proc/<pid>/cmdline` antes de matar.
 - **`wmctrl -r bzmux` deixa de funcionar** quando o app muda o título por OSC
   (`mc` faz isso). Para achar a janela, casar por `_NET_WM_PID` contra o PID do

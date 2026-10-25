@@ -18,15 +18,25 @@ as armadilhas de teste em [`docs/HISTORY.md`](docs/HISTORY.md).
 ## Como rodar
 
 ```sh
-./run.sh                      # abre em background (log /tmp/bzmux.log)
-./run.sh --fg                 # foreground (erros aparecem na hora)
+./run.sh                      # abre aqui, para testar (erros na hora)
 ./run.sh --cmd 'mc'           # comando inicial
-./run.sh --kill               # fecha a instância do runner
-./run.sh --status             # pid / rodando?
 ./run-tests.sh                # testes, sem janela
 uv run pytest -q              # só a parte pytest
 python3 bzmux.py --selftest   # os mesmos checks, sem depender de pytest
 python3 bzmux.py --help       # opções, sem abrir janela
+```
+
+## Durante o desenvolvimento
+
+`./debug.sh` sobe pelo `run.sh`, mas com log em `/tmp/bzmux.log`, PID file
+(`/tmp/bzmux.pid`), `--kill` e `--status` — é o script de quem está mexendo no
+código, onde o `run.sh` seria só um atalho.
+
+```sh
+./debug.sh                    # abre em background
+./debug.sh --fg               # em foreground, com a saída na hora
+./debug.sh --kill             # fecha a instância do runner
+./debug.sh --status           # pid / rodando?
 ```
 
 ## Ferramentas de teste
@@ -65,7 +75,8 @@ rodar na mão: `uv run python bzmux.py`.
 
 ```
 bzmux.py                 # ponto de entrada: só chama core.cli.main
-run.sh                   # abre/fecha o app por PID file
+run.sh                   # roda o app (teste rápido; escolhe o python)
+debug.sh                 # desenvolvimento: background, log, --kill/--status
 run-tests.sh             # selftest + pytest
 pyproject.toml           # ambiente uv (uv.lock)
 core/
@@ -90,9 +101,11 @@ A regra é a dependência apontar para dentro: `term`/`palette` não importam
 (o import de Gtk é tardio, dentro de `cli.main`), e a janela pode ser trocada
 sem tocar no núcleo de emulação.
 
-O `run.sh` controla a instância por **PID file** (`/tmp/bzmux.pid`) de
+O `debug.sh` controla a instância por **PID file** (`/tmp/bzmux.pid`) de
 propósito: `pkill -f bzmux.py` casa com a linha de comando de quem chama e
-mata o próprio shell (já aconteceu, deixando janelas órfãs).
+mata o próprio shell (já aconteceu, deixando janelas órfãs). Ele sobe o app
+pelo `run.sh`, que é quem escolhe o interpretador (venv do uv ou o python do
+sistema) — por isso testar à mão e desenvolver usam o mesmo python.
 
 Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
 

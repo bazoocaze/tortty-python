@@ -21,7 +21,7 @@ começa em `y≈58`, não em `y=0`.
     tools/xtest.py drag 200 60 320 60        # seleção de texto
     tools/xtest.py move 300 200
 
-O PID vem de `/tmp/bzmux.pid` (o `run.sh` escreve lá); `--pid N` ou
+O PID vem de `/tmp/bzmux.pid` (o `debug.sh` escreve lá); `--pid N` ou
 `--window ID` sobrescrevem.
 """
 
