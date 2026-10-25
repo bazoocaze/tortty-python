@@ -6,7 +6,7 @@
     kitty_kbd.py protocolo de teclado do kitty (CSI ... u)    (puro)
     mouse.py     protocolo de mouse (SGR e o antigo)          (puro)
     graphics.py  protocolo de imagens do kitty (APC G)         (puro)
-    gui.py       import único de Gtk/Gdk/GLib/cairo           (só glue)
+    gui.py       import único de Gtk/Gdk/GLib/Pango/cairo     (só glue)
     view.py      uma sessão: pty, desenho, input               (só GTK)
     window.py    a janela: abas, lateral, atalhos globais      (só GTK)
     checks.py    a bateria de testes, sem janela              (sem GTK)

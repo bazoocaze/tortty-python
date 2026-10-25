@@ -1,8 +1,8 @@
-"""Importação única de Gtk/Gdk/GLib/cairo.
+"""Importação única de Gtk/Gdk/GLib/Pango/cairo.
 
 `gi.require_version` tem que vir ANTES do `from gi.repository import ...`;
 centralizar aqui evita que um módulo esqueça e trave a versão errada, e deixa
-o resto do pacote importar `from .gui import Gtk, Gdk, GLib, cairo`.
+o resto do pacote importar `from .gui import Gtk, Gdk, GLib, Pango, cairo`.
 """
 
 import gi
@@ -10,7 +10,7 @@ import gi
 gi.require_version("Gtk", "3.0")
 gi.require_version("GdkX11", "3.0")
 
-from gi.repository import Gtk, Gdk, GLib
+from gi.repository import Gtk, Gdk, GLib, Pango
 
 try:
     from gi.repository import GdkX11

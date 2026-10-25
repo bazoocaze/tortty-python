@@ -15,8 +15,8 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 - AGENTS.md (este) — convenções, arquitetura, scripts, ferramentas.
 - TASK-bzmux.md — ficha magra: status, por onde retomar, fila.
 - docs/BACKLOG.md — backlog pendente (P9 shaping, P10 fallback de fonte,
-  P14 largura fixa da lateral, P15 tela bagunçada ao subir o `pi`, P16
-  doom-fire como carga de medição).
+  P15 tela bagunçada ao subir o `pi`, P16 doom-fire como carga de medição,
+  P17 lateral visível com um workspace só).
 - docs/HISTORY.md — backlog concluído (P1–P8, P11–P13), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
 - README.md — visão para humano: como rodar, ferramentas, ambiente, o que
@@ -43,7 +43,7 @@ bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core
       kitty_kbd.py protocolo de teclado do kitty (CSI ... u)
       mouse.py     protocolo de mouse (SGR e o antigo) — puro
       graphics.py  protocolo de imagens do kitty (APC G) — puro
-      gui.py       único import de Gtk/Gdk/GLib/cairo
+      gui.py       único import de Gtk/Gdk/GLib/Pango/cairo
       style.py     tokens de cor do cromo + CSS gerado + contraste (puro)
       view.py      TermView: uma sessão (pty, cairo, eventos)
       window.py    Workspace + BzmuxWindow (abas, lateral, atalhos globais)

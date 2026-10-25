@@ -12,10 +12,11 @@ import os
 import signal
 
 from . import style
-from .gui import Gtk, Gdk, GLib
+from .gui import Gtk, Gdk, GLib, Pango
 from .view import TermView
 
 SIDEBAR_W = 170          # largura fixa (arrastável fica pra depois)
+TAB_TITLE_CHARS = 20     # aba: largura em chars, não em px (o título trunca)
 _styled = False          # o provider é da tela: aplica uma vez por processo
 
 
@@ -82,13 +83,20 @@ class Workspace:
         self.notebook.connect("switch-page", self.on_switch_page)
 
         # cartão da lateral: "<n>  <nome>" e, embaixo, a aba ativa
+        # ellipsize + max_width_chars(1): o texto deixa de definir a largura (o
+        # mínimo o ellipsize já zera, o natural o max_width_chars) e quem manda
+        # é o SIDEBAR_W; trunca no que sobrar, inteiro no tooltip (P14)
         self.name_label = Gtk.Label(xalign=0)
         self.info_label = Gtk.Label(xalign=0)
+        for label in (self.name_label, self.info_label):
+            label.set_ellipsize(Pango.EllipsizeMode.END)
+            label.set_single_line_mode(True)
+            label.set_max_width_chars(1)
         self.info_label.get_style_context().add_class("info")
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         vbox.set_border_width(6)
-        vbox.pack_start(self.name_label, False, False, 0)
-        vbox.pack_start(self.info_label, False, False, 0)
+        vbox.pack_start(self.name_label, False, True, 0)   # fill: truncar no 170
+        vbox.pack_start(self.info_label, False, True, 0)
         self.card = Gtk.EventBox()
         # o EventBox é transparente no CSS: quem pinta o fundo é a ListBoxRow,
         # senão o cartão cobre o :selected do tema
@@ -118,7 +126,13 @@ class Workspace:
                      on_title=self.on_view_title,
                      shortcuts=self.win.handle_shortcut)
         self.views.append(v)
+        # mesmo motivo do cartão (P14): sem limite o título longo vira largura
+        # mínima e a janela inteira estica (o notebook se recusa a encolher)
         label = Gtk.Label(label=self.label_text(v))
+        label.set_ellipsize(Pango.EllipsizeMode.END)
+        label.set_width_chars(TAB_TITLE_CHARS)
+        label.set_max_width_chars(TAB_TITLE_CHARS)
+        label.set_tooltip_text(self.label_text(v))
         box = Gtk.EventBox()
         box.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
         box.add(label)
@@ -193,6 +207,7 @@ class Workspace:
         label = getattr(view, "tab_label", None)
         if label is not None:
             label.set_text(self.label_text(view))
+            label.set_tooltip_text(self.label_text(view))
         self.update_card()
         if view is self.view:
             self.win.sync_title()
@@ -224,8 +239,9 @@ class Workspace:
         v = self.view
         title = self.label_text(v) if v is not None else "-"
         k = len(self.views)
-        self.info_label.set_markup(_card_info(
-            f"{title} ({k} aba{'s' if k != 1 else ''})"))
+        info = f"{title} ({k} aba{'s' if k != 1 else ''})"
+        self.info_label.set_markup(_card_info(info))
+        self.card.set_tooltip_text(f"{n}. {self.name}\n{info}")
 
     def on_card_click(self, widget, ev):
         if ev.type == Gdk.EventType._2BUTTON_PRESS and ev.button == 1:
@@ -243,6 +259,7 @@ class Workspace:
         """Duplo clique no cartão: edita o nome no lugar."""
         box = self.card.get_child()
         entry = Gtk.Entry()
+        entry.set_width_chars(6)        # mínimo, não largura: ver P14
         entry.set_text(self.name)
         box.remove(self.name_label)
         box.pack_start(entry, False, False, 0)

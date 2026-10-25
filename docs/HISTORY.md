@@ -570,3 +570,42 @@ mensagens antigas ainda dizem `pyterm`. O `520447b` é a renomeação para
 
 Histórico completo: `git log --oneline` (a lista de hashes não é mantida à
 mão).
+
+### P14 — Largura da lateral não fica fixa — **feito**
+
+`SIDEBAR_W` é 170, mas medido numa captura do P13 a lateral abria com **234 px**
+e a barra de abas começava em x=234. `set_size_request` é mínimo, não largura:
+o texto do cartão (`1 workspace`, título da aba ativa) é que dava a largura.
+
+Duas propriedades do `Gtk.Label` atrapalham, e são diferentes:
+
+- **o mínimo** — um `Label` sem `ellipsize` publica a largura do texto como
+  mínimo, e a `ListBox` cresce junto;
+- **o natural** — corrigido o mínimo (só `ellipsize`), o `pack_start` com
+  `expand=False` ainda entrega ao filho a largura *natural*, que continua sendo
+  a do texto: medido 454 px de lateral, 22 colunas de grade.
+
+A receita que fecha os dois: `ellipsize(END)` + `max_width_chars(1)` +
+`set_single_line_mode(True)` e `pack_start(label, False, True, 0)` (o `fill`
+faz o rótulo ocupar os 170 px e truncar dentro deles).
+
+O mesmo problema existia na **aba** do `Gtk.Notebook`, e aí era pior: o título
+longo virava mínimo do notebook e a janela inteira esticava — medido 1062 px de
+janela e 121 colunas de grade em vez de 680/51. `scrollable(True)` não resolve
+(o mínimo continua vindo do rótulo). Fix: as mesmas três propriedades no rótulo
+da aba, com `TAB_TITLE_CHARS = 20` (largura em chars porque a aba é medida em
+chars; já a lateral é px, e é ela que não pode depender da fonte).
+
+O texto inteiro foi para tooltip (cartão e aba): truncar sem tooltip esconde
+informação.
+
+Verificação (e a razão de existir como item): um `while` alternando
+`printf '\033]2;curto\007'` com um título de 60 chars fazia a grade oscilar
+entre **73 e 121 colunas** — 48 colunas de resize, SIGWINCH e reflow a cada
+troca — e a janela crescia para 1062 px. Depois: `cols` constante em 51 nos
+dumps de SIGUSR1 e janela em 680, com o título longo truncado em "…" no cartão
+e na aba (fronteira da lateral medida por pixel em x=170, mouse fora dela para
+o `:hover` não enganar a amostra).
+
+De quebra, `Pango` entrou no `gui.py` (ponto único de import) e o `Entry` de
+renomear ganhou `width_chars(6)` — ele também publicava largura.

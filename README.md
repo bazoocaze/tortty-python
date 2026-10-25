@@ -86,7 +86,7 @@ core/
 ├── kitty_kbd.py # protocolo de teclado do kitty (CSI ... u)
 ├── mouse.py     # protocolo de mouse: SGR e o antigo (puro)
 ├── graphics.py  # protocolo de imagens do kitty (APC G, puro)
-├── gui.py       # import único de Gtk/Gdk/GLib/cairo (require_version)
+├── gui.py       # import único de Gtk/Gdk/GLib/Pango/cairo (require_version)
 ├── style.py     # tokens de cor do cromo + CSS gerado + contraste WCAG
 ├── view.py      # TermView: uma sessão (pty, desenho cairo, eventos)
 ├── window.py    # Workspace (Gtk.Notebook + cartão) e BzmuxWindow
