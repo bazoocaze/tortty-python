@@ -15,6 +15,12 @@ class Term:
         self.grid = [self._blank_row() for _ in range(rows)]
         self.alt_grid = None          # None = buffer principal
         self.scrollback = []
+        # reflow (P3): row_wrapped[i] = "esta linha continua na de baixo"
+        # (quebra mole, não '\n'). É o que permite re-quebrar no resize em vez
+        # de recortar. sb_wrapped é o mesmo, paralelo ao scrollback.
+        self.row_wrapped = [False] * rows
+        self.sb_wrapped = []
+        self.alt_wrapped = None
         self.cx, self.cy = 0, 0
         self.fg, self.bg, self.flags = DEF_FG, DEF_BG, 0
         self.top, self.bottom = 0, rows - 1   # scroll region
@@ -49,8 +55,22 @@ class Term:
         self.__init__(cols, rows)
 
     def resize(self, cols, rows):
-        """Redimensiona preservando o conteúdo (recorta/preenche)."""
-        old_grid, old_cols, old_rows = self.grid, self.cols, self.rows
+        """Redimensiona: re-quebra (reflow) no buffer principal.
+
+        Alt-screen não tem reflow — quem está em tela cheia (mc, vim) se
+        redesenha inteiro no SIGWINCH, e re-quebrar por cima do que ele
+        escreveu só atrapalharia.
+        """
+        if (cols, rows) == (self.cols, self.rows):
+            return
+        if self.alt_grid is None:
+            self._reflow(cols, rows)
+        else:
+            self._resize_crop(cols, rows)
+
+    def _resize_crop(self, cols, rows):
+        """Recorta/preenche, sem re-quebrar (alt-screen)."""
+        old_grid, old_rows = self.grid, self.rows
         self.cols, self.rows = cols, rows
         new = []
         for y in range(rows):
@@ -63,10 +83,111 @@ class Term:
             else:
                 new.append([self._blank_cell_raw() for _ in range(cols)])
         self.grid = new
+        self.row_wrapped = (self.row_wrapped[:rows] +
+                            [False] * max(0, rows - len(self.row_wrapped)))
         self.top, self.bottom = 0, rows - 1
         self.cx = min(self.cx, cols - 1)
         self.cy = min(self.cy, rows - 1)
         self.wrap_pending = False
+
+    def _reflow(self, cols, rows):
+        """Junta as linhas lógicas (scrollback + grade), corta na largura nova
+        e recoloca o cursor na célula equivalente.
+
+        Linha lógica = sequência de linhas de tela ligadas por quebra mole. Ao
+        estreitar, uma linha longa vira várias; ao alargar, várias voltam a
+        ser uma. O que sobra em cima vai pro scrollback, o que falta embaixo é
+        preenchido — e o cursor continua sobre o mesmo caractere.
+        """
+        old_cols = self.cols
+        total = len(self.scrollback) + len(self.grid)
+        cur_abs = len(self.scrollback) + self.cy
+        cur_off = None
+        lines, row_info = [], []
+        cur = None
+        off = 0
+        for i in range(total):
+            if i < len(self.scrollback):
+                row, wrapped = self.scrollback[i], self.sb_wrapped[i]
+            else:
+                row, wrapped = self.grid[i - len(self.scrollback)], \
+                    self.row_wrapped[i - len(self.scrollback)]
+            if cur is None:
+                cur = []
+                lines.append(cur)
+                off = 0
+            row_info.append((len(lines) - 1, off))
+            cur.extend(row)
+            off += len(row)
+            if not wrapped:
+                cur = None
+        if cur is not None and not cur:
+            lines.pop()
+        if cur_abs < len(row_info):
+            line_idx, off0 = row_info[cur_abs]
+            cur_off = off0 + min(self.cx, old_cols - 1)
+        else:
+            line_idx, cur_off = None, None
+
+        # Corta o espaço em branco à direita de cada linha lógica. Sem isso,
+        # uma linha de 3 caracteres numa tela de 68 colunas re-quebra em DUAS
+        # linhas (a segunda só de espaços) e o conteúdo aparece intercalado
+        # com linhas vazias ao estreitar. Só corta célula vazia de verdade
+        # (espaço com bg default) — fundo colorido de barra/status fica.
+        for li, line in enumerate(lines):
+            real = len(line)
+            while real and line[real - 1][0] == " " and line[real - 1][2] == DEF_BG:
+                real -= 1
+            if li == line_idx and cur_off is not None and cur_off > real:
+                real = cur_off          # não perde a posição do cursor
+            del line[real:]
+
+        new_rows, new_wrap = [], []
+        cur_new = None
+        blank = self._blank_cell_raw
+        for li, line in enumerate(lines):
+            chunks = ([line[k:k + cols] for k in range(0, len(line), cols)]
+                      if line else [[]])
+            for ci, chunk in enumerate(chunks):
+                if len(chunk) < cols:
+                    chunk = chunk + [blank() for _ in range(cols - len(chunk))]
+                new_rows.append(chunk)
+                new_wrap.append(ci < len(chunks) - 1)
+                # só o primeiro chunk que contém o cursor ganha (sem isso o
+                # último chunk da linha sobrescrevia e o cursor pulava)
+                if (li == line_idx and cur_off is not None and cur_new is None
+                        and (cur_off < (ci + 1) * cols
+                             or ci == len(chunks) - 1)):
+                    cur_new = (len(new_rows) - 1,
+                               max(0, min(cols - 1, cur_off - ci * cols)))
+        # o que está DEPOIS do cursor é área em branco: não vale empurrar
+        # linha vazia pro scrollback só porque a tela alargou
+        if cur_new is not None:
+            while len(new_rows) - 1 > cur_new[0]:
+                last = new_rows[-1]
+                if any(c[0] != " " for c in last):
+                    break
+                new_rows.pop()
+                new_wrap.pop()
+
+        split = max(0, len(new_rows) - rows)
+        self.scrollback = new_rows[:split][-1000:]
+        self.sb_wrapped = new_wrap[:split][-1000:]
+        self.grid = new_rows[split:]
+        self.row_wrapped = new_wrap[split:]
+        while len(self.grid) < rows:
+            self.grid.append([blank() for _ in range(cols)])
+            self.row_wrapped.append(False)
+
+        self.cols, self.rows = cols, rows
+        self.top, self.bottom = 0, rows - 1
+        self.wrap_pending = False
+        if cur_new is not None:
+            self.cy = max(0, min(rows - 1, cur_new[0] - split))
+            self.cx = max(0, min(cols - 1, cur_new[1]))
+        else:
+            self.cx = min(self.cx, cols - 1)
+            self.cy = min(self.cy, rows - 1)
 
     def _blank_cell_raw(self):
         return [" ", DEF_FG, DEF_BG, 0]
@@ -75,15 +196,22 @@ class Term:
         if self.alt_grid is not None:
             self.grid.pop(self.top)
             self.grid.insert(self.bottom, self._blank_row())
+            self.row_wrapped.pop(self.top)
+            self.row_wrapped.insert(self.bottom, False)
         else:
             if self.top == 0 and self.bottom == self.rows - 1:
                 self.scrollback.append(self.grid.pop(0))
+                self.sb_wrapped.append(self.row_wrapped.pop(0))
                 if len(self.scrollback) > 1000:
                     self.scrollback.pop(0)
+                    self.sb_wrapped.pop(0)
                 self.grid.append(self._blank_row())
+                self.row_wrapped.append(False)
             else:
                 self.grid.pop(self.top)
                 self.grid.insert(self.bottom, self._blank_row())
+                self.row_wrapped.pop(self.top)
+                self.row_wrapped.insert(self.bottom, False)
 
     def newline(self):
         if self.cy == self.bottom:
@@ -93,6 +221,9 @@ class Term:
 
     def put(self, ch):
         if self.wrap_pending:
+            # a linha que encheu continua na de baixo (quebra mole): é o que
+            # o reflow usa pra juntar de novo ao alargar
+            self.row_wrapped[self.cy] = True
             self.cx = 0
             self.newline()
             self.wrap_pending = False
@@ -128,6 +259,7 @@ class Term:
                 self.grid[y] = [self.blank_cell() for _ in range(self.cols)]
             if n == 3:
                 self.scrollback.clear()
+                self.sb_wrapped.clear()
             self.cursor_to(0, 0)
         elif n == 1:
             for x in range(self.cx + 1):
@@ -155,12 +287,16 @@ class Term:
             self.grid.pop(self.bottom)
             self.grid.insert(self.cy, [self.blank_cell()
                                        for _ in range(self.cols)])
+            self.row_wrapped.pop(self.bottom)
+            self.row_wrapped.insert(self.cy, False)
 
     def delete_lines(self, n):
         for _ in range(n):
             self.grid.pop(self.cy)
             self.grid.insert(self.bottom, [self.blank_cell()
                                            for _ in range(self.cols)])
+            self.row_wrapped.pop(self.cy)
+            self.row_wrapped.insert(self.bottom, False)
 
     def sgr(self, params):
         it = iter(params)
@@ -242,14 +378,20 @@ class Term:
             elif p in (47, 1047, 1049):
                 if on and self.alt_grid is None:
                     self.alt_grid = self.grid
+                    self.alt_wrapped = self.row_wrapped
                     self.grid = [self._blank_row() for _ in range(self.rows)]
+                    self.row_wrapped = [False] * self.rows
                     self.saved = (self.cx, self.cy)
                     self.cursor_to(0, 0)
                     if p == 1049:
                         self.scrollback.clear()
+                        self.sb_wrapped.clear()
                 elif not on and self.alt_grid is not None:
                     self.grid = self.alt_grid
                     self.alt_grid = None
+                    if len(self.alt_wrapped) == self.rows:
+                        self.row_wrapped = self.alt_wrapped
+                    self.alt_wrapped = None
                     if self.saved:
                         self.cx, self.cy = self.saved
                     self.top, self.bottom = 0, self.rows - 1

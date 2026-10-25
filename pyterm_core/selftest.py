@@ -69,6 +69,18 @@ def selftest():
     t.feed("\x1b]0;titulo\x07")
     check("OSC título", t.title, "titulo")
 
+    # -- reflow (P3): re-quebra mantendo a linha lógica ---------------
+    t = Term(cols=20, rows=4)
+    text = "0123456789" * 4
+    t.feed(text)
+    t.resize(10, 4)
+    joined = "".join("".join(c[0] for c in r) for r in t.grid).rstrip()
+    check("reflow estreita (1 linha -> 4)", (joined, (t.cx, t.cy)),
+          (text, (9, 3)))
+    t.resize(20, 4)
+    joined = "".join("".join(c[0] for c in r) for r in t.grid).rstrip()
+    check("reflow alarga (4 -> 1)", (joined, (t.cx, t.cy)), (text, (19, 1)))
+
     # -- histórico: a visão desliza sobre scrollback + grade ----------
     t = Term(cols=10, rows=3)
     t.feed("a\r\nb\r\nc\r\nd\r\ne\r\n")

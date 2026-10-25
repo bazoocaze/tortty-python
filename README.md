@@ -77,6 +77,10 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   cubo 6×6×6 + 24 cinzas); truecolor é aproximado para essa paleta.
 - **Desenho** com cairo: runs agrupados por atributos, bold, sublinhado,
   inverso, cursor em bloco.
+- **Reflow no resize**: linhas que quebraram mole são re-quebradas na largura
+  nova (uma linha longa vira várias ao estreitar, volta a ser uma ao alargar),
+  o cursor fica sobre o mesmo caractere e o scrollback é re-aproveitado. Fundo
+  colorido de barra/status não é cortado junto com o espaço em branco.
 - **Mouse**: reporta pro app quando ele pede (`?1000` clique, `?1002`
   arrasto, `?1003` movimento, `?1006` coordenadas SGR, `?1004` foco), e fora
 desses modos faz **seleção local** arrastando — e ela vira cópia:
@@ -92,7 +96,6 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
 - **Seleção só por célula**: sem duplo-clique por palavra e sem modo
   bloco/retangular.
 - **Truecolor aproximado** para a paleta de 16 cores.
-- **Sem reflow** ao redimensionar: recorta/preenche, não re-quebra.
 - **Sem protocolo de gráficos** (nada de `kitten icat`) e sem kitty keyboard
   protocol.
 - **Sem ligaduras**, sem fontes fallback para emoji/CJK.
@@ -100,8 +103,9 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
   então Ctrl+Shift+letra chega como Ctrl+letra.
 - **Histórico sem barra de rolagem** clicável: só teclado/wheel, com o `↑N`
   no canto como indicador.
-- **Sem reflow** e sem re-pintura no resize: preserva recortando/preenchendo
-  (quem redesenha é o app, via SIGWINCH — `mc` redesenha certo).
+- **Reflow só no buffer principal**: alt-screen (`mc`, `vim`) recorta/preenche
+  de propósito — quem está em tela cheia se redesenha no SIGWINCH, e re-quebrar
+  por cima do que ele escreveu só atrapalharia.
 
 ## O que a medição realmente mostra (corrigido)
 
