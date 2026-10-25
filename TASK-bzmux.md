@@ -7,9 +7,11 @@ protocolo de teclado e de imagens do kitty, **abas** e **workspaces**
 Não é produto nem caminho de produção: existe para responder, com número, à
 pergunta "daria pra implementar tudo em Python?".
 Criado em: 2026-10-26. Código na raiz deste repositório: `bzmux.py` (ponto de
-entrada) + pacote `core/` (`palette.py`, `term.py`, `keys.py`, `gui.py`,
-`window.py`, `view.py`, `selftest.py`, `cli.py`), mais `run.sh`, `README.md`,
-`LICENSE`.
+entrada) + pacote `core/` (`palette.py`, `term.py`, `keys.py`, `kitty_kbd.py`,
+`mouse.py`, `graphics.py`, `gui.py`, `view.py`, `window.py`, `checks.py`,
+`selftest.py`, `cli.py`), a bateria em `tests/`, as ferramentas manuais em
+`tools/`, mais `run.sh`, `run-tests.sh`, `pyproject.toml`/`uv.lock`,
+`README.md`, `AGENTS.md`, `LICENSE`.
 
 **Histórico:** o projeto nasceu dentro do repositório do experimento `kitty`
 (`~/dados/workflows/temp/kitty`), na pasta `pyterm/`, com o nome **pyterm**.
@@ -22,7 +24,7 @@ nem testada aqui.
 ### Por onde retomar
 
 ```sh
-python3 bzmux.py --selftest     # checks, sem abrir janela
+./run-tests.sh                  # bateria (selftest + pytest), sem display
 ./run.sh --cmd 'mc -d /usr/share'
 ```
 
@@ -74,6 +76,9 @@ Fora (por decisão, não por falta de tempo):
 
 ```
 bzmux.py                # ponto de entrada (só chama core.cli.main)
+run.sh                  # abre/fecha o app por PID file (/tmp/bzmux.pid)
+run-tests.sh            # roda a bateria: --selftest e depois pytest
+pyproject.toml          # ambiente uv (uv.lock): pytest como grupo dev
 core/
 ├── palette.py   # célula [char,fg,bg,flags], palette xterm-256, charset DEC
 ├── term.py      # Term: grade, cursor, parser. SEM GTK.
@@ -101,12 +106,14 @@ core/
 │   └── dump/quit-after/SIGUSR1 (agrega workspaces e abas)
 ├── checks.py    # a bateria de testes, sem abrir janela
 ├── selftest.py  # runner sem dependências do --selftest
-└── cli.py       # argv e arranque (import tardio do Gtk: --selftest roda
-                 #   em máquina sem PyGObject)
+└── cli.py       # argv, -h/--help e arranque (import tardio do Gtk: --selftest
+                 #   e --help rodam em máquina sem PyGObject)
+tests/                  # runner pytest de core/checks.py
+tools/                  # xtest.py, pixel.py — teste manual, precisa de X
 ```
 
 A direção das dependências é para dentro: `palette` ← `term` ← (`keys`,
-`selftest`) e `view`/`window` em cima de todos; nada em `term.py` importa Gtk.
+`checks`) e `view`/`window` em cima de todos; nada em `term.py` importa Gtk.
 `view` e `window` são a mesma camada: `window` só empilha views.
 
 Célula é uma lista `[char, fg, bg, flags]` com `fg/bg` em índice xterm
@@ -126,9 +133,10 @@ wheel, **reflow** ao estreitar/alargar, **`kitten icat`** desenhando PNG,
 **abas** (ativa independente por aba, cwd herdado, título OSC no rótulo) e
 **workspaces** (lateral, renomear, fechar por aba/workspace/janela).
 
-Teste automatizado até agora: `--selftest` e pytest (sem display) e injeção
-sintética de mouse/teclado via XTest (`tools/xtest.py`, no repo) — foi assim
-que P1/P2/P5/P11/P12 foram verificados de ponta a ponta.
+Teste automatizado: `./run-tests.sh` — os mesmos checks passam pelo `--selftest`
+(sem dependências) e pelo pytest, sem display — mais injeção sintética de
+mouse/teclado via XTest (`tools/xtest.py`, no repo) — foi assim que
+P1/P2/P5/P11/P12 foram verificados de ponta a ponta.
 
 ### Medições (nesta máquina, 2026-10-26)
 
@@ -195,16 +203,52 @@ Todos foram achados com medição, não por leitura — vale registrar o método
    `reorder_child(child, idx)`) e o `idle_add` que foca a view roubava o foco
    do `Gtk.Entry` de renomear o workspace.
 
+10. **`--help` abria a janela.** `parse_args` ignorava em silêncio qualquer
+    opção desconhecida, então `bzmux.py --help` (e `--nada`) caíam no fluxo
+    normal e subiam o app. Fix: `-h`/`--help` é tratado antes do import de Gtk
+    (imprime o uso, exit 0) e opção desconhecida — ou sem valor — virou erro de
+    uso (uso no stderr, exit 2). `parse_args` passou a devolver também o erro, e
+    o check `argv_parsing` cobre os dois caminhos.
+
 ## Como testar
 
 **Filosofia:** poucos checks, nos caminhos críticos — sem suíte exaustiva. A
-diretriz está no [`AGENTS.md`](AGENTS.md) do repositório. Na prática aqui:
-`--selftest` cobre o parser e a codificação de mouse/cópia (as coisas que já
-quebraram), e o resto é smoke test manual com clique/tecla de verdade.
+diretriz está no [`AGENTS.md`](AGENTS.md) do repositório. Na prática:
+`core/checks.py` tem uma função por área (parser, SGR/EL/ED, alt-screen e
+scroll, charset e respostas, CSI com intermediário, CLI, teclado do kitty,
+gráficos, reflow, histórico, mouse, seleção, paste, truecolor), com asserts de
+coisas que já quebraram. O resto é smoke test manual com clique/tecla de
+verdade.
 
 ```sh
-python3 bzmux.py --selftest         # checks, sem abrir janela
-./run-tests.sh                     # o mesmo, pelos dois runners
+./run-tests.sh                      # bateria: selftest + pytest (dia a dia)
+./run-tests.sh -k graphics -x       # extras vão para o pytest
+./run-tests.sh --selftest-only      # só o runner sem dependências
+```
+
+Duas portas para a mesma bateria, de propósito: `python3 bzmux.py --selftest`
+(`core/selftest.py`) não importa pytest e, do projeto, só `term`, `palette`,
+`mouse`, `kitty_kbd` e `cli` — nenhum deles puxa gi/cairo. É ele, então, que
+prova que o caminho dos testes segue GTK-free: se alguém puser um
+`from .gui import ...` ali, o pytest continua verde e o `--selftest` quebra.
+
+### Ambiente (uv)
+
+`pyproject.toml` + `uv.lock` (`package = false`, `python-preference = system`).
+O venv do uv serve aos testes; o app roda no python do sistema, porque o
+PyGObject vem da distro:
+
+```sh
+uv sync                        # .venv com pytest
+uv run pytest -q               # só a parte pytest
+uv sync --extra tools          # + python-xlib (tools/xtest.py)
+```
+
+Opções do app: `--cmd`, `--quit-after`, `--dump-to`, `--selftest`, `-h/--help`.
+
+### Teste manual, com janela
+
+```sh
 ./run.sh                            # abre (fecha a instância anterior)
 ./run.sh --cmd 'mc -d /usr/share'   # direto no mc
 ./run.sh --status                   # pid / rodando?
@@ -733,6 +777,14 @@ antigas ainda dizem `pyterm` porque é o que estava escrito na época; o
 - `7d668d3` — pyterm: P12 workspaces (lateral tipo cmux, um notebook por workspace)
 - `7b3b8f3` — pyterm: foco volta pra sessao depois de renomear; atalhos globais na janela
 - `520447b` — bzmux: repo proprio, nome e caminhos novos (era pyterm)
+- `ce9a263` — docs: secao Git do task file regerada com os hashes deste repo
+- `da9d1a4` — AGENTS.md: diretriz de testes vem junto com o projeto
+- `cc47922` — tools/: as ferramentas de teste passam a fazer parte do projeto
+- `ebd6c79` — AGENTS.md: preenche descricao e arquitetura, linguagem ajustada
+- `a025b89` — AGENTS.md: nomes de arquivo e simbolos em ingles
+- `018c044` — uv: projeto com pyproject/uv.lock + bateria de testes em core/checks.py
+- `16af2b3` — cli: --help nao abre mais a janela; run-tests.sh; scripts no AGENTS.md
+- `711d1d2` — docs: tira os contadores de teste da documentacao
 
 ## Licença
 

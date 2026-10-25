@@ -26,11 +26,13 @@ python3 bzmux.py --help       # opções, sem abrir janela
 
 ## Ferramentas de teste
 
-`uv run pytest -q` cobre o parser, os protocolos, o reflow e a seleção sem
-display; `python3 bzmux.py --selftest` roda exatamente os mesmos checks. O que só se prova com janela aberta é
-feito à mão com `tools/xtest.py` (XTest: tecla, clique, duplo clique, wheel,
-arrasto, texto) e conferido com `tools/pixel.py` (cor de pixel numa captura) —
-ver `TASK-bzmux.md`. Precisa de servidor X e de `python3-xlib`.
+`./run-tests.sh` cobre o parser, os protocolos, o reflow e a seleção sem
+display; os mesmos checks rodam por pytest e pelo `--selftest` (que não depende
+de nada e por isso é o que garante que o caminho dos testes não puxa gi/cairo).
+O que só se prova com janela aberta é feito à mão com `tools/xtest.py` (XTest:
+tecla, clique, duplo clique, wheel, arrasto, texto) e conferido com
+`tools/pixel.py` (cor de pixel numa captura) — ver `TASK-bzmux.md`. Precisa de
+servidor X e de `python3-xlib`.
 
 ## Ambiente (uv)
 
@@ -54,6 +56,9 @@ Se quiser rodar o app de dentro do venv, crie-o com
 
 ```
 bzmux.py                 # ponto de entrada: só chama core.cli.main
+run.sh                   # abre/fecha o app por PID file
+run-tests.sh             # selftest + pytest
+pyproject.toml           # ambiente uv (uv.lock)
 core/
 ├── palette.py   # célula [char,fg,bg,flags], paleta xterm-256, charset DEC
 ├── term.py      # grade, cursor, parser VT — NÃO conhece Gtk
@@ -66,7 +71,9 @@ core/
 ├── window.py    # Workspace (Gtk.Notebook + cartão) e BzmuxWindow
 ├── checks.py    # a bateria de testes
 ├── selftest.py  # runner sem dependências (--selftest)
-└── cli.py       # argv e arranque
+└── cli.py       # argv, -h/--help e arranque
+tests/                   # runner pytest de core/checks.py
+tools/                   # xtest.py, pixel.py — teste manual, precisa de X
 ```
 
 A regra é a dependência apontar para dentro: `term`/`palette` não importam
