@@ -4,8 +4,27 @@ Terminal em Python puro: pty + parser VT + grade + desenho com cairo.
 Experimento funcional que existe para medir o custo do caminho quente em Python
 (não é produto). Roda shell, mc e vim; tem mouse com seleção/cópia, histórico
 com wheel, reflow, truecolor, protocolo de teclado e de imagens do kitty,
-bracketed paste, abas e workspaces. Escopo, medições, bugs e backlog ficam em
-TASK-bzmux.md.
+bracketed paste, abas e workspaces. Este arquivo é convenção; o conteúdo
+muda de lugar conforme o tipo (ver Documentação).
+
+## Documentação
+
+Divisão por tipo de conteúdo — cada fato mora em um só lugar, não duplicar.
+Todos são escritos para leitura de agente; só o README.md é para humano.
+
+- AGENTS.md (este) — convenções, arquitetura curta, scripts e ferramentas.
+- TASK-bzmux.md — status, por onde retomar, objetivo, escopo, arquitetura
+  detalhada, estado atual, medições, como testar, ambiente uv, licença.
+- docs/BACKLOG.md — backlog pendente (P9 shaping, P10 fallback de fonte).
+- docs/HISTORY.md — backlog concluído (P1–P8, P11, P12), bugs corrigidos,
+  quirks (armadilhas que não devem ser redescobertas) e a nota de git.
+- README.md — visão para humano: como rodar, ferramentas, ambiente, o que
+  funciona, limites, medição, licença.
+
+Ao fechar um item do backlog: mover de docs/BACKLOG.md para o fim de
+"Backlog concluído" em docs/HISTORY.md, com o bug que apareceu no caminho e
+como foi verificado. Bug corrigido fora de item de backlog entra na lista
+numerada de bugs do HISTORY.md (e o quirk, se for armadilha de ambiente).
 
 ## Arquitetura
 

@@ -7,8 +7,10 @@
 Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**,
 para sentir na pele o custo do caminho quente em Python comparado ao núcleo C
 do `gtkterm`. Não é produto: é a resposta empírica à pergunta "daria pra fazer
-tudo em Python?". Escopo, medições, bugs já corrigidos, backlog e armadilhas de
-teste ficam em [`TASK-bzmux.md`](TASK-bzmux.md).
+tudo em Python?". Escopo, medições e como testar ficam em
+[`TASK-bzmux.md`](TASK-bzmux.md); o backlog pendente em
+[`docs/BACKLOG.md`](docs/BACKLOG.md); o que já foi feito, os bugs corrigidos e
+as armadilhas de teste em [`docs/HISTORY.md`](docs/HISTORY.md).
 
 ## Como rodar
 
@@ -31,8 +33,9 @@ display; os mesmos checks rodam por pytest e pelo `--selftest` (que não depende
 de nada e por isso é o que garante que o caminho dos testes não puxa gi/cairo).
 O que só se prova com janela aberta é feito à mão com `tools/xtest.py` (XTest:
 tecla, clique, duplo clique, wheel, arrasto, texto) e conferido com
-`tools/pixel.py` (cor de pixel numa captura) — ver `TASK-bzmux.md`. Precisa de
-servidor X e de `python3-xlib`.
+`tools/pixel.py` (cor de pixel numa captura) — ver
+[`docs/HISTORY.md`](docs/HISTORY.md). Precisa de servidor X e de
+`python3-xlib`.
 
 ## Ambiente (uv)
 
