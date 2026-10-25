@@ -108,6 +108,7 @@ class PyTermWindow(Gtk.Window):
         self.exit_code = None
         self.pty_watch = 0
         self._closing = False
+        self._hungup = False
         self.decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         self.spawn(cmd or os.environ.get("SHELL", "/bin/bash"))
         if quit_after:
@@ -232,12 +233,13 @@ class PyTermWindow(Gtk.Window):
         Sem isso, netos do shell (jobs em background, `tail -f`) ficavam
         órfãos segurando o pty quando a janela fechava.
         """
-        if not self.child_pid:
+        if not self.child_pid or self._hungup:
             return
+        self._hungup = True    # _close() e on_destroy() chamam os dois
         try:
             os.killpg(self.child_pid, signal.SIGHUP)
-        except (ProcessLookupError, PermissionError, OSError) as e:
-            print(f"pyterm: hangup falhou: {e!r}", file=sys.stderr)
+        except OSError:
+            pass              # grupo já não existe: shell saiu sozinho
 
     def on_destroy(self, *_):
         """Fechou pelo window manager (ou via _close)."""
