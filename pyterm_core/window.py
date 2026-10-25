@@ -4,6 +4,7 @@
 """
 
 import codecs
+import io
 import math
 import os
 import pty
@@ -18,6 +19,36 @@ from . import mouse
 from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, PALETTE256,
                       BG_DEFAULT, FG_DEFAULT)
 from .term import Term
+
+
+def surface_from_image(img, cairo):
+    """Image do protocolo de gráficos -> cairo.ImageSurface.
+
+    Devolve `(surface, keepalive)`: o cairo NÃO copia os dados de
+    `create_for_data`, então o bytearray tem que continuar vivo — quem chama
+    guarda o segundo item da tupla.
+    """
+    if img.fmt == 100:                       # PNG: o cairo lê direto
+        return cairo.ImageSurface.create_from_png(io.BytesIO(img.data)), None
+    w, h = img.width, img.height
+    src = img.data
+    n = 4 if img.fmt == 32 else 3
+    stride = cairo.ImageSurface.format_stride_for_width(cairo.FORMAT_ARGB32, w)
+    buf = bytearray(stride * h)
+    for y in range(h):
+        si = y * w * n
+        oi = y * stride
+        for _ in range(w):
+            # ARGB32 do cairo é BGRA nesta ordem de bytes (little-endian)
+            buf[oi] = src[si + 2]
+            buf[oi + 1] = src[si + 1]
+            buf[oi + 2] = src[si]
+            buf[oi + 3] = src[si + 3] if n == 4 else 255
+            si += n
+            oi += 4
+    surf = cairo.ImageSurface.create_for_data(buf, cairo.FORMAT_ARGB32, w, h,
+                                              stride)
+    return surf, buf
 
 
 def _in_sel(y, x, sel):
@@ -45,6 +76,7 @@ class PyTermWindow(Gtk.Window):
         self._held = None    # botão do protocolo apertado agora
         self._state = 0      # modificadores do último evento (shift/alt/ctrl)
         self.view_off = 0    # 0 = vivo; >0 = linhas de histórico na tela
+        self._img_cache = {}   # id da imagem -> (surface cairo, keepalive)
         self.area = Gtk.DrawingArea()
         self.area.set_can_focus(True)
         self.area.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
@@ -144,6 +176,13 @@ class PyTermWindow(Gtk.Window):
         lines.append(f"=== viewport {t.cols}x{t.rows} ===")
         for y in range(t.rows):
             lines.append(t.row_text(y).rstrip())
+        if t.graphics.placements or t.graphics.images:
+            lines.append(f"=== imagens: {len(t.graphics.images)} guardadas, "
+                         f"{len(t.graphics.placements)} na tela ===")
+            for pl in t.graphics.placements:
+                img = t.graphics.images.get(pl.image_id)
+                lines.append(f"  id={pl.image_id} em ({pl.col},{pl.row}) "
+                             f"{pl.cols}x{pl.rows} fmt={img.fmt if img else '-'}")
         lines.append(f"=== cursor {t.cx},{t.cy} ===")
         try:
             with open(self.dump_to, "w", encoding="utf-8") as f:
@@ -165,6 +204,7 @@ class PyTermWindow(Gtk.Window):
         adv = ctx.text_extents("M")[4]
         ascent, descent = ctx.font_extents()[0], ctx.font_extents()[1]
         self._metrics = (math.ceil(adv), math.ceil(ascent + descent))
+        self.term.cell_size = self._metrics   # o protocolo de imagem usa isso
         return self._metrics
 
     def on_resize(self, widget, alloc):
@@ -273,6 +313,31 @@ class PyTermWindow(Gtk.Window):
                     cr.rectangle(x * cw, y * ch + ch - 2, (j - x) * cw, 1)
                     cr.fill()
                 x = j
+        # imagens do protocolo de gráficos (P6), por cima do texto e abaixo
+        # do cursor — é onde o kitty põe
+        for pl in t.graphics.placements:
+            img = t.graphics.images.get(pl.image_id)
+            if img is None or pl.col >= t.cols or pl.row >= t.rows:
+                continue
+            entry = self._img_cache.get(pl.image_id)
+            if entry is None:
+                try:
+                    entry = surface_from_image(img, cairo)
+                except Exception:
+                    continue
+                self._img_cache[pl.image_id] = entry
+            surf = entry[0]
+            w = max(1, pl.cols) * cw
+            h = max(1, pl.rows) * ch
+            cr.save()
+            cr.rectangle(pl.col * cw, pl.row * ch, w, h)
+            cr.clip()
+            cr.translate(pl.col * cw, pl.row * ch)
+            cr.scale(w / max(1, surf.get_width()), h / max(1, surf.get_height()))
+            cr.set_source_surface(surf, 0, 0)
+            cr.paint()
+            cr.restore()
+
         # cursor bloco — só no vivo: no histórico o cursor do app não está ali
         if (self.view_off == 0 and t.cursor_visible
                 and t.cy < t.rows and t.cx < t.cols):

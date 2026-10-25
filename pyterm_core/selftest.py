@@ -4,6 +4,8 @@ Roda sem display e sem PyGObject: só importa `term`, `palette` e `mouse`,
 nunca `window`/`gui`.
 """
 
+import base64
+
 from . import kitty_kbd, mouse
 from .palette import DEF_FG
 from .term import Term
@@ -87,6 +89,20 @@ def selftest():
     check("kitty: flags somam", (t.kbd_flags, t.kbd_stack), (3, [0]))
     t.feed("\x1b[<u")
     check("kitty: pop volta", t.kbd_flags, 0)
+
+    # -- gráficos do kitty (P6): APC G, imagem e placement ------------
+    t = Term(cols=20, rows=4)
+    t.feed("\r\n")                       # cursor na linha 1
+    rgba = base64.b64encode(bytes([9, 8, 7, 255] * 4)).decode()
+    t.feed(f"\x1b_Ga=T,f=32,s=2,v=2,i=3;{rgba}\x1b\\")
+    img = t.graphics.images.get(3)
+    check("gráficos: imagem + placement",
+          (img.width, img.height, img.fmt,
+           [(p.image_id, p.col, p.row) for p in t.graphics.placements]),
+          (2, 2, 32, [(3, 0, 1)]))
+    t.feed("\x1b[4;1H\r\n")              # força um scroll
+    check("gráficos: a imagem rola junto", [p.row for p in t.graphics.placements],
+          [0])
 
     # -- reflow (P3): re-quebra mantendo a linha lógica ---------------
     t = Term(cols=20, rows=4)

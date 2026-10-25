@@ -4,6 +4,7 @@ Sem GTK aqui dentro — é o que deixa o parser testável por `--selftest` sem
 abrir janela (e sem display). Quem desenha é `window.PyTermWindow`.
 """
 
+from .graphics import Graphics
 from .palette import DEF_FG, DEF_BG, BOLD, UL, INV, PALETTE, DEC_SPECIAL
 
 
@@ -34,13 +35,17 @@ class Term:
         # push/pop (CSI > flags u / CSI < n u / CSI = flags ; modo u)
         self.kbd_flags = 0
         self.kbd_stack = []
+        self.cell_size = (10, 19)     # px por célula (o window ajusta)
         self.charset_dec = False      # ESC ( 0 ativo?
         self.saved = None
         self.child_out = bytearray()  # respostas ao filho (DA, CPR...)
+        self.graphics = Graphics()    # protocolo de imagens do kitty (P6)
+        self.apc = ""
         self.title = "pyterm"
         self.state = "ground"
         self.csi = ""
         self.osc = ""
+        self.apc = ""
         # resposta a query de tamanho (o icat pergunta; aqui só o básico)
         self.respond_size = False
 
@@ -197,6 +202,7 @@ class Term:
         return [" ", DEF_FG, DEF_BG, 0]
 
     def scroll_up(self):
+        self.graphics.scroll(self.top, self.bottom)
         if self.alt_grid is not None:
             self.grid.pop(self.top)
             self.grid.insert(self.bottom, self._blank_row())
@@ -264,6 +270,7 @@ class Term:
             if n == 3:
                 self.scrollback.clear()
                 self.sb_wrapped.clear()
+                self.graphics.clear()
             self.cursor_to(0, 0)
         elif n == 1:
             for x in range(self.cx + 1):
@@ -508,6 +515,8 @@ class Term:
                     self.state, self.csi = "csi", ""
                 elif ch == "]":
                     self.state, self.osc = "osc", ""
+                elif ch == "_":
+                    self.state, self.apc = "apc", ""
                 elif ch == "(":
                     self.state = "charset"
                 elif ch == "M":
@@ -565,9 +574,33 @@ class Term:
                 else:  # ESC sozinho: volta a interpretar
                     self.state = "ground"
                     self.feed(ch)
+            elif st == "apc":
+                if ch == "\x07":
+                    self._apc_done()
+                elif ch == "\x1b":
+                    self.state = "apc-esc"
+                else:
+                    self.apc += ch
+            elif st == "apc-esc":
+                if ch == "\\":
+                    self._apc_done()
+                else:
+                    self.state = "ground"
             elif st == "charset":
                 self.charset_dec = (ch == "0")
                 self.state = "ground"
+
+    def _apc_done(self):
+        body, self.apc = self.apc, ""
+        self.state = "ground"
+        cw, ch = self.cell_size
+        resp, used, move = self.graphics.handle(body, (self.cx, self.cy),
+                                                (cw, ch))
+        for r in resp:
+            self.child_out += b"\x1b_" + r.encode() + b"\x1b\\"
+        if move and used:
+            for _ in range(used):
+                self.newline()
 
     def _osc_done(self):
         # só título (0/2); resto ignorado

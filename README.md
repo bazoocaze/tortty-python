@@ -83,6 +83,11 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   Ctrl/Alt/Super+tecla saem como `CSI codigo ; mods u`, então `Ctrl+Shift+letra`
   deixa de se confundir com `Ctrl+letra`; `report event types` acrescenta
   `:1`/`:2`/`:3`; `report all keys as escape codes` manda tudo em CSI-u.
+- **Protocolo de gráficos do kitty** (`pyterm_core/graphics.py`): APC `G` com
+  `a=t`/`a=T`/`a=p`/`a=d`/`a=q`, `f=24` (RGB), `f=32` (RGBA) e `f=100` (PNG),
+  imagem em pedaços (`m=1`), `i`/`c`/`r`/`C=1`/`q`. O `kitten icat` funciona
+  (detecta via `a=q` + `DA`, transmite e desenha). As imagens rolam junto com
+  o texto e são desenhadas por cima das células.
 - **Reflow no resize**: linhas que quebraram mole são re-quebradas na largura
   nova (uma linha longa vira várias ao estreitar, volta a ser uma ao alargar),
   o cursor fica sobre o mesmo caractere e o scrollback é re-aproveitado. Fundo
@@ -102,7 +107,8 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
 - **Seleção só por célula**: sem duplo-clique por palavra e sem modo
   bloco/retangular.
 - **Truecolor aproximado** para a paleta de 16 cores.
-- **Sem protocolo de gráficos** (nada de `kitten icat`).
+- **Gráficos sem animação/z-index**: `a=f`/`a=a` são ignorados, sem
+  `t=f`/`t=t`/`t=s` (arquivo, temp file, shared memory) e sem compressão.
 - **Sem ligaduras**, sem fontes fallback para emoji/CJK.
 - **Kitty keyboard protocol parcial**: sem `report alternate keys` (a flag 4
   exige o keysym alternativo, que o Gdk não entrega direto), sem repeat
