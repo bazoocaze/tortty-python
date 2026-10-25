@@ -16,7 +16,7 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 - TASK-bzmux.md — ficha magra: status, por onde retomar, fila.
 - docs/BACKLOG.md — backlog pendente (P9 shaping e P10 fallback de fonte; os
   dois caem juntos no Pango).
-- docs/HISTORY.md — backlog concluído (P1–P8, P11–P17), bugs corrigidos,
+- docs/HISTORY.md — backlog concluído (P1–P8, P11–P18), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
 - docs/DOOM-FIRE.md — a carga de medição: por que ela existe, como rodar, o
   número (bzmux 0,6 MB/s contra 15,9 MB/s do kitty, 26x) e o protocolo de

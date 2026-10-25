@@ -74,7 +74,18 @@ def _codepoint(kv):
 
 
 def encode(kv, shift, alt, ctrl, super_, flags, event=PRESS, text=""):
-    """Devolve a sequência do protocolo, ou None para usar o caminho legado."""
+    """Devolve a sequência, None para o caminho legado, ou "" para não mandar nada."""
+    seq = _encode(kv, shift, alt, ctrl, super_, flags, event, text)
+    if seq is None and event == RELEASE and flags & 2:
+        # Release não tem forma legada (o legado é só "a tecla saiu"): sem
+        # sequência do kitty, não sai nada. Sem isto o `encode_key` caía no
+        # caminho legado e mandava o texto de novo — tecla dobrada no `pi`,
+        # que liga a flag 2 (P18).
+        return ""
+    return seq
+
+
+def _encode(kv, shift, alt, ctrl, super_, flags, event=PRESS, text=""):
     dis = flags & 1
     ev_types = flags & 2
     report_all = flags & 8

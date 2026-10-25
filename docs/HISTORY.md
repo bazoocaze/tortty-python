@@ -561,6 +561,29 @@ não mudou o layout; (2) rodar os dois terminais ao mesmo tempo contamina a
 medição e a comparação visual. O que resolveu foi replay determinístico contra
 referência, não screenshot de screenshot.
 
+### P18 — Teclas dobradas dentro do `pi` — **feito**
+
+Sintoma: digitando no `pi` cada tecla entrava duas vezes; shell, `vim` e `mc`
+normais. Só o `pi` liga o protocolo de teclado do kitty com `CSI > 7 u`, isto é,
+com a flag **2 = report event types**: o app passa a receber press, repeat e
+release.
+
+Causa: o release não tem forma no caminho legado (lá "a tecla saiu" é só mandar
+o byte de novo, o que seria um segundo press), mas o `encode` devolvia `None`
+para os casos em que o legado "já faz certo" — texto puro, seta sem
+modificador. `None` significa *use o legado* em `encode_key`, então o release
+caía lá e reenviava o texto. `a` saía no press e de novo no release.
+
+Fix: a regra ficou num lugar só, `kitty_kbd.encode` — com a flag 2 e release,
+ou sai a sequência do kitty, ou sai `""` (nada); nunca `None`. `encode_key`
+segue sem saber de release, e o caminho legado não muda para press nem repeat
+(repeat continua reenviando o byte, que é o certo: no legado repetição *é* um
+press novo).
+
+Verificação: check no `kitty_keyboard` (com flags=7, `a` no press e `""` no
+release) e ao vivo no `pi` — digitar `abcabc` e ler a linha de entrada: sai
+`abcabc`, não `aabbcc…`.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.

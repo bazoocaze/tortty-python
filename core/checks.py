@@ -132,6 +132,9 @@ def kitty_keyboard():
     assert enc(0xFF52, 1, 0, 0, 0, 1) == "\x1b[1;2A"
     assert enc(0x61, 0, 0, 0, 0, 8) == "\x1b[97u"
     assert enc(0x61, 0, 0, 1, 0, 3, event=kitty_kbd.RELEASE) == "\x1b[97;5:3u"
+    # Release nunca cai no legado: texto puro com a flag 2 não sai duas vezes
+    assert enc(0x61, 0, 0, 0, 0, 7, event=kitty_kbd.RELEASE) == ""
+    assert enc(0x61, 0, 0, 0, 0, 7, event=kitty_kbd.PRESS) is None
     t = Term()
     t.feed("\x1b[>1u\x1b[=2;2u")
     assert (t.kbd_flags, t.kbd_stack) == (3, [0])
