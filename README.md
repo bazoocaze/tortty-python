@@ -91,6 +91,10 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   imagem em pedaços (`m=1`), `i`/`c`/`r`/`C=1`/`q`. O `kitten icat` funciona
   (detecta via `a=q` + `DA`, transmite e desenha). As imagens rolam junto com
   o texto e são desenhadas por cima das células.
+- **Fecha quando o shell termina**: `GLib.child_watch_add` reapa o filho (sem
+  zumbi) e fecha a janela no `Ctrl+D`/`exit`; antes de fechar drena o que
+  sobrou no pty (senão some a última tela) e manda `SIGHUP` pro grupo do filho
+  (jobs em background não ficam órfãos).
 - **Reflow no resize**: linhas que quebraram mole são re-quebradas na largura
   nova (uma linha longa vira várias ao estreitar, volta a ser uma ao alargar),
   o cursor fica sobre o mesmo caractere e o scrollback é re-aproveitado. Fundo

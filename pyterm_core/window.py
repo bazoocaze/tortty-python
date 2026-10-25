@@ -97,13 +97,17 @@ class PyTermWindow(Gtk.Window):
         # chega ANTES do filho ser re-alocado, então get_allocation() ali
         # ainda devolve o tamanho antigo e o resize nunca era aplicado.
         self.area.connect("size-allocate", self.on_resize)
-        self.connect("destroy", Gtk.main_quit)
+        self.connect("destroy", self.on_destroy)
         self.font_size = 16
         self._metrics = None
         self.set_default_size(680, 420)
 
         self.master = None
         self.child_pid = None
+        self.child_exited = False   # waitpid já chegou?
+        self.exit_code = None
+        self.pty_watch = 0
+        self._closing = False
         self.decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         self.spawn(cmd or os.environ.get("SHELL", "/bin/bash"))
         if quit_after:
@@ -116,6 +120,17 @@ class PyTermWindow(Gtk.Window):
     def spawn(self, cmd):
         pid, fd = pty.fork()
         if pid == 0:
+            # Herança de disposição de sinal é uma armadilha: o `run.sh` sobe
+            # com `nohup` (SIGHUP ignorado) e o Python ignora SIGPIPE — o
+            # filho herdava os dois. Com SIGHUP ignorado o hangup do grupo
+            # não matava job nenhum; com SIGPIPE ignorado, `seq 1 100000 |
+            # head -3` não parava no pipe quebrado. Volta tudo ao default.
+            for sig in (signal.SIGHUP, signal.SIGPIPE, signal.SIGINT,
+                        signal.SIGQUIT, signal.SIGTERM):
+                try:
+                    signal.signal(sig, signal.SIG_DFL)
+                except (OSError, ValueError):
+                    pass
             os.environ["TERM"] = "xterm-256color"
             try:
                 os.execlp("sh", "sh", "-c", cmd)
@@ -124,17 +139,30 @@ class PyTermWindow(Gtk.Window):
         self.child_pid = pid
         self.master = fd
         os.set_blocking(fd, False)
-        GLib.io_add_watch(fd, GLib.IO_IN | GLib.IO_HUP | GLib.IO_ERR,
-                           self.on_pty)
+        self.pty_watch = GLib.io_add_watch(fd, GLib.IO_IN | GLib.IO_HUP |
+                                          GLib.IO_ERR, self.on_pty)
+        # O EOF do pty NÃO é sinal confiável de que o shell morreu: no Linux
+        # o master devolve EIO, o watch morre e o loop do Gtk segue vivo (a
+        # janela ficava aberta depois do Ctrl+D). O sinal de verdade é o
+        # waitpid — o GLib reapa e entrega o status aqui.
+        GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, self.on_child_exit)
 
     def on_pty(self, fd, cond):
         try:
             data = os.read(fd, 65536)
+        except BlockingIOError:
+            return True
         except OSError:
+            # EIO = todo mundo fechou o lado escravo (o shell saiu). Se o
+            # waitpid ainda não chegou, espera ele; senão fecha já.
+            self.pty_watch = 0
+            if self.child_exited:
+                self._close()
             return False
         if not data:
-            self.dump()
-            Gtk.main_quit()
+            self.pty_watch = 0
+            if self.child_exited:
+                self._close()
             return False
         self.term.feed(self.decoder.decode(data))
         # respostas do núcleo (DA/CPR) voltam ao filho
@@ -153,9 +181,77 @@ class PyTermWindow(Gtk.Window):
         self.area.queue_draw()
         return True
 
-    def _on_quit_after(self):
+    def on_child_exit(self, pid, status):
+        """O shell morreu (o GLib já reapou — NÃO chamar waitpid de novo)."""
+        try:
+            self.exit_code = os.waitstatus_to_exitcode(status)
+        except (AttributeError, ValueError):
+            self.exit_code = None
+        self.child_exited = True
+        self._drain_pty()     # não perder o último output (logout, msg de erro)
+        if self.exit_code:
+            print(f"pyterm: shell saiu com código {self.exit_code}",
+                  file=sys.stderr)
+        self._close()
+        return False          # remove o child watch
+
+    def _drain_pty(self):
+        """Lê o que sobrou no master sem bloquear (fd é non-blocking)."""
+        if self.master is None:
+            return
+        for _ in range(64):   # teto: filho mal comportado não trava a saída
+            try:
+                data = os.read(self.master, 65536)
+            except (BlockingIOError, InterruptedError, OSError):
+                break
+            if not data:
+                break
+            self.term.feed(self.decoder.decode(data))
+            if self.term.child_out:
+                try:
+                    os.write(self.master, bytes(self.term.child_out))
+                except OSError:
+                    pass
+                self.term.child_out = bytearray()
+
+    def _close(self):
+        """Fecha a janela de dentro do pyterm (shell saiu ou --quit-after)."""
+        if self._closing:
+            return
+        self._closing = True
+        if self.pty_watch:
+            GLib.source_remove(self.pty_watch)
+            self.pty_watch = 0
         self.dump()
+        self._hangup()
+        self.destroy()        # -> on_destroy -> Gtk.main_quit
+
+    def _hangup(self):
+        """SIGHUP no grupo do filho: o `pty.fork` fez dele líder de sessão.
+
+        Sem isso, netos do shell (jobs em background, `tail -f`) ficavam
+        órfãos segurando o pty quando a janela fechava.
+        """
+        if not self.child_pid:
+            return
+        try:
+            os.killpg(self.child_pid, signal.SIGHUP)
+        except (ProcessLookupError, PermissionError, OSError) as e:
+            print(f"pyterm: hangup falhou: {e!r}", file=sys.stderr)
+
+    def on_destroy(self, *_):
+        """Fechou pelo window manager (ou via _close)."""
+        self._hangup()
+        if self.master is not None:
+            try:
+                os.close(self.master)
+            except OSError:
+                pass
+            self.master = None
         Gtk.main_quit()
+
+    def _on_quit_after(self):
+        self._close()
         return False
 
     def _on_dump_signal(self):
