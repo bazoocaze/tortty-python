@@ -49,6 +49,21 @@ APP_CURSOR = {
 }
 
 
+# keyvals que são só modificador: apertar Shift não pode, por exemplo, tirar
+# o usuário da tela de histórico (o Shift chega como evento de tecla antes da
+# tecla de verdade, e "qualquer tecla volta pro vivo" resetava a visão).
+MODIFIER_KEYS = frozenset({
+    Gdk.KEY_Shift_L, Gdk.KEY_Shift_R, Gdk.KEY_Control_L, Gdk.KEY_Control_R,
+    Gdk.KEY_Alt_L, Gdk.KEY_Alt_R, Gdk.KEY_Meta_L, Gdk.KEY_Meta_R,
+    Gdk.KEY_Super_L, Gdk.KEY_Super_R, Gdk.KEY_Hyper_L, Gdk.KEY_Hyper_R,
+    Gdk.KEY_Caps_Lock, Gdk.KEY_Num_Lock, Gdk.KEY_ISO_Level3_Shift,
+})
+
+
+def is_modifier(kv):
+    return kv in MODIFIER_KEYS
+
+
 def encode_key(kv, state, dead_mark=0, app_cursor=False):
     """Traduz uma tecla.
 

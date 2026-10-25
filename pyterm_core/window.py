@@ -13,7 +13,7 @@ import sys
 import termios
 
 from .gui import Gtk, Gdk, GLib, cairo
-from .keys import encode_key
+from .keys import encode_key, is_modifier
 from . import mouse
 from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, PALETTE256,
                       BG_DEFAULT, FG_DEFAULT)
@@ -44,6 +44,7 @@ class PyTermWindow(Gtk.Window):
         self.dragging = False
         self._held = None    # botão do protocolo apertado agora
         self._state = 0      # modificadores do último evento (shift/alt/ctrl)
+        self.view_off = 0    # 0 = vivo; >0 = linhas de histórico na tela
         self.area = Gtk.DrawingArea()
         self.area.set_can_focus(True)
         self.area.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
@@ -112,6 +113,10 @@ class PyTermWindow(Gtk.Window):
             self.term.child_out = bytearray()
         if self.term.title != self.get_title():
             self.set_title(self.term.title)
+        # output novo volta pro vivo (é o que todo terminal faz: o app está
+        # falando, o usuário não está mais lendo o histórico)
+        if self.view_off:
+            self.view_off = 0
         self.area.queue_draw()
         return True
 
@@ -184,6 +189,26 @@ class PyTermWindow(Gtk.Window):
         except OSError:
             pass
 
+    # -- histórico (P2) -----------------------------------------------
+    def visible_rows(self):
+        return self.term.visible_rows(self.view_off)
+
+    def scroll_view(self, delta):
+        """Rola a visão no histórico. `delta` > 0 = pra trás no tempo."""
+        t = self.term
+        if t.alt_grid is not None:
+            return False      # alt-screen não tem histórico que rolar
+        off = max(0, min(len(t.scrollback), self.view_off + delta))
+        if off != self.view_off:
+            self.view_off = off
+            self.area.queue_draw()
+        return True
+
+    def back_to_live(self):
+        if self.view_off:
+            self.view_off = 0
+            self.area.queue_draw()
+
     # -- desenho ------------------------------------------------------
     def sel_range(self):
         """Seleção normalizada (r1, c1, r2, c2) ou None."""
@@ -207,8 +232,8 @@ class PyTermWindow(Gtk.Window):
         cr.set_source_rgb(r, g, b)
         cr.paint()
         sel = self.sel_range()
-        for y in range(t.rows):
-            row = t.grid[y]
+        rows = self.visible_rows()
+        for y, row in enumerate(rows):
             x = 0
             while x < t.cols:
                 cell = row[x]
@@ -247,8 +272,9 @@ class PyTermWindow(Gtk.Window):
                     cr.rectangle(x * cw, y * ch + ch - 2, (j - x) * cw, 1)
                     cr.fill()
                 x = j
-        # cursor bloco
-        if t.cursor_visible and t.cy < t.rows and t.cx < t.cols:
+        # cursor bloco — só no vivo: no histórico o cursor do app não está ali
+        if (self.view_off == 0 and t.cursor_visible
+                and t.cy < t.rows and t.cx < t.cols):
             cr.set_source_rgb(*[c / 255 for c in FG_DEFAULT])
             cr.rectangle(t.cx * cw, t.cy * ch, cw, ch)
             cr.fill()
@@ -257,6 +283,17 @@ class PyTermWindow(Gtk.Window):
             cr.set_source_rgb(*[c / 255 for c in bgc])
             cr.move_to(t.cx * cw, t.cy * ch + ascent + 1)
             cr.show_text(cell[0])
+        if self.view_off:
+            # marcador de histórico no canto ("↑") com o quanto se voltou
+            label = f"↑{self.view_off} "
+            ext = cr.text_extents(label)
+            x0 = (t.cols - 1) * cw - ext[2]
+            cr.set_source_rgb(*[c / 255 for c in FG_DEFAULT])
+            cr.rectangle(x0 - 2, 0, ext[2] + 4, ch)
+            cr.fill()
+            cr.set_source_rgb(*[c / 255 for c in BG_DEFAULT])
+            cr.move_to(x0, ascent + 1)
+            cr.show_text(label)
         return False
 
     # -- mouse, seleção e cópia ---------------------------------------
@@ -291,6 +328,7 @@ class PyTermWindow(Gtk.Window):
         t = self.term
         self._state = ev.state
         col, row = self.cell_at(ev.x, ev.y)
+        self.back_to_live()      # clicar sempre volta pro vivo
         btn = mouse.GDK_BUTTONS.get(ev.button)
         if t.mouse_mode and btn is not None:
             # o app quer saber do mouse: nada de seleção local
@@ -353,12 +391,14 @@ class PyTermWindow(Gtk.Window):
                Gdk.ScrollDirection.RIGHT: mouse.WHEEL_RIGHT}.get(ev.direction)
         if btn is None:
             return False
-        if t.mouse_mode:
-            col, row = self.cell_at(ev.x, ev.y)
-            self.report_mouse(btn, col, row, True)
-            self.report_mouse(btn, col, row, False)
-            return True
-        return False
+        back = btn in (mouse.WHEEL_UP, mouse.WHEEL_LEFT)
+        # lendo histórico: o wheel continua rolando a visão, não vai pro app
+        if self.view_off or not t.mouse_mode:
+            return self.scroll_view(3 if back else -3)
+        col, row = self.cell_at(ev.x, ev.y)
+        self.report_mouse(btn, col, row, True)
+        self.report_mouse(btn, col, row, False)
+        return True
 
     def on_focus_in(self, widget, ev):
         if self.term.focus_report:
@@ -373,14 +413,15 @@ class PyTermWindow(Gtk.Window):
     # -- área de transferência ----------------------------------------
     def copy(self, selection=Gdk.SELECTION_CLIPBOARD):
         """Copia a seleção — ou a viewport inteira, se não houver seleção."""
+        rows = self.visible_rows()
         sel = self.sel_range()
         if sel:
             r1, c1, r2, c2 = sel
-            text = self.term.selection_text((r1, c1), (r2, c2))
+            text = self.term.selection_text((r1, c1), (r2, c2), rows=rows)
             if text:
                 text += "\n"          # seleção de linha inteira já vem sem
         else:
-            text = self.term.all_text()
+            text = self.term.all_text(rows=rows)
         cb = Gtk.Clipboard.get(selection)
         cb.set_text(text, -1)
         cb.store()
@@ -406,6 +447,19 @@ class PyTermWindow(Gtk.Window):
         if ctrl and shift and kv in (Gdk.KEY_v, Gdk.KEY_V):
             self.paste()
             return True
+        # Shift+PgUp/PgDn/Home/End olham o histórico (P2) sem falar com o app
+        if shift and kv == Gdk.KEY_Page_Up:
+            return self.scroll_view(self.term.rows - 1)
+        if shift and kv == Gdk.KEY_Page_Down:
+            return self.scroll_view(-(self.term.rows - 1))
+        if shift and kv == Gdk.KEY_Home and self.term.scrollback:
+            return self.scroll_view(len(self.term.scrollback))
+        if shift and kv == Gdk.KEY_End:
+            return self.scroll_view(-len(self.term.scrollback))
+        if self.view_off and not is_modifier(kv):
+            # tecla de verdade volta pro vivo (a tecla também vai pro app);
+            # só modificador não, senão o Shift do Shift+PgUp já resetava
+            self.back_to_live()
         out, self.dead_mark, handled = encode_key(
             ev.keyval, ev.state, self.dead_mark, self.term.app_cursor)
         self._write_child(out or "")

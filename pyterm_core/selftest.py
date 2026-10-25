@@ -69,6 +69,13 @@ def selftest():
     t.feed("\x1b]0;titulo\x07")
     check("OSC título", t.title, "titulo")
 
+    # -- histórico: a visão desliza sobre scrollback + grade ----------
+    t = Term(cols=10, rows=3)
+    t.feed("a\r\nb\r\nc\r\nd\r\ne\r\n")
+    rows_of = lambda rs: ["".join(c[0] for c in r).rstrip() for r in rs]
+    check("histórico off=0 (vivo)", rows_of(t.visible_rows(0)), ["d", "e", ""])
+    check("histórico off=1", rows_of(t.visible_rows(1)), ["c", "d", "e"])
+
     # -- mouse (?1000/?1002/?1006) e seleção -------------------------
     t = Term()
     t.feed("\x1b[?1002h\x1b[?1006h")

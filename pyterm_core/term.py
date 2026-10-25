@@ -426,29 +426,46 @@ class Term:
     def row_text(self, y):
         return "".join(c[0] for c in self.grid[y])
 
+    def visible_rows(self, off=0):
+        """As `rows` linhas que estão na tela, com `off` linhas de histórico.
+
+        `off`=0 é o vivo (a grade). `off`>0 puxa as últimas `off` linhas do
+        scrollback pra cima da grade — a tela é uma janela que desliza, sem
+        mexer no cursor nem no que o app escreveu.
+        """
+        off = max(0, min(off, len(self.scrollback)))
+        if not off:
+            return self.grid
+        return self.scrollback[-off:] + self.grid[:self.rows - off]
+
     # -- texto (cópia) ------------------------------------------------
-    def selection_text(self, start, end):
+    def selection_text(self, start, end, rows=None):
         """Texto entre duas células (row, col), 0-based, pontas inclusivas.
 
         Ordem invertida (arrastar de baixo pra cima) é normalizada. Espaço à
         direita de cada linha sai fora — é o que todo terminal faz ao copiar.
+        `rows` permite copiar da visão de histórico em vez da grade viva.
         """
+        if rows is None:
+            rows = self.grid
         (r1, c1), (r2, c2) = start, end
         if (r1, c1) > (r2, c2):
             (r1, c1), (r2, c2) = (r2, c2), (r1, c1)
-        r1 = max(0, min(self.rows - 1, r1))
-        r2 = max(0, min(self.rows - 1, r2))
+        last = len(rows) - 1
+        r1 = max(0, min(last, r1))
+        r2 = max(0, min(last, r2))
         out = []
         for y in range(r1, r2 + 1):
             a = c1 if y == r1 else 0
             b = (c2 + 1) if y == r2 else self.cols
-            row = self.grid[y]
+            row = rows[y]
             out.append("".join(c[0] for c in row[a:b]).rstrip())
         return "\n".join(out)
 
-    def all_text(self):
+    def all_text(self, rows=None):
         """A viewport inteira (Ctrl+Shift+C sem seleção)."""
-        lines = [self.row_text(y).rstrip() for y in range(self.rows)]
+        rows = self.grid if rows is None else rows
+        lines = ["".join(c[0] for c in row).rstrip() for row in rows]
         while lines and not lines[-1]:
             lines.pop()
         return "\n".join(lines) + ("\n" if lines else "")
