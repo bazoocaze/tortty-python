@@ -15,7 +15,7 @@ cd pyterm
 ./run.sh --cmd 'mc'           # comando inicial
 ./run.sh --kill               # fecha a instância do runner
 ./run.sh --status             # pid / rodando?
-python3 pyterm.py --selftest  # testa o parser sem abrir janela (14 checks)
+python3 pyterm.py --selftest  # testa parser/mouse/histórico/reflow/gráficos (35 checks, sem janela)
 ```
 
 ## Como o código está organizado
@@ -28,9 +28,12 @@ pyterm_core/
 ├── palette.py   # célula [char,fg,bg,flags], paleta xterm-256, charset DEC
 ├── term.py      # grade, cursor, parser VT — NÃO conhece Gtk
 ├── keys.py      # keyval do X11 -> bytes do filho (dead keys, DECCKM)
+├── kitty_kbd.py # protocolo de teclado do kitty (CSI ... u)
+├── mouse.py     # protocolo de mouse: SGR e o antigo (puro)
+├── graphics.py  # protocolo de imagens do kitty (APC G, puro)
 ├── gui.py       # import único de Gtk/Gdk/GLib/cairo (require_version)
 ├── window.py    # janela GTK: pty, io_add_watch, desenho cairo, eventos
-├── selftest.py  # 14 checks do parser
+├── selftest.py  # 35 checks, sem abrir janela
 └── cli.py       # argv e arranque
 ```
 
