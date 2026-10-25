@@ -18,15 +18,33 @@ teste ficam em [`TASK-bzmux.md`](TASK-bzmux.md).
 ./run.sh --cmd 'mc'           # comando inicial
 ./run.sh --kill               # fecha a instância do runner
 ./run.sh --status             # pid / rodando?
-python3 bzmux.py --selftest   # parser/mouse/histórico/reflow/gráficos (50 checks, sem janela)
+uv run pytest -q              # bateria de testes (14 checks, sem janela)
+python3 bzmux.py --selftest   # os mesmos checks, sem depender de pytest
 ```
 
 ## Ferramentas de teste
 
-`--selftest` cobre o parser sem display. O que só se prova com janela aberta é
+`uv run pytest -q` cobre o parser, os protocolos, o reflow e a seleção sem
+display; `python3 bzmux.py --selftest` roda exatamente os mesmos checks. O que só se prova com janela aberta é
 feito à mão com `tools/xtest.py` (XTest: tecla, clique, duplo clique, wheel,
 arrasto, texto) e conferido com `tools/pixel.py` (cor de pixel numa captura) —
 ver `TASK-bzmux.md`. Precisa de servidor X e de `python3-xlib`.
+
+## Ambiente (uv)
+
+O projeto é um ambiente uv (pyproject.toml + uv.lock), mas **o app roda no python
+do sistema**: o PyGObject vem da distro e não se instala por pip sem sofrimento,
+então `./run.sh` continua chamando `python3`. O venv do uv serve para os testes
+(só pytest) e usa o mesmo interpretador do sistema (python-preference = system).
+
+```sh
+uv sync                       # cria .venv com pytest
+uv run pytest -q              # testes
+uv sync --extra tools         # + python-xlib, para as ferramentas de tools/
+```
+
+Se quiser rodar o app de dentro do venv, crie-o com
+`uv venv --system-site-packages` — aí o gi do sistema fica visível.
 
 ## Como o código está organizado
 
@@ -44,7 +62,8 @@ core/
 ├── gui.py       # import único de Gtk/Gdk/GLib/cairo (require_version)
 ├── view.py      # TermView: uma sessão (pty, desenho cairo, eventos)
 ├── window.py    # Workspace (Gtk.Notebook + cartão) e BzmuxWindow
-├── selftest.py  # 50 checks, sem abrir janela
+├── checks.py    # a bateria: 14 checks, sem abrir janela
+├── selftest.py  # runner sem dependências (--selftest)
 └── cli.py       # argv e arranque
 ```
 
@@ -190,7 +209,7 @@ o mesmo motivo pelo qual o `gtkterm` usa o núcleo C.
 arquivo de `--dump-to`) — foi assim que se provou que o `mc` é renderizado
 fielmente: o dump bate byte a byte com o que o `mc` escreve.
 
-`python3 bzmux.py --selftest` exercita o parser sem GTK: texto, SGR, CUP,
+`uv run pytest -q` exercita o parser sem GTK: texto, SGR, CUP,
 EL/ED, alt-screen (ida e volta), scroll, charset DEC, DA, DSR/CPR, região de
 scroll e título por OSC.
 

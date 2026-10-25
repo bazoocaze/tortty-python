@@ -1,211 +1,26 @@
-"""Autochetcagem do parser: `python3 bzmux.py --selftest`.
+"""Runner sem dependências dos checks: python3 bzmux.py --selftest."""
 
-Roda sem display e sem PyGObject: só importa `term`, `palette` e `mouse`,
-nunca `window`/`gui`.
-"""
+import sys
+import traceback
 
-import base64
-import zlib
-
-from . import kitty_kbd, mouse
-from .palette import DEF_FG, FG_DEFAULT, rgb, cell_rgb
-from .term import Term
+from .checks import ALL
 
 
 def selftest():
-    fails = []
-
-    def check(name, got, want):
-        if got != want:
-            fails.append(f"{name}: obtido {got!r}, esperado {want!r}")
+    """Roda todos os checks e imprime ok/FAIL por nome."""
+    fails = 0
+    for check in ALL:
+        name = check.__name__
+        try:
+            check()
+        except AssertionError:
+            fails += 1
+            tb = traceback.extract_tb(sys.exc_info()[2])[-1]
+            print(f"  FAIL: {name} ({tb.filename}:{tb.lineno})")
         else:
             print(f"  ok: {name}")
-
-    t = Term()
-    t.feed("oi")
-    check("texto", t.row_text(0)[:2], "oi")
-    check("cursor", (t.cx, t.cy), (2, 0))
-
-    t = Term()
-    t.feed("\x1b[31mX\x1b[0mY")
-    check("SGR fg", (t.grid[0][0][1], t.grid[0][1][1]), (1, DEF_FG))
-
-    t = Term()
-    t.feed("\x1b[2;5H*\x1b[1;1H#")
-    check("CUP", (t.grid[1][4][0], t.grid[0][0][0]), ("*", "#"))
-
-    t = Term()
-    t.feed("abc\x1b[2K")
-    check("EL 2", t.row_text(0)[:3], "   ")
-    t.feed("abc\x1b[2Jx")
-    check("ED 2", (t.row_text(0)[0], (t.cx, t.cy)), ("x", (1, 0)))
-
-    t = Term()
-    t.feed("\x1b[?1049hALT\x1b[?1049l")
-    check("altscreen volta", t.row_text(0)[:3], "   ")
-    t2 = Term()
-    t2.feed("\x1b[?1049hALT")
-    check("altscreen mostra", t2.row_text(0)[:3], "ALT")
-
-    t = Term()
-    t2 = t
-    for _ in range(30):
-        t.feed("l\n")
-    check("scroll", (len(t.scrollback) > 0, t.cy), (True, 23))
-
-    t = Term()
-    t.feed("\x1b(0qqqq\x1b(B")
-    check("DEC linha", t.row_text(0)[:4], "────")
-
-    t = Term()
-    t.feed("\x1b[c")
-    check("DA responde", bytes(t.child_out), b"\x1b[?62c")
-    t.child_out = bytearray()
-    t.feed("\x1b[5;9H\x1b[6n")
-    check("DSR/CPR", bytes(t.child_out), b"\x1b[5;9R")
-
-    t = Term()
-    t.feed("\x1b[3;10r")
-    check("scroll region", (t.top, t.bottom), (2, 9))
-
-    t = Term()
-    t.feed("\x1b]0;titulo\x07")
-    check("OSC título", t.title, "titulo")
-
-    # -- kitty keyboard (P5): o essencial do CSI-u ---------------------
-    enc = kitty_kbd.encode
-    check("kitty: 'a' sem flags vira legado", enc(0x61, 0, 0, 0, 0, 0), None)
-    check("kitty: Enter com disambiguate", enc(0xff0d, 0, 0, 0, 0, 1),
-          "\x1b[13u")
-    check("kitty: Ctrl+a", enc(0x61, 0, 0, 1, 0, 1), "\x1b[97;5u")
-    check("kitty: Ctrl+Shift+a", enc(0x61, 1, 0, 1, 0, 1), "\x1b[97;6u")
-    check("kitty: Shift+Up (legado com mods)", enc(0xff52, 1, 0, 0, 0, 1),
-          "\x1b[1;2A")
-    check("kitty: 'a' com report all", enc(0x61, 0, 0, 0, 0, 8), "\x1b[97u")
-    check("kitty: release com event types",
-          enc(0x61, 0, 0, 1, 0, 3, event=kitty_kbd.RELEASE), "\x1b[97;5:3u")
-
-    t = Term()
-    t.feed("\x1b[>1u\x1b[=2;2u")
-    check("kitty: flags somam", (t.kbd_flags, t.kbd_stack), (3, [0]))
-    t.feed("\x1b[<u")
-    check("kitty: pop volta", t.kbd_flags, 0)
-
-    # -- gráficos do kitty (P6): APC G, imagem e placement ------------
-    t = Term(cols=20, rows=4)
-    t.feed("\r\n")                       # cursor na linha 1
-    rgba = base64.b64encode(bytes([9, 8, 7, 255] * 4)).decode()
-    t.feed(f"\x1b_Ga=T,f=32,s=2,v=2,i=3;{rgba}\x1b\\")
-    img = t.graphics.images.get(3)
-    check("gráficos: imagem + placement",
-          (img.width, img.height, img.fmt,
-           [(p.image_id, p.col, p.row) for p in t.graphics.placements]),
-          (2, 2, 32, [(3, 0, 1)]))
-    t.feed("\x1b[4;1H\r\n")              # força um scroll
-    check("gráficos: a imagem rola junto", [p.row for p in t.graphics.placements],
-          [0])
-    # o=z (zlib) + X= (offset em px dentro da célula): é o que o
-    # `icat --place` manda depois de escalar a imagem sozinho
-    t = Term(cols=20, rows=4)
-    raw = bytes(range(24))                       # 4x2 RGB
-    b64 = base64.b64encode(zlib.compress(raw)).decode()
-    t.feed(f"\x1b_Ga=T,f=24,o=z,s=4,v=2,C=1,X=3;{b64}\x1b\\")
-    pl = t.graphics.placements[0]
-    check("gráficos: o=z + offset X", (pl.dx, pl.cols, pl.rows), (3, 1, 1))
-    # a imagem que sai pelo topo tem que ir pro histórico (linha negativa),
-    # não desaparecer: é o que faz o wheel/Shift+PgUp mostrarem ela de novo
-    t = Term(cols=20, rows=4)
-    rgba = base64.b64encode(bytes([9, 8, 7, 255] * 4)).decode()
-    t.feed(f"\x1b_Ga=T,f=32,s=2,v=2,i=7;{rgba}\x1b\\")   # cursor em (0,0)
-    for _ in range(6):
-        t.feed("\r\n")
-    pl = t.graphics.placements[0]
-    check("gráficos: imagem sai pro histórico",
-          (pl.row < 0, pl.row + len(t.scrollback) >= 0), (True, True))
-    # e o reflow não deixa colocação inalcançável pra trás
-    t.resize(40, 4)
-    check("gráficos: reflow poda o que saiu do histórico",
-          all(p.row >= -len(t.scrollback)
-              for p in t.graphics.placements), True)
-
-    # CSI com intermediário (`CSI * x` = DECSACE, que o icat manda antes de
-    # desenhar) não pode terminar no `*` e imprimir o `x` como texto
-    t = Term(cols=20, rows=2)
-    t.feed("\x1b[?s\x1b[*x\x1b[4lA")
-    check("csi: intermediário * não vira texto",
-          "".join(c[0] for c in t.grid[0]).rstrip(), "A")
-
-    # -- reflow (P3): re-quebra mantendo a linha lógica ---------------
-    t = Term(cols=20, rows=4)
-    text = "0123456789" * 4
-    t.feed(text)
-    t.resize(10, 4)
-    joined = "".join("".join(c[0] for c in r) for r in t.grid).rstrip()
-    check("reflow estreita (1 linha -> 4)", (joined, (t.cx, t.cy)),
-          (text, (9, 3)))
-    t.resize(20, 4)
-    joined = "".join("".join(c[0] for c in r) for r in t.grid).rstrip()
-    check("reflow alarga (4 -> 1)", (joined, (t.cx, t.cy)), (text, (19, 1)))
-
-    # -- histórico: a visão desliza sobre scrollback + grade ----------
-    t = Term(cols=10, rows=3)
-    t.feed("a\r\nb\r\nc\r\nd\r\ne\r\n")
-    rows_of = lambda rs: ["".join(c[0] for c in r).rstrip() for r in rs]
-    check("histórico off=0 (vivo)", rows_of(t.visible_rows(0)), ["d", "e", ""])
-    check("histórico off=1", rows_of(t.visible_rows(1)), ["c", "d", "e"])
-
-    # -- mouse (?1000/?1002/?1006) e seleção -------------------------
-    t = Term()
-    t.feed("\x1b[?1002h\x1b[?1006h")
-    check("mouse modo dragg + sgr", (t.mouse_mode, t.mouse_sgr), (2, True))
-
-    check("SGR press", mouse.encode(mouse.LEFT, 0, 0, True, sgr=True),
-          "\x1b[<0;1;1M")
-    check("SGR release", mouse.encode(mouse.LEFT, 4, 2, False, sgr=True),
-          "\x1b[<0;5;3m")
-    check("X10 press", mouse.encode(mouse.LEFT, 0, 0, True),
-          "\x1b[M" + chr(32) + chr(33) + chr(33))
-
-    # truecolor (P4): o RGB fica na célula (bit 24), sem tabela alocada
-    t = Term()
-    t.feed("\x1b[38;2;18;52;86mA\x1b[48;2;250;128;114mB")
-    check("truecolor: fg RGB na célula", t.grid[0][0][1], rgb(18, 52, 86))
-    check("truecolor: bg RGB na célula", t.grid[0][1][2], rgb(250, 128, 114))
-    check("truecolor: resolve de volta pro RGB",
-          cell_rgb(t.grid[0][0][1], FG_DEFAULT), (18, 52, 86))
-    t.feed("\x1b[38:2::7:8:9mC")          # forma ':' com espaço de cor vazio
-    check("truecolor: forma ':' (38:2::r:g:b)",
-          cell_rgb(t.grid[0][2][1], FG_DEFAULT), (7, 8, 9))
-    t = Term()
-    t.feed("\x1b[38;5;196mA\x1b[0mB")
-    check("256 cores continua índice (não vira RGB)", t.grid[0][0][1], 196)
-    check("reset volta pro default", t.grid[0][1][1], DEF_FG)
-    t = Term(cols=4, rows=2)
-    t.feed("\x1b[38;2;1;2;3mXYZW")
-    t.resize(8, 2)                        # reflow não pode perder a cor
-    check("truecolor sobrevive ao resize", t.grid[0][0][1], rgb(1, 2, 3))
-
-    # bracketed paste (P7): a política de colar mora no Term, sem display
-    t = Term()
-    check("paste cru quando o app não pediu", t.paste_payload("a\nb"), "a\nb")
-    t.feed("\x1b[?2004h")
-    check("paste com marcadores no ?2004",
-          t.paste_payload("a\nb"), "\x1b[200~a\nb\x1b[201~")
-    t.feed("\x1b[?2004l")
-    check("paste volta ao cru no ?2004l", t.paste_payload("a"), "a")
-
-    t = Term()
-    t.feed("abc\r\ndef\r\nghi")
-    check("seleção multi-linha", t.selection_text((0, 1), (1, 1)), "bc\nde")
-    # bug que apareceu no uso: copiar "abcdef" colava com "\n" e executava
-    check("seleção não ganha newline no fim",
-          t.selection_text((0, 0), (0, 2)), "abc")
-    check("seleção invertida", t.selection_text((1, 1), (0, 1)), "bc\nde")
-
     if fails:
-        print(f"SELFTEST FAIL ({len(fails)}):")
-        for f in fails:
-            print("  FAIL:", f)
+        print(f"SELFTEST FAIL ({fails} de {len(ALL)})")
         return 1
-    print("SELFTEST OK")
+    print(f"SELFTEST OK ({len(ALL)} checks)")
     return 0

@@ -51,9 +51,11 @@ Gdk). Cada aba tem o seu Term; a janela só orquestra, sem estado de sessão.
   nada de teste que só reescreve o código na forma de asserção, nada de perseguir
   cobertura.
 - Um bug corrigido = um check, quando der; não uma bateria em volta dele.
-- Teste barato de rodar: um comando (python3 bzmux.py --selftest), sem display
-  se possível. O que precisar de X11 fica documentado como comando manual no
-  TASK-bzmux.md, não vira infraestrutura.
+- Teste barato de rodar: um comando (uv run pytest -q), sem display. Os checks
+  ficam em core/checks.py e têm dois runners: o pytest e o
+  python3 bzmux.py --selftest (sem dependências, útil para provar que o caminho
+  dos testes não puxa gi). O que precisar de X11 fica documentado como comando
+  manual no TASK-bzmux.md, não vira infraestrutura.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação.
 - Medição não é teste: os números do TASK-bzmux.md vêm de execução real e não

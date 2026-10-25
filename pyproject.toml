@@ -1,0 +1,28 @@
+[project]
+name = "bzmux"
+version = "0.1.0"
+description = "Terminal minimo em Python puro - experimento de custo do caminho quente"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+# so as ferramentas de teste manual (tools/) precisam disto; o app usa o
+# PyGObject do sistema, que nao se instala por pip sem sofrimento
+tools = ["python-xlib>=0.33"]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+# projeto virtual: nao ha pacote instalavel (o codigo vive em core/, que nao e
+# nome de pacote publicavel), entao uv so administra o ambiente
+package = false
+# o app roda no python do sistema (PyGObject vem da distro); este venv serve
+# para os testes, entao basta usar o mesmo interpretador do sistema
+python-preference = "system"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
