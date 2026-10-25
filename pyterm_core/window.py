@@ -1,8 +1,11 @@
-"""A janela GTK: abas (P11) e, adiante, workspaces (P12).
+"""A janela GTK: workspaces (P12) e, dentro de cada um, abas (P11).
 
-Cada aba é uma `TermView` (pty + desenho + input) dentro de um `Gtk.Notebook`.
-Aqui mora só o que é global: ciclo de vida das abas, título delas e os atalhos
-que o filho **não pode** ver (`Ctrl+Shift+T/W`, `Alt+N`).
+    PyTermWindow  Gtk.Box[ lateral (Gtk.ListBox) | Gtk.Stack ]
+    Workspace     um Gtk.Notebook + as TermView dele + o cartão da lateral
+
+Cada workspace tem o seu conjunto de abas (`Gtk.Stack` e não trocar páginas do
+mesmo notebook: assim cada um guarda a aba selecionada, a ordem e os títulos).
+O que é de sessão mora na `view.py`; aqui só há ciclo de vida e atalhos.
 """
 
 import os
@@ -10,6 +13,8 @@ import signal
 
 from .gui import Gtk, Gdk, GLib
 from .view import TermView
+
+SIDEBAR_W = 170          # largura fixa (arrastável fica pra depois)
 
 
 def _leaf_descendant(pid, depth=8):
@@ -44,38 +49,44 @@ def _digit_of(ev):
     return None
 
 
-class PyTermWindow(Gtk.Window):
-    def __init__(self, cmd=None, quit_after=0, dump_to=None):
-        super().__init__(title="pyterm")
-        # O comando dado na linha de comando é replicado em cada aba nova
-        # (decisão do P11): `run.sh --cmd ...` e os testes continuam
-        # previsíveis. Sem `--cmd`, cada aba nasce com $SHELL.
-        self.cmd = cmd
-        self.dump_to = dump_to
-        self.quit_after = quit_after
-        self.views = []
-        self.font_size = 16
-        self._closing = False
+def _card_info(text):
+    """Texto pequeno e apagado do cartão da lateral (markup evita Pango aqui)."""
+    return ("<small><span foreground='#8a8a8a'>"
+            + GLib.markup_escape_text(text) + "</span></small>")
 
+
+class Workspace:
+    """Um conjunto de abas + o cartão dele na lateral."""
+
+    def __init__(self, win, index):
+        self.win = win
+        self.name = f"workspace {index}"
+        self.views = []
         self.notebook = Gtk.Notebook()
         self.notebook.set_scrollable(True)
         self.notebook.set_show_border(False)
         self.notebook.connect("switch-page", self.on_switch_page)
-        self.add(self.notebook)
-        self.set_default_size(680, 420)
-        self.connect("destroy", self.on_destroy)
 
-        self.new_tab()
-        if quit_after:
-            GLib.timeout_add_seconds(quit_after, self._on_quit_after)
-        # SIGUSR1 dumpar as abas na hora (depuração: "kill -USR1 <pid>")
-        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1,
-                             self._on_dump_signal)
+        # cartão da lateral: "<n>  <nome>" e, embaixo, a aba ativa
+        self.name_label = Gtk.Label(xalign=0)
+        self.info_label = Gtk.Label(xalign=0)
+        vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        vbox.set_border_width(6)
+        vbox.pack_start(self.name_label, False, False, 0)
+        vbox.pack_start(self.info_label, False, False, 0)
+        self.card = Gtk.EventBox()
+        # sem a máscara o EventBox tem janela e máscara vazia (get_events()==0)
+        # e não chega nenhum clique
+        self.card.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.card.connect("button-press-event", self.on_card_click)
+        self.card.add(vbox)
+        self.row = Gtk.ListBoxRow()
+        self.row.add(self.card)
+        self.update_card()
 
     # -- abas ---------------------------------------------------------
     @property
     def view(self):
-        """A view da aba corrente (ou None)."""
         i = self.notebook.get_current_page()
         if 0 <= i < len(self.views):
             return self.views[i]
@@ -83,36 +94,31 @@ class PyTermWindow(Gtk.Window):
 
     def new_tab(self):
         """Aba nova, herdando o cwd da aba corrente."""
-        v = TermView(cmd=self.cmd, cwd=self._current_cwd(),
-                     font_size=self.font_size,
+        v = TermView(cmd=self.win.cmd, cwd=self.win.current_cwd(self),
+                     font_size=self.win.font_size,
                      on_exit=self.on_view_exit,
                      on_title=self.on_view_title,
-                     shortcuts=self.handle_shortcut)
+                     shortcuts=self.win.handle_shortcut)
         self.views.append(v)
-        label = Gtk.Label(label=self._label_text(v))
-        # Gtk.Label não tem janela própria: sem EventBox não chega evento de
-        # mouse pra fechar a aba com o clique do meio
+        label = Gtk.Label(label=self.label_text(v))
         box = Gtk.EventBox()
-        # sem a máscara o EventBox tem janela mas recebe zero eventos
-        # (get_events() == 0), então o clique do meio nunca chegava
         box.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
         box.add(label)
         box.connect("button-press-event", self.on_tab_click, v)
         v.tab_label = label        # atualizado no on_view_title
         self.notebook.append_page(v, box)
         self.notebook.set_tab_reorderable(v, True)
-        # widget recém-anexado nasce HIDDEN: o notebook simplesmente ignora o
-        # set_current_page enquanto a página não está visível (silencioso, o
-        # get_current_page segue devolvendo a aba antiga e a tecla vai pra
-        # ela), então mostra a página e o rótulo na mão.
+        # página recém-anexada nasce HIDDEN e o notebook ignora o
+        # set_current_page enquanto ela não está visível (silencioso: a tecla
+        # segue indo pra aba antiga)
         v.show_all()
         box.show_all()
         self.notebook.set_current_page(self.views.index(v))
         v.grab_focus()
+        self.update_card()
         return v
 
     def close_tab(self, view=None):
-        """Fecha a aba (e a janela, se era a última)."""
         view = view or self.view
         if view is None:
             return False
@@ -123,16 +129,13 @@ class PyTermWindow(Gtk.Window):
             if page >= 0:
                 self.notebook.remove_page(page)
         if not self.views:
-            self.dump()
-            if not self._closing:
-                self._closing = True
-                self.destroy()          # -> on_destroy -> Gtk.main_quit
+            self.win.close_workspace(self)     # última aba: fecha o workspace
         else:
             self.view.grab_focus()
+            self.update_card()
         return True
 
     def select_tab(self, index):
-        """Seleciona a aba N (0-based); devolve False se não existe."""
         if 0 <= index < len(self.views):
             self.notebook.set_current_page(index)
             return True
@@ -153,9 +156,16 @@ class PyTermWindow(Gtk.Window):
         # não chegavam em ninguém). Um idle resolve.
         GLib.idle_add(self._focus_idle, v)
         v.queue_draw()          # aba escondida não recebe size-allocate
-        self.set_title(self._label_text(v))
+        self.update_card()
+        self.win.sync_title()
 
     def _focus_idle(self, v):
+        # não roubar o foco do Gtk.Entry de renomear o cartão: o clique que
+        # seleciona o workspace agenda este idle, e ele rodava DEPOIS do
+        # grab_focus do entry (a digitação do nome ia pro terminal)
+        w = self.win.get_focus()
+        if w is not None and w is not v and isinstance(w, Gtk.Entry):
+            return False
         v.grab_focus()
         return False
 
@@ -164,16 +174,17 @@ class PyTermWindow(Gtk.Window):
         # EventBox do clique do meio), então mexe no texto do Label guardado
         label = getattr(view, "tab_label", None)
         if label is not None:
-            label.set_text(self._label_text(view))
+            label.set_text(self.label_text(view))
+        self.update_card()
         if view is self.view:
-            self.set_title(self._label_text(view))
+            self.win.sync_title()
 
     def on_view_exit(self, view):
         """O shell da aba morreu: fecha a aba (P8, agora por aba)."""
-        self.dump()
+        self.win.dump()
         self.close_tab(view)
 
-    def _label_text(self, view):
+    def label_text(self, view):
         """Rótulo da aba: título do app ou, sem OSC, o cwd da sessão.
 
         O bash não manda OSC 0/2 por padrão, então todas as abas ficariam
@@ -184,12 +195,216 @@ class PyTermWindow(Gtk.Window):
             return view._title
         return os.path.basename(view.start_cwd or "") or "pyterm"
 
-    def _title_of(self, view):
-        return view._title or "pyterm"
-
-    def _current_cwd(self):
-        """cwd do filho da aba corrente (`/proc/<pid>/cwd`), sem OSC 7."""
+    # -- cartão da lateral ---------------------------------------------
+    def update_card(self):
+        try:
+            n = self.win.workspaces.index(self) + 1
+        except ValueError:
+            n = 0
+        self.name_label.set_markup(
+            f"<b>{n}</b>  {GLib.markup_escape_text(self.name)}")
         v = self.view
+        title = self.label_text(v) if v is not None else "-"
+        k = len(self.views)
+        self.info_label.set_markup(_card_info(
+            f"{title} ({k} aba{'s' if k != 1 else ''})"))
+
+    def on_card_click(self, widget, ev):
+        if ev.type == Gdk.EventType._2BUTTON_PRESS and ev.button == 1:
+            self.start_rename()
+            return True
+        if ev.button == 2:
+            self.win.close_workspace(self)
+            return True
+        if ev.button == 1:
+            self.win.select_workspace(self)
+            return True
+        return False
+
+    def start_rename(self):
+        """Duplo clique no cartão: edita o nome no lugar."""
+        box = self.card.get_child()
+        entry = Gtk.Entry()
+        entry.set_text(self.name)
+        box.remove(self.name_label)
+        box.pack_start(entry, False, False, 0)
+        box.reorder_child(entry, 0)
+        entry.show()
+        entry.grab_focus()
+        done = []
+
+        def finish(keep):
+            if done:
+                return False
+            done.append(True)
+            novo = entry.get_text().strip()
+            if keep and novo:
+                self.name = novo
+            box.remove(entry)
+            box.pack_start(self.name_label, False, False, 0)
+            box.reorder_child(self.name_label, 0)
+            self.name_label.show()
+            self.update_card()
+            return False
+
+        entry.connect("activate", lambda *_: finish(True))
+        entry.connect("focus-out-event", lambda *_: finish(True))
+        entry.connect("key-press-event", self._rename_key)
+        self._rename_finish = finish
+        return True
+
+    def _rename_key(self, entry, ev):
+        if ev.keyval == Gdk.KEY_Escape:
+            self._rename_finish(False)
+            return True
+        return False
+
+
+class PyTermWindow(Gtk.Window):
+    def __init__(self, cmd=None, quit_after=0, dump_to=None):
+        super().__init__(title="pyterm")
+        # O comando dado na linha de comando é replicado em cada aba nova
+        # (decisão do P11): `run.sh --cmd ...` e os testes continuam
+        # previsíveis. Sem `--cmd`, cada aba nasce com $SHELL.
+        self.cmd = cmd
+        self.dump_to = dump_to
+        self.quit_after = quit_after
+        self.workspaces = []
+        self.font_size = 16
+        self._closing = False
+
+        self.sidebar = Gtk.ListBox()
+        self.sidebar.set_size_request(SIDEBAR_W, -1)
+        self.sidebar.set_visible(False)      # só com 2+ workspaces
+        self.stack = Gtk.Stack()
+        self.stack.set_hexpand(True)
+        self.stack.set_vexpand(True)
+        hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        hbox.pack_start(self.sidebar, False, False, 0)
+        hbox.pack_start(self.stack, True, True, 0)
+        self.add(hbox)
+        self.set_default_size(680, 420)
+        self.connect("destroy", self.on_destroy)
+
+        self.new_workspace()
+        if quit_after:
+            GLib.timeout_add_seconds(quit_after, self._on_quit_after)
+        # SIGUSR1 dumpar as abas na hora (depuração: "kill -USR1 <pid>")
+        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1,
+                             self._on_dump_signal)
+
+    # -- workspaces ----------------------------------------------------
+    @property
+    def current(self):
+        i = self.stack.get_visible_child_name()
+        for ws in self.workspaces:
+            if self._stack_name(ws) == i:
+                return ws
+        return self.workspaces[0] if self.workspaces else None
+
+    @property
+    def view(self):
+        ws = self.current
+        return ws.view if ws is not None else None
+
+    @property
+    def views(self):
+        ws = self.current
+        return ws.views if ws is not None else []
+
+    @staticmethod
+    def _stack_name(ws):
+        return f"ws{id(ws)}"
+
+    def new_workspace(self):
+        """Workspace novo, com uma aba herdando o cwd do workspace atual."""
+        ws = Workspace(self, len(self.workspaces) + 1)
+        self.workspaces.append(ws)
+        self.stack.add_named(ws.notebook, self._stack_name(ws))
+        self.sidebar.add(ws.row)
+        ws.notebook.show_all()
+        ws.row.show_all()
+        self.select_workspace(ws)
+        ws.new_tab()
+        self.sidebar.set_visible(len(self.workspaces) > 1)
+        return ws
+
+    def select_workspace(self, ws):
+        if ws not in self.workspaces:
+            return False
+        self.stack.set_visible_child_name(self._stack_name(ws))
+        self.sidebar.select_row(ws.row)
+        v = ws.view
+        if v is not None:
+            GLib.idle_add(ws._focus_idle, v)
+        ws.update_card()
+        self.sync_title()
+        return True
+
+    def select_workspace_index(self, index):
+        if 0 <= index < len(self.workspaces):
+            return self.select_workspace(self.workspaces[index])
+        return False
+
+    def close_workspace(self, ws):
+        """Fecha o workspace e todas as abas dele."""
+        if ws not in self.workspaces:
+            return False
+        for v in list(ws.views):
+            v.shutdown()
+        ws.views = []
+        self.workspaces.remove(ws)
+        self.stack.remove(ws.notebook)
+        self.sidebar.remove(ws.row)
+        self.sidebar.set_visible(len(self.workspaces) > 1)
+        if not self.workspaces:
+            self.dump()
+            if not self._closing:
+                self._closing = True
+                self.destroy()          # -> on_destroy -> Gtk.main_quit
+            return True
+        for w in self.workspaces:       # renumera os cartões
+            w.update_card()
+        return self.select_workspace(self.workspaces[0])
+
+    # -- atalhos que o filho não vê ------------------------------------
+    def handle_shortcut(self, ev):
+        """Atalhos globais. Roda ANTES do encoding da tecla (na view)."""
+        ctrl = bool(ev.state & Gdk.ModifierType.CONTROL_MASK)
+        shift = bool(ev.state & Gdk.ModifierType.SHIFT_MASK)
+        alt = bool(ev.state & Gdk.ModifierType.MOD1_MASK)
+        kv = ev.keyval
+        ws = self.current
+        if ctrl and shift:
+            if kv in (Gdk.KEY_t, Gdk.KEY_T):
+                if ws is not None:
+                    ws.new_tab()
+                return True
+            if kv in (Gdk.KEY_w, Gdk.KEY_W):
+                if ws is not None:
+                    ws.close_tab()
+                return True
+            if kv in (Gdk.KEY_n, Gdk.KEY_N):
+                self.new_workspace()
+                return True
+            if kv in (Gdk.KEY_q, Gdk.KEY_Q):
+                if ws is not None:
+                    self.close_workspace(ws)
+                return True
+            n = _digit_of(ev)           # Ctrl+Shift+1..9 (0 = o 10º)
+            if n is not None:
+                return self.select_workspace_index(9 if n == 0 else n - 1)
+        if alt:
+            n = _digit_of(ev)           # Alt+1..9 (0 = a 10ª aba)
+            if n is not None and ws is not None:
+                return ws.select_tab(9 if n == 0 else n - 1)
+        return False
+
+    # -- cwd herdado ----------------------------------------------------
+    def current_cwd(self, ws=None):
+        """cwd do filho da aba corrente (`/proc/<pid>/cwd`), sem OSC 7."""
+        ws = ws or self.current
+        v = ws.view if ws is not None else None
         if v is not None and v.child_pid:
             # O filho do pty é `sh -c "<cmd>"`, e o sh NÃO faz exec quando o
             # comando tem argumento (`bash --norc`): o programa de verdade é
@@ -202,34 +417,25 @@ class PyTermWindow(Gtk.Window):
                     pass
         return os.getcwd()
 
-    # -- atalhos que o filho não vê ------------------------------------
-    def handle_shortcut(self, ev):
-        """Atalhos globais. Roda ANTES do encoding da tecla (na view)."""
-        ctrl = bool(ev.state & Gdk.ModifierType.CONTROL_MASK)
-        shift = bool(ev.state & Gdk.ModifierType.SHIFT_MASK)
-        alt = bool(ev.state & Gdk.ModifierType.MOD1_MASK)
-        kv = ev.keyval
-        if ctrl and shift:
-            if kv in (Gdk.KEY_t, Gdk.KEY_T):
-                self.new_tab()
-                return True
-            if kv in (Gdk.KEY_w, Gdk.KEY_W):
-                self.close_tab()
-                return True
-        if alt:
-            n = _digit_of(ev)
-            if n is not None:
-                return self.select_tab(9 if n == 0 else n - 1)
-        return False
+    # -- título da janela ----------------------------------------------
+    def sync_title(self):
+        ws = self.current
+        v = ws.view if ws is not None else None
+        self.set_title(ws.label_text(v) if (ws and v) else "pyterm")
 
     # -- dump / ciclo de vida ------------------------------------------
     def dump(self):
         path = self.dump_to or "/tmp/pyterm-dump.txt"
-        parts, multi = [], len(self.views) > 1
-        for i, v in enumerate(self.views):
-            if multi:
-                parts.append(f"=== aba {i + 1}: {self._title_of(v)} ===")
-            parts.append(v.dump_text())
+        parts = []
+        multi_ws = len(self.workspaces) > 1
+        for wi, ws in enumerate(self.workspaces, 1):
+            if multi_ws:
+                parts.append(f"=== workspace {wi}: {ws.name} ===")
+            multi = len(ws.views) > 1
+            for i, v in enumerate(ws.views, 1):
+                if multi:
+                    parts.append(f"=== aba {i}: {ws.label_text(v)} ===")
+                parts.append(v.dump_text())
         try:
             with open(path, "w", encoding="utf-8") as f:
                 f.write("\n".join(parts) + "\n")
@@ -243,16 +449,18 @@ class PyTermWindow(Gtk.Window):
     def _on_quit_after(self):
         self.dump()
         self._closing = True
-        for v in list(self.views):
-            v.shutdown()
+        for ws in list(self.workspaces):
+            for v in list(ws.views):
+                v.shutdown()
         self.destroy()
         return False
 
     def on_destroy(self, *_):
         self._closing = True
-        for v in list(self.views):
-            v.shutdown()
-        self.views = []
+        for ws in list(self.workspaces):
+            for v in list(ws.views):
+                v.shutdown()
+        self.workspaces = []
         Gtk.main_quit()
 
     def grab_focus_current(self):

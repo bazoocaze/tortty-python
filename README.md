@@ -33,7 +33,7 @@ pyterm_core/
 ├── graphics.py  # protocolo de imagens do kitty (APC G, puro)
 ├── gui.py       # import único de Gtk/Gdk/GLib/cairo (require_version)
 ├── view.py      # TermView: uma sessão (pty, desenho cairo, eventos)
-├── window.py    # PyTermWindow: Gtk.Notebook (abas) + atalhos globais
+├── window.py    # Workspace (Gtk.Notebook + cartão) e PyTermWindow
 ├── selftest.py  # 50 checks, sem abrir janela
 └── cli.py       # argv e arranque
 ```
@@ -109,6 +109,12 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   rótulo é o título do app (OSC 0/2) ou, sem OSC, o **cwd** da sessão; aba nova
   herda o cwd da atual via `/proc/<pid>/cwd`, e cada aba tem o seu `Term`,
   histórico, seleção e pty (o `P8` virou por aba: a última fecha a janela).
+- **Workspaces** (tipo cmux): cada um com o seu conjunto de abas, numa lateral
+  à esquerda que só aparece com 2+ workspaces. `Ctrl+Shift+N` cria,
+  `Ctrl+Shift+1`…`9` seleciona, `Ctrl+Shift+Q` fecha (ou clique do meio no
+  cartão); **duplo clique** no cartão renomeia (padrão "workspace N"). O cartão
+  mostra `1  <nome>` e, embaixo, a aba ativa e a contagem. Fechar a última aba
+  fecha o workspace; fechar o último workspace fecha o programa.
 - **Fecha quando o shell termina**: `GLib.child_watch_add` reapa o filho (sem
   zumbi) e fecha a janela no `Ctrl+D`/`exit`; antes de fechar drena o que
   sobrou no pty (senão some a última tela) e manda `SIGHUP` pro grupo do filho
@@ -135,7 +141,7 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
   `t=f`/`t=t`/`t=s` (arquivo, temp file, shared memory) e sem `z=` (z-index).
 - **Sem ligaduras**, sem fontes fallback para emoji/CJK (backlog P9/P10:
   `show_text` não faz shaping; Pango resolveria os dois de uma vez).
-- **Sem workspaces** (backlog P12): as abas são todas da mesma janela.
+
 - **Kitty keyboard protocol parcial**: sem `report alternate keys` (a flag 4
   exige o keysym alternativo, que o Gdk não entrega direto), sem repeat
   distinguido de press (o Gdk repete como key-press) e sem o modo de teclado
