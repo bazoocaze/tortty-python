@@ -12,6 +12,8 @@ TASK-bzmux.md.
 bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core/:
 
     bzmux.py       ponto de entrada, só delega
+    run.sh         abre/fecha o app por PID file
+    run-tests.sh   roda a bateria de testes
     core/
       palette.py   célula [char, fg, bg, flags], paleta xterm-256, charset DEC
       term.py      grade, cursor, parser VT — não conhece GTK
@@ -22,8 +24,10 @@ bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core
       gui.py       único import de Gtk/Gdk/GLib/cairo
       view.py      TermView: uma sessão (pty, cairo, eventos)
       window.py    Workspace + BzmuxWindow (abas, lateral, atalhos globais)
-      selftest.py  checks sem display
+      checks.py    a bateria: asserts puros, sem display
+      selftest.py  runner sem dependências do --selftest
       cli.py       argv e arranque
+    tests/         runner pytest de core/checks.py
     tools/         xtest.py, pixel.py — teste manual com X11
 
 O que sustenta essa divisão: o caminho do --selftest importa só palette, term,
@@ -51,12 +55,39 @@ Gdk). Cada aba tem o seu Term; a janela só orquestra, sem estado de sessão.
   nada de teste que só reescreve o código na forma de asserção, nada de perseguir
   cobertura.
 - Um bug corrigido = um check, quando der; não uma bateria em volta dele.
-- Teste barato de rodar: um comando (uv run pytest -q), sem display. Os checks
+- Teste barato de rodar: um comando (./run-tests.sh), sem display. Os checks
   ficam em core/checks.py e têm dois runners: o pytest e o
   python3 bzmux.py --selftest (sem dependências, útil para provar que o caminho
   dos testes não puxa gi). O que precisar de X11 fica documentado como comando
   manual no TASK-bzmux.md, não vira infraestrutura.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
-  chamados à mão durante a verificação.
+  chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
 - Medição não é teste: os números do TASK-bzmux.md vêm de execução real e não
   viram benchmark automatizado sem necessidade.
+
+## Scripts e ferramentas
+
+App:
+
+- python3 bzmux.py — o terminal. Opções: --cmd COMANDO, --quit-after SEG,
+  --dump-to ARQUIVO, --selftest (roda os checks e sai), -h/--help (ajuda sem
+  abrir janela; opção inválida também sai, com exit 2).
+- ./run.sh — abre/fecha o app. Modos: (nada) background com log em
+  /tmp/bzmux.log, --fg foreground, --kill, --status, --cmd, --quit-after,
+  --dump-to. Controla por PID file (/tmp/bzmux.pid) e só mata o processo que ele
+  mesmo subiu: use isto em vez de pkill -f bzmux.py, que casa com a linha de
+  comando de quem chama e mata o shell errado.
+- ./run-tests.sh — selftest (sem dependências) e depois pytest; argumentos
+  extras vão para o pytest (-k, -x). --selftest-only pula o pytest. Sai != 0 se
+  algo falhar. Não precisa de display.
+- uv run pytest -q — só a parte pytest; uv sync instala o ambiente (pytest).
+
+Teste manual, com display e python3-xlib (em tools/):
+
+- tools/xtest.py SUBCOMANDO — id, geometry, activate, move, click, dclick,
+  wheel, drag, key, type. Coordenadas relativas à janela; a grade começa em
+  y≈58 (barra de abas + lateral). type só aceita texto simples.
+- tools/pixel.py — cor de pixel num PNG: pontos X,Y, --scan X, --row Y. Serve
+  para conferir desenho em captura (import -window).
+
+O app usa o PyGObject do sistema; o venv do uv é só para os testes.

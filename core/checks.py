@@ -6,6 +6,8 @@ asserção (regressão vale mais que cobertura); nada de matriz de casos.
 """
 
 import base64
+import contextlib
+import io
 import zlib
 
 from . import kitty_kbd, mouse
@@ -86,6 +88,25 @@ def csi_with_intermediate():
     t = Term(cols=20, rows=2)
     t.feed("\x1b[?s\x1b[*x\x1b[4lA")
     assert _row_text(t.grid[0]).rstrip() == "A"
+
+
+# -- linha de comando --------------------------------------------------
+def argv_parsing():
+    """--help sai sem abrir janela; opção inválida é erro de uso (exit 2)."""
+    from . import cli
+
+    assert cli.parse_args(["bzmux.py"]) == (None, 0, None, None)
+    assert cli.parse_args(["bzmux.py", "--cmd", "mc", "--quit-after", "2"]) == (
+        "mc", 2, None, None)
+    assert cli.parse_args(["bzmux.py", "--cmd"])[3] == "--cmd"
+    assert cli.parse_args(["bzmux.py", "--nada"])[3] == "--nada"
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert cli.main(["bzmux.py", "--help"]) == 0
+    assert out.getvalue().startswith("uso: bzmux.py")
+    with contextlib.redirect_stderr(err):
+        assert cli.main(["bzmux.py", "--nada"]) == 2
+    assert "--cmd" in err.getvalue()
 
 
 # -- protocolo de teclado do kitty (P5) --------------------------------
@@ -218,6 +239,7 @@ ALL = (
     alt_screen_and_scroll,
     charset_and_replies,
     csi_with_intermediate,
+    argv_parsing,
     kitty_keyboard,
     graphics_image_and_offset,
     graphics_follow_history,

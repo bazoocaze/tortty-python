@@ -18,8 +18,10 @@ teste ficam em [`TASK-bzmux.md`](TASK-bzmux.md).
 ./run.sh --cmd 'mc'           # comando inicial
 ./run.sh --kill               # fecha a instância do runner
 ./run.sh --status             # pid / rodando?
-uv run pytest -q              # bateria de testes (14 checks, sem janela)
+./run-tests.sh                # testes (15 checks, sem janela)
+uv run pytest -q              # só a parte pytest
 python3 bzmux.py --selftest   # os mesmos checks, sem depender de pytest
+python3 bzmux.py --help       # opções, sem abrir janela
 ```
 
 ## Ferramentas de teste
@@ -62,7 +64,7 @@ core/
 ├── gui.py       # import único de Gtk/Gdk/GLib/cairo (require_version)
 ├── view.py      # TermView: uma sessão (pty, desenho cairo, eventos)
 ├── window.py    # Workspace (Gtk.Notebook + cartão) e BzmuxWindow
-├── checks.py    # a bateria: 14 checks, sem abrir janela
+├── checks.py    # a bateria: 15 checks, sem abrir janela
 ├── selftest.py  # runner sem dependências (--selftest)
 └── cli.py       # argv e arranque
 ```
