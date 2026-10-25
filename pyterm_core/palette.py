@@ -1,7 +1,8 @@
 """Célula, paleta de cores e o charset DEC especial.
 
 Célula é [char, fg, bg, flags]: fg/bg são índice xterm (0-255, 256=fg
-default, 257=bg default) e flags é bitmask (BOLD/UL/INV).
+default, 257=bg default) ou, no truecolor, o RGB marcado no bit 24 (ver
+`rgb()`/`cell_rgb()`); flags é bitmask (BOLD/UL/INV).
 
 Puro dado: sem GTK e sem estado de sessão, então isto pode ser importado por
 um teste de parser em máquina sem PyGObject.
@@ -13,6 +14,26 @@ um teste de parser em máquina sem PyGObject.
 # flags: 1=bold 2=underline 4=inverse
 DEF_FG, DEF_BG = 256, 257
 BOLD, UL, INV = 1, 2, 4
+
+# Truecolor (P4): o RGB mora na própria célula, sem tabela de cores alocadas.
+# O bit 24 marca "isto é RGB" — os índices de paleta (0-255) e as sentinelas
+# (256/257, que nem chegam no bit 24) continuam sendo ints pequenos, então o
+# caminho de 256 cores não paga nada e a célula não vira tupla.
+TC = 0x1000000
+
+
+def rgb(r, g, b):
+    """Cor de célula a partir de RGB (0-255 cada)."""
+    return TC | ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | (b & 0xFF)
+
+
+def cell_rgb(c, default):
+    """RGB da cor de uma célula: sentinela default, índice de paleta ou TC."""
+    if c == DEF_FG or c == DEF_BG:
+        return default
+    if c & TC:
+        return ((c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)
+    return PALETTE256[c]
 
 PALETTE = [
     (0, 0, 0), (205, 0, 0), (0, 205, 0), (205, 205, 0),

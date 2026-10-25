@@ -15,7 +15,7 @@ cd pyterm
 ./run.sh --cmd 'mc'           # comando inicial
 ./run.sh --kill               # fecha a instância do runner
 ./run.sh --status             # pid / rodando?
-python3 pyterm.py --selftest  # testa parser/mouse/histórico/reflow/gráficos (43 checks, sem janela)
+python3 pyterm.py --selftest  # testa parser/mouse/histórico/reflow/gráficos (50 checks, sem janela)
 ```
 
 ## Como o código está organizado
@@ -33,7 +33,7 @@ pyterm_core/
 ├── graphics.py  # protocolo de imagens do kitty (APC G, puro)
 ├── gui.py       # import único de Gtk/Gdk/GLib/cairo (require_version)
 ├── window.py    # janela GTK: pty, io_add_watch, desenho cairo, eventos
-├── selftest.py  # 43 checks, sem abrir janela
+├── selftest.py  # 50 checks, sem abrir janela
 └── cli.py       # argv e arranque
 ```
 
@@ -51,8 +51,8 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
 ## O que funciona
 
 - **pty real** com `forkpty`-equivalente (`pty.fork`), resize por `TIOCSWINSZ`.
-- **Parser VT** com estados ground/esc/csi/osc, SGR (16 cores, 256 e truecolor
-  aproximado), cursor (`CUP`/`CUU`/`CUD`/`CUF`/`CUB`/`CNL`/`CPL`/`CHA`),
+- **Parser VT** com estados ground/esc/csi/osc, SGR (16 cores, 256 e
+  truecolor 24-bit de verdade), cursor (`CUP`/`CUU`/`CUD`/`CUF`/`CUB`/`CNL`/`CPL`/`CHA`),
   apagamento (`ED`/`EL`/`ECH`), inserção/remoção de linha e caractere
   (`IL`/`DL`/`ICH`/`DCH`), região de scroll (`DECSTBM`), save/restore
   (`DECSC`/`DECRC`, `CSI s`/`u`), `DECAWM`, cursor on/off (`?25`),
@@ -77,7 +77,10 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   por NFC (`~`+`a` → `ã`); dead key + espaço emite o caractere isolado
   (`~`, `^`, `` ` ``...), a convenção do X11.
 - **256 cores** (`TERM=xterm-256color`): paleta xterm completa (16 base +
-  cubo 6×6×6 + 24 cinzas); truecolor é aproximado para essa paleta.
+  cubo 6×6×6 + 24 cinzas).
+- **Truecolor 24-bit** (`38;2;r;g;b`/`48;2;…`, e a forma com `:`): o RGB fica na
+  célula marcado no bit 24, sem tabela de cores alocadas — `vim` com
+  `termguicolors`, `bat`, gradiente em texto saem com a cor exata.
 - **Desenho** com cairo: runs agrupados por atributos, bold, sublinhado,
   inverso, cursor em bloco.
 - **Kitty keyboard protocol** (`pyterm_core/kitty_kbd.py`): `CSI > flags u`
@@ -122,7 +125,6 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
 
 - **Seleção só por célula**: sem duplo-clique por palavra e sem modo
   bloco/retangular.
-- **Truecolor aproximado** para a paleta de 16 cores.
 - **Gráficos sem animação/z-index**: `a=f`/`a=a` são ignorados, sem
   `t=f`/`t=t`/`t=s` (arquivo, temp file, shared memory) e sem `z=` (z-index).
 - **Sem ligaduras**, sem fontes fallback para emoji/CJK (backlog P9/P10:

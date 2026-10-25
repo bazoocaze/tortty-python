@@ -16,8 +16,8 @@ import termios
 from .gui import Gtk, Gdk, GLib, cairo
 from .keys import encode_key, is_modifier
 from . import mouse
-from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, PALETTE256,
-                      BG_DEFAULT, FG_DEFAULT)
+from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, BG_DEFAULT, FG_DEFAULT,
+                      cell_rgb)
 from .term import Term
 
 
@@ -394,8 +394,8 @@ class PyTermWindow(Gtk.Window):
                 # depois converter transformava o texto default (256) em
                 # "cor 1" (vermelho), porque 256/257 são sentinelas e não
                 # índices da paleta.
-                fgc = FG_DEFAULT if fg == DEF_FG else PALETTE256[fg % 256]
-                bgc = BG_DEFAULT if bg == DEF_BG else PALETTE256[bg % 256]
+                fgc = cell_rgb(fg, FG_DEFAULT)
+                bgc = cell_rgb(bg, BG_DEFAULT)
                 if (fl & INV) or s0:
                     fgc, bgc = bgc, fgc      # inverso / seleção = reverso
                 if bgc != BG_DEFAULT:
@@ -455,7 +455,7 @@ class PyTermWindow(Gtk.Window):
             cr.rectangle(t.cx * cw, t.cy * ch, cw, ch)
             cr.fill()
             cell = t.grid[t.cy][t.cx]
-            bgc = BG_DEFAULT if cell[2] == DEF_BG else PALETTE256[cell[2] % 256]
+            bgc = cell_rgb(cell[2], BG_DEFAULT)
             cr.set_source_rgb(*[c / 255 for c in bgc])
             cr.move_to(t.cx * cw, t.cy * ch + ascent + 1)
             cr.show_text(cell[0])

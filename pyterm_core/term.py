@@ -5,7 +5,7 @@ abrir janela (e sem display). Quem desenha é `window.PyTermWindow`.
 """
 
 from .graphics import Graphics
-from .palette import DEF_FG, DEF_BG, BOLD, UL, INV, PALETTE, DEC_SPECIAL
+from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, rgb, DEC_SPECIAL)
 
 
 class Term:
@@ -340,7 +340,15 @@ class Term:
             self.row_wrapped.insert(self.bottom, False)
 
     def sgr(self, params):
-        it = iter(params)
+        # subparâmetros com ':' (38:2::r:g:b) chegam como tupla: acha a forma
+        # canônica com ';' antes de interpretar
+        flat = []
+        for p in params:
+            if isinstance(p, tuple):
+                flat.extend(self._sgr_subparams(p))
+            else:
+                flat.append(p)
+        it = iter(flat)
         for p in it:
             if p == 0:
                 self.fg, self.bg, self.flags = DEF_FG, DEF_BG, 0
@@ -390,22 +398,34 @@ class Term:
                             vals.append(next(it))
                         except StopIteration:
                             break
-                    # truecolor: aproxima para a paleta (experimento mínimo)
+                    # truecolor de verdade (P4): o RGB fica na célula, sem
+                    # passar por tabela de cores alocadas. Antes disto o
+                    # `38;2;r;g;b` era aproximado pro vizinho mais próximo da
+                    # paleta 256 — vim com termguicolors, bat e gradiente em
+                    # texto caíam todos em faixas chapadas.
                     if len(vals) == 3:
-                        idx = self._nearest(*vals)
+                        c = rgb(min(255, max(0, vals[0])),
+                                min(255, max(0, vals[1])),
+                                min(255, max(0, vals[2])))
                         if p == 38:
-                            self.fg = idx
+                            self.fg = c
                         else:
-                            self.bg = idx
+                            self.bg = c
 
     @staticmethod
-    def _nearest(r, g, b):
-        best, bd = 0, 1e9
-        for i, (pr, pg, pb) in enumerate(PALETTE):
-            d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2
-            if d < bd:
-                best, bd = i, d
-        return best
+    def _sgr_subparams(sub):
+        """`38:2::r:g:b` (SGR com ':') -> forma canônica com ';'.
+
+        O campo vazio é o "espaço de cor" omitido (`38:2::1:2:3` ==
+        `38:2:0:1:2:3` == `38;2;1;2;3`), então o descarte só vale quando a
+        posição é de espaço de cor — filtrar todos os vazios mudaria o
+        significado de `48:5::196`.
+        """
+        vals = list(sub)
+        if len(vals) >= 5 and vals[1] == 2:
+            last3 = [0 if v is None else v for v in vals[-3:]]
+            return [vals[0], 2] + last3
+        return [0 if v is None else v for v in vals]
 
     def set_mode(self, params, private, on):
         for p in params:
@@ -596,7 +616,11 @@ class Term:
                     parts = []
                     for tok in body.split(";") if body else []:
                         tok = tok.strip()
-                        if tok == "" or tok.startswith((" ", "<", "=", ">")):
+                        if ":" in tok and ch == "m":
+                            # subparâmetro: guarda a posição (o vazio conta)
+                            parts.append(tuple(
+                                int(v) if v else None for v in tok.split(":")))
+                        elif tok == "" or tok.startswith((" ", "<", "=", ">")):
                             parts.append(None if tok == "" else 0)
                         else:
                             try:

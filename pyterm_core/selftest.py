@@ -8,7 +8,7 @@ import base64
 import zlib
 
 from . import kitty_kbd, mouse
-from .palette import DEF_FG
+from .palette import DEF_FG, FG_DEFAULT, rgb, cell_rgb
 from .term import Term
 
 
@@ -165,6 +165,25 @@ def selftest():
           "\x1b[<0;5;3m")
     check("X10 press", mouse.encode(mouse.LEFT, 0, 0, True),
           "\x1b[M" + chr(32) + chr(33) + chr(33))
+
+    # truecolor (P4): o RGB fica na célula (bit 24), sem tabela alocada
+    t = Term()
+    t.feed("\x1b[38;2;18;52;86mA\x1b[48;2;250;128;114mB")
+    check("truecolor: fg RGB na célula", t.grid[0][0][1], rgb(18, 52, 86))
+    check("truecolor: bg RGB na célula", t.grid[0][1][2], rgb(250, 128, 114))
+    check("truecolor: resolve de volta pro RGB",
+          cell_rgb(t.grid[0][0][1], FG_DEFAULT), (18, 52, 86))
+    t.feed("\x1b[38:2::7:8:9mC")          # forma ':' com espaço de cor vazio
+    check("truecolor: forma ':' (38:2::r:g:b)",
+          cell_rgb(t.grid[0][2][1], FG_DEFAULT), (7, 8, 9))
+    t = Term()
+    t.feed("\x1b[38;5;196mA\x1b[0mB")
+    check("256 cores continua índice (não vira RGB)", t.grid[0][0][1], 196)
+    check("reset volta pro default", t.grid[0][1][1], DEF_FG)
+    t = Term(cols=4, rows=2)
+    t.feed("\x1b[38;2;1;2;3mXYZW")
+    t.resize(8, 2)                        # reflow não pode perder a cor
+    check("truecolor sobrevive ao resize", t.grid[0][0][1], rgb(1, 2, 3))
 
     # bracketed paste (P7): a política de colar mora no Term, sem display
     t = Term()
