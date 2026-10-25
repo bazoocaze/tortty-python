@@ -235,14 +235,22 @@ prova que o caminho dos testes segue GTK-free: se alguém puser um
 ### Ambiente (uv)
 
 `pyproject.toml` + `uv.lock` (`package = false`, `python-preference = system`).
-O venv do uv serve aos testes; o app roda no python do sistema, porque o
-PyGObject vem da distro:
+O app roda no venv do uv, criado sobre o python do sistema com
+`--system-site-packages`: é isso que deixa o `gi` da distro visível (PyGObject
+não se instala por pip sem sofrimento). Essa flag não existe no `uv sync`,
+então o venv é criado uma vez à mão — e o `uv sync` preserva a configuração.
 
 ```sh
+uv venv --system-site-packages # uma vez, antes do primeiro sync
 uv sync                        # .venv com pytest
 uv run pytest -q               # só a parte pytest
-uv sync --extra tools          # + python-xlib (tools/xtest.py)
+uv sync --extra tools          # + python-xlib (as tools rodam com python3)
+./run.sh                       # app em .venv/bin/python
+uv run python bzmux.py --help  # equivalente, sem o runner
 ```
+
+O `run.sh` prefere `.venv/bin/python` e cai para o `python3` do sistema (com
+aviso) se o venv não importar `gi` — venv criado sem a flag acima, por exemplo.
 
 Opções do app: `--cmd`, `--quit-after`, `--dump-to`, `--selftest`, `-h/--help`.
 

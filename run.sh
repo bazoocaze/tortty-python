@@ -22,6 +22,20 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 PIDFILE=/tmp/bzmux.pid
 LOG=/tmp/bzmux.log
 
+# O app roda no python do venv do uv quando ele enxerga o PyGObject; senão cai
+# para o python do sistema (o gi do venv só aparece se ele foi criado com
+# --system-site-packages, porque o PyGObject vem da distro).
+PY=python3
+if [ -x "$HERE/.venv/bin/python" ]; then
+    if "$HERE/.venv/bin/python" -c 'import gi' 2>/dev/null; then
+        PY=$HERE/.venv/bin/python
+    else
+        echo "aviso: .venv não vê o PyGObject; recrie com" >&2
+        echo "  uv venv --system-site-packages && uv sync" >&2
+        echo "usando o python do sistema por enquanto" >&2
+    fi
+fi
+
 is_ours() {
     # o PID existe E ainda é um bzmux.py? (protege contra PID reciclado)
     [ -n "${1:-}" ] || return 1
@@ -86,11 +100,11 @@ set -- --cmd "$CMD"
 [ -n "$DUMP" ] && set -- "$@" --dump-to "$DUMP"
 
 if [ "$MODE" = fg ]; then
-    exec python3 "$HERE/bzmux.py" "$@"
+    exec "$PY" "$HERE/bzmux.py" "$@"
 fi
 
 : > "$LOG"
-setsid nohup python3 "$HERE/bzmux.py" "$@" >>"$LOG" 2>&1 &
+setsid nohup "$PY" "$HERE/bzmux.py" "$@" >>"$LOG" 2>&1 &
 pid=$!
 echo "$pid" > "$PIDFILE"
 sleep 0.6

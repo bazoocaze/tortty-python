@@ -36,19 +36,22 @@ servidor X e de `python3-xlib`.
 
 ## Ambiente (uv)
 
-O projeto é um ambiente uv (pyproject.toml + uv.lock), mas **o app roda no python
-do sistema**: o PyGObject vem da distro e não se instala por pip sem sofrimento,
-então `./run.sh` continua chamando `python3`. O venv do uv serve para os testes
-(só pytest) e usa o mesmo interpretador do sistema (python-preference = system).
+O projeto é um ambiente uv (pyproject.toml + uv.lock) e **o app roda no python
+do venv**. O venv é criado sobre o python do sistema com `--system-site-packages`:
+é assim que ele enxerga o PyGObject (gi) da distro, que não se instala por pip
+sem sofrimento. `python-preference = system` garante a mesma versão do python.
 
 ```sh
-uv sync                       # cria .venv com pytest
-uv run pytest -q              # testes
-uv sync --extra tools         # + python-xlib, para as ferramentas de tools/
+uv venv --system-site-packages   # uma vez (o uv sync não passa essa flag)
+uv sync                          # pytest
+uv run pytest -q                 # testes
+uv sync --extra tools            # + python-xlib (as tools rodam com python3)
+./run.sh                         # app rodando em .venv/bin/python
 ```
 
-Se quiser rodar o app de dentro do venv, crie-o com
-`uv venv --system-site-packages` — aí o gi do sistema fica visível.
+O `run.sh` escolhe o interpretador: `.venv/bin/python` quando ele importa `gi`,
+senão o `python3` do sistema — com um aviso dizendo como recriar o venv. Para
+rodar na mão: `uv run python bzmux.py`.
 
 ## Como o código está organizado
 

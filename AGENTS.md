@@ -80,7 +80,12 @@ App:
 - ./run-tests.sh — selftest (sem dependências) e depois pytest; argumentos
   extras vão para o pytest (-k, -x). --selftest-only pula o pytest. Sai != 0 se
   algo falhar. Não precisa de display.
+- ./run.sh escolhe o interpretador: .venv/bin/python quando ele importa gi,
+  senão o python3 do sistema (com aviso). O venv precisa ser criado com
+  uv venv --system-site-packages, porque o PyGObject vem da distro e o uv sync
+  não passa essa flag.
 - uv run pytest -q — só a parte pytest; uv sync instala o ambiente (pytest).
+- uv run python bzmux.py — o app direto pelo uv (mesmo interpretador do venv).
 
 Teste manual, com display e python3-xlib (em tools/):
 
@@ -90,4 +95,5 @@ Teste manual, com display e python3-xlib (em tools/):
 - tools/pixel.py — cor de pixel num PNG: pontos X,Y, --scan X, --row Y. Serve
   para conferir desenho em captura (import -window).
 
-O app usa o PyGObject do sistema; o venv do uv é só para os testes.
+O app roda no venv do uv, que enxerga o PyGObject do sistema via
+--system-site-packages.
