@@ -7,7 +7,7 @@
 Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**,
 para sentir na pele o custo do caminho quente em Python comparado ao núcleo C
 do `gtkterm`. Não é produto: é a resposta empírica à pergunta "daria pra fazer
-tudo em Python?". Escopo, medições e como testar ficam em
+tudo em Python?". O estado, a retomada e a fila ficam em
 [`TASK-bzmux.md`](TASK-bzmux.md); o backlog pendente em
 [`docs/BACKLOG.md`](docs/BACKLOG.md); o que já foi feito, os bugs corrigidos e
 as armadilhas de teste em [`docs/HISTORY.md`](docs/HISTORY.md).
@@ -185,13 +185,14 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
   `t=f`/`t=t`/`t=s` (arquivo, temp file, shared memory) e sem `z=` (z-index).
 - **Sem ligaduras**, sem fontes fallback para emoji/CJK (backlog P9/P10:
   `show_text` não faz shaping; Pango resolveria os dois de uma vez).
-
 - **Kitty keyboard protocol parcial**: sem `report alternate keys` (a flag 4
   exige o keysym alternativo, que o Gdk não entrega direto), sem repeat
   distinguido de press (o Gdk repete como key-press) e sem o modo de teclado
   numérico.
-- **Histórico sem barra de rolagem** clicável: só teclado/wheel, com o `↑N`
-  no canto como indicador.
+- **Sem busca no scrollback** e sem barra de rolagem clicável: só teclado e
+  wheel, com o `↑N` no canto como indicador.
+- **Sem arquivo de configuração/tema**: fonte e paleta são fixas no código, de
+  propósito — o que está sendo medido é o caminho quente, não a customização.
 - **Reflow só no buffer principal**: alt-screen (`mc`, `vim`) recorta/preenche
   de propósito — quem está em tela cheia se redesenha no SIGWINCH, e re-quebrar
   por cima do que ele escreveu só atrapalharia.
@@ -224,12 +225,16 @@ o mesmo motivo pelo qual o `gtkterm` usa o núcleo C.
 arquivo de `--dump-to`) — foi assim que se provou que o `mc` é renderizado
 fielmente: o dump bate byte a byte com o que o `mc` escreve.
 
-`uv run pytest -q` exercita o parser sem GTK: texto, SGR, CUP,
-EL/ED, alt-screen (ida e volta), scroll, charset DEC, DA, DSR/CPR, região de
-scroll e título por OSC.
+`uv run pytest -q` exercita parser e protocolos sem GTK: texto, SGR/EL/ED,
+CUP, alt-screen (ida e volta), scroll, charset DEC, DA/DSR/CPR, CSI com
+intermediário, região de scroll, título por OSC, reflow, histórico, mouse,
+seleção, paste, truecolor, teclado do kitty, gráficos e argv.
 
 ## Licença
 
 **MIT** (ver `LICENSE`). O `bzmux` é código original, sem uma linha do
-kitty, então a licença dele não é ditada pelo núcleo. O `native-port/` continua
+kitty, então a licença dele não é ditada pelo núcleo: importa apenas `pty`,
+`termios`, `unicodedata`, `gi` (Gtk3, LGPL-2.1+) e `pycairo` (LGPL/MPL).
+Estar no mesmo repositório não contamina — arquivos separados, sem linkagem
+nem import. O `native-port/` continua
 **GPL-3.0-only** porque linka `libkittycore.a` (derivado do kitty).

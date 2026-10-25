@@ -12,9 +12,8 @@ muda de lugar conforme o tipo (ver Documentação).
 Divisão por tipo de conteúdo — cada fato mora em um só lugar, não duplicar.
 Todos são escritos para leitura de agente; só o README.md é para humano.
 
-- AGENTS.md (este) — convenções, arquitetura curta, scripts e ferramentas.
-- TASK-bzmux.md — status, por onde retomar, objetivo, escopo, arquitetura
-  detalhada, estado atual, medições, como testar, ambiente uv, licença.
+- AGENTS.md (este) — convenções, arquitetura, scripts, ferramentas.
+- TASK-bzmux.md — ficha magra: status, por onde retomar, fila.
 - docs/BACKLOG.md — backlog pendente (P9 shaping, P10 fallback de fonte).
 - docs/HISTORY.md — backlog concluído (P1–P8, P11, P12), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
@@ -54,6 +53,21 @@ kitty_kbd e mouse, e nenhum deles puxa gi/cairo — é isso que deixa os checks
 rodarem sem display e sem GTK (keys fica de fora: usa as constantes de keyval do
 Gdk). Cada aba tem o seu Term; a janela só orquestra, sem estado de sessão.
 
+Dentro das duas maiores: term.py tem feed (máquina de estados), put/chars,
+csi_dispatch/sgr/set_mode e child_out (respostas ao filho, drenadas pelo host);
+view.py tem spawn/on_pty (io_add_watch no master), on_resize (size-allocate →
+Term.resize + TIOCSWINSZ + SIGWINCH), on_draw, on_key, mouse/seleção e
+view_off; window.py tem Workspace (Gtk.Notebook + cartão da lateral) e
+BzmuxWindow (Gtk.Stack + atalhos globais + dump/quit-after/SIGUSR1).
+
+Célula é uma lista [char, fg, bg, flags]: fg/bg em índice xterm (0-255,
+256=fg default, 257=bg default), flags bitmask (bold/underline/inverse). O
+desenho agrupa células vizinhas de atributos iguais num show_text só — foi o
+que trouxe o frame de 1920 células para ~2 ms.
+
+Não objetivo: virar o app. Nada daqui é compartilhado com o native-port/ (a
+parte C/GTK, GPL-3.0-only, que ficou no repositório do kitty).
+
 ## Convenções
 
 - Textos, descrições e comentários concisos; podem ser em português.
@@ -74,14 +88,17 @@ Gdk). Cada aba tem o seu Term; a janela só orquestra, sem estado de sessão.
   nada de teste que só reescreve o código na forma de asserção, nada de perseguir
   cobertura.
 - Um bug corrigido = um check, quando der; não uma bateria em volta dele.
+- Áreas cobertas hoje: parser, SGR/EL/ED, alt-screen e scroll, charset e
+  respostas (DA/CPR), CSI com intermediário, CLI, teclado do kitty, gráficos,
+  reflow, histórico, mouse, seleção, paste, truecolor.
 - Teste barato de rodar: um comando (./run-tests.sh), sem display. Os checks
   ficam em core/checks.py e têm dois runners: o pytest e o
   python3 bzmux.py --selftest (sem dependências, útil para provar que o caminho
-  dos testes não puxa gi). O que precisar de X11 fica documentado como comando
-  manual no TASK-bzmux.md, não vira infraestrutura.
+  dos testes não puxa gi). O que precisar de X11 fica como comando manual em
+  Scripts e ferramentas, não vira infraestrutura.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
-- Medição não é teste: os números do TASK-bzmux.md vêm de execução real e não
+- Medição não é teste: os números do README.md vêm de execução real e não
   viram benchmark automatizado sem necessidade.
 
 ## Scripts e ferramentas
@@ -113,6 +130,15 @@ Teste manual, com display e python3-xlib (em tools/):
   y≈58 (barra de abas + lateral). type só aceita texto simples.
 - tools/pixel.py — cor de pixel num PNG: pontos X,Y, --scan X, --row Y. Serve
   para conferir desenho em captura (import -window).
+
+Fluxo de verificação com janela: ./run.sh; ferramenta; kill -USR1 $(cat
+/tmp/bzmux.pid) e ler /tmp/bzmux-dump.txt (cabeçalhos de workspace e de aba só
+quando há mais de um). Exemplo:
+
+    python3 tools/xtest.py key ctrl+shift+n     # workspace novo
+    python3 tools/xtest.py dclick 60 28         # duplo clique no cartão 1
+    python3 tools/xtest.py type 'echo ok'       # texto com símbolos
+    kill -USR1 $(cat /tmp/bzmux.pid)            # dumpar a grade
 
 O app roda no venv do uv, que enxerga o PyGObject do sistema via
 --system-site-packages.

@@ -513,13 +513,18 @@ Todos foram achados com medição, não por leitura — vale registrar o método
   devolve **5** valores (ascent, descent, height, max_x_advance,
   max_y_advance) — não 6.
 
-## Git
+## Git e origem do repositório
 
-Histórico completo: `git log --oneline` (a lista com os hashes tinha o mesmo
-conteúdo, regenerável — não é mantida à mão).
+Nasceu no repositório do experimento `kitty`
+(`~/dados/workflows/temp/kitty`), na pasta `pyterm/`, com o nome **pyterm**.
+Em 2026-10-25 virou repositório próprio, `pybzmux`, com o nome **bzmux**. A
+parte C/GTK do kitty (`native-port/`, GPL-3.0-only) ficou lá: não é compilada
+nem testada aqui, e nada do bzmux é compartilhado com ela.
 
-**Atenção aos hashes:** a história da pasta `pyterm/` veio por
-`git subtree split`, que **reescreve commits** — os hashes do repositório de
-origem (o experimento `kitty`) não existem aqui nem no GitHub. As mensagens
-antigas ainda dizem `pyterm` porque é o que estava escrito na época; o
-`520447b` é a renomeação para `bzmux`.
+Os commits até a separação vieram por `git subtree split`, que **reescreve
+hashes**: os do repositório de origem não existem aqui nem no GitHub, e as
+mensagens antigas ainda dizem `pyterm`. O `520447b` é a renomeação para
+`bzmux`.
+
+Histórico completo: `git log --oneline` (a lista de hashes não é mantida à
+mão).
