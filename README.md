@@ -32,7 +32,8 @@ pyterm_core/
 ├── mouse.py     # protocolo de mouse: SGR e o antigo (puro)
 ├── graphics.py  # protocolo de imagens do kitty (APC G, puro)
 ├── gui.py       # import único de Gtk/Gdk/GLib/cairo (require_version)
-├── window.py    # janela GTK: pty, io_add_watch, desenho cairo, eventos
+├── view.py      # TermView: uma sessão (pty, desenho cairo, eventos)
+├── window.py    # PyTermWindow: Gtk.Notebook (abas) + atalhos globais
 ├── selftest.py  # 50 checks, sem abrir janela
 └── cli.py       # argv e arranque
 ```
@@ -103,6 +104,11 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   meio mandam o texto entre `ESC[200~` e `ESC[201~` — o readline/vim sabem que
   é cola e não executam cada linha. Colar uma linha copiada com o mouse não
   ganha mais um `\n` no fim (era o que fazia o comando rodar sozinho).
+- **Abas** (`Gtk.Notebook`): `Ctrl+Shift+T` abre, `Ctrl+Shift+W` fecha, `Alt+1`
+  … `Alt+9` seleciona (`Alt+0` = a 10ª), clique do meio no rótulo fecha. O
+  rótulo é o título do app (OSC 0/2) ou, sem OSC, o **cwd** da sessão; aba nova
+  herda o cwd da atual via `/proc/<pid>/cwd`, e cada aba tem o seu `Term`,
+  histórico, seleção e pty (o `P8` virou por aba: a última fecha a janela).
 - **Fecha quando o shell termina**: `GLib.child_watch_add` reapa o filho (sem
   zumbi) e fecha a janela no `Ctrl+D`/`exit`; antes de fechar drena o que
   sobrou no pty (senão some a última tela) e manda `SIGHUP` pro grupo do filho
@@ -129,7 +135,7 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
   `t=f`/`t=t`/`t=s` (arquivo, temp file, shared memory) e sem `z=` (z-index).
 - **Sem ligaduras**, sem fontes fallback para emoji/CJK (backlog P9/P10:
   `show_text` não faz shaping; Pango resolveria os dois de uma vez).
-- **Sem abas nem workspaces** (backlog P11/P12): uma janela = uma sessão.
+- **Sem workspaces** (backlog P12): as abas são todas da mesma janela.
 - **Kitty keyboard protocol parcial**: sem `report alternate keys` (a flag 4
   exige o keysym alternativo, que o Gdk não entrega direto), sem repeat
   distinguido de press (o Gdk repete como key-press) e sem o modo de teclado

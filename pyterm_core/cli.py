@@ -33,6 +33,6 @@ def main(argv):
     gdkwin = win.get_window()
     ts = GdkX11.x11_get_server_time(gdkwin) if GdkX11 else Gdk.CURRENT_TIME
     win.present_with_time(ts)
-    win.area.grab_focus()
+    win.grab_focus_current()
     Gtk.main()
     return 0

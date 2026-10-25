@@ -4,7 +4,8 @@
     term.py      grade, cursor, parser VT                     (sem GTK)
     keys.py      keyval do X11 -> bytes do terminal            (pura)
     gui.py       import único de Gtk/Gdk/GLib/cairo           (só glue)
-    window.py    janela GTK: pty, desenho, eventos            (só GTK)
+    view.py      uma sessão: pty, desenho, input              (só GTK)
+    window.py    a janela: abas (Notebook) e atalhos globais   (só GTK)
     selftest.py  14 checks do parser, sem janela              (sem GTK)
     cli.py       argv e arranque                              (liga tudo)
 
