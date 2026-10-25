@@ -231,6 +231,13 @@ class TermView(Gtk.DrawingArea):
         if os.environ.get("PYTERM_RAWLOG"):
             with open(os.environ["PYTERM_RAWLOG"], "ab") as f:
                 f.write(data)
+        # enquanto o usuário lê o histórico, guarda como a tela visível estava:
+        # nem todo output muda o que está na tela (o `pi` manda um
+        # "cursor pra coluna 1 + esconde cursor" a cada segundo, para sempre)
+        seen = seen_sb = None
+        if self.view_off:
+            seen = self._view_signature()
+            seen_sb = len(self.term.scrollback)
         self.term.feed(self.decoder.decode(data))
         # respostas do núcleo (DA/CPR) voltam ao filho
         if self.term.child_out:
@@ -244,10 +251,15 @@ class TermView(Gtk.DrawingArea):
             self.app_title = self._title != "bzmux"
             if self.on_title:
                 self.on_title(self, self._title)
-        # output novo volta pro vivo (é o que todo terminal faz: o app está
-        # falando, o usuário não está mais lendo o histórico)
-        if self.view_off:
+        # output que mexe na tela volta pro vivo (o app está falando, o usuário
+        # não está mais lendo o histórico); output invisível não arranca o
+        # usuário de onde ele está — senão qualquer tique de 1 Hz do app joga a
+        # visão pro rodapé e torna o histórico inutilizável
+        if self.view_off and self._view_signature() != seen:
             self.view_off = 0
+        elif self.view_off:
+            self.view_off = min(self.view_off + (len(self.term.scrollback) - seen_sb),
+                                len(self.term.scrollback))
         self.request_draw()
         return True
 
@@ -445,6 +457,11 @@ class TermView(Gtk.DrawingArea):
     # -- histórico (P2) -----------------------------------------------
     def visible_rows(self):
         return self.term.visible_rows(self.view_off)
+
+    def _view_signature(self):
+        """O que está na tela agora (texto + cor por célula), para comparar."""
+        return "".join("%s|%d|%d" % (c[0], c[1], c[2])
+                       for row in self.visible_rows() for c in row)
 
     def scroll_view(self, delta):
         """Rola a visão no histórico. `delta` > 0 = pra trás no tempo."""

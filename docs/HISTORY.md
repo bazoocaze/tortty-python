@@ -748,6 +748,22 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     aqui: imprime avanço, célula, resolução e colunas no primeiro draw — foi o
     que separou "métrica errada" de "desenho com outra resolução".
 
+14. **Histórico inutilizável dentro do `pi`: a visão voltava pro rodapé.** O
+    `on_pty` devolvia a visão ao vivo em *qualquer* output ("o app está falando,
+    o usuário não está lendo o histórico"), e o `pi` publica **a cada 1 segundo,
+    para sempre**, 10 bytes invisíveis: `CSI 1 G` (cursor pra coluna 1) +
+    `CSI ? 25 l` (esconde cursor). Capturado de um `pi` ocioso com um pty
+    próprio respondendo como o bzmux (22 s, 24 tiques, 11,4 KB, 10 bytes por
+    segundo exato). Nada muda na tela, mas cada tique zerava o `view_off` —
+    rolar o histórico e voltar em 1 s. Fix: guardar a assinatura do que está
+    visível (texto + fg + bg por célula) antes do `feed` e só voltar ao vivo se
+    ela mudar; output invisível mantém a posição (e a visão anda junto com o
+    scrollback, para não deslizar por baixo). Medido depois, com o mesmo tique
+    de 1 s: duas capturas com 3,2 s de intervalo, **0 pixel de diferença** com a
+    visão no histórico (antes voltava ao rodapé no primeiro tique); output de
+    verdade continua trazendo pro vivo. Armadilha do teste: `tools/xtest.py`
+    mexe no ponteiro real da sessão — não sair rodando à toa num display em uso.
+
 ## Quirks registrados (não redescobrir)
 
 - **`pkill -f bzmux.py` mata o próprio shell** de quem chama (o padrão casa com
