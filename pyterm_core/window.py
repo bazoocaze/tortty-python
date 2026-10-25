@@ -165,6 +165,9 @@ class PyTermWindow(Gtk.Window):
             if self.child_exited:
                 self._close()
             return False
+        if os.environ.get("PYTERM_RAWLOG"):
+            with open(os.environ["PYTERM_RAWLOG"], "ab") as f:
+                f.write(data)
         self.term.feed(self.decoder.decode(data))
         # respostas do núcleo (DA/CPR) voltam ao filho
         if self.term.child_out:
@@ -280,7 +283,9 @@ class PyTermWindow(Gtk.Window):
             for pl in t.graphics.placements:
                 img = t.graphics.images.get(pl.image_id)
                 lines.append(f"  id={pl.image_id} em ({pl.col},{pl.row}) "
-                             f"{pl.cols}x{pl.rows} fmt={img.fmt if img else '-'}")
+                             f"{pl.cols}x{pl.rows} "
+                             f"+{pl.dx},{pl.dy}px "
+                             f"fmt={img.fmt if img else '-'}")
         lines.append(f"=== cursor {t.cx},{t.cy} ===")
         try:
             with open(self.dump_to, "w", encoding="utf-8") as f:
@@ -427,10 +432,12 @@ class PyTermWindow(Gtk.Window):
             surf = entry[0]
             w = max(1, pl.cols) * cw
             h = max(1, pl.rows) * ch
+            x0 = pl.col * cw + pl.dx     # X=/Y=: offset em pixels (centralização)
+            y0 = pl.row * ch + pl.dy
             cr.save()
-            cr.rectangle(pl.col * cw, pl.row * ch, w, h)
+            cr.rectangle(x0, y0, w, h)
             cr.clip()
-            cr.translate(pl.col * cw, pl.row * ch)
+            cr.translate(x0, y0)
             cr.scale(w / max(1, surf.get_width()), h / max(1, surf.get_height()))
             cr.set_source_surface(surf, 0, 0)
             cr.paint()

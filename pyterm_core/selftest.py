@@ -5,6 +5,7 @@ nunca `window`/`gui`.
 """
 
 import base64
+import zlib
 
 from . import kitty_kbd, mouse
 from .palette import DEF_FG
@@ -103,6 +104,20 @@ def selftest():
     t.feed("\x1b[4;1H\r\n")              # força um scroll
     check("gráficos: a imagem rola junto", [p.row for p in t.graphics.placements],
           [0])
+    # o=z (zlib) + X= (offset em px dentro da célula): é o que o
+    # `icat --place` manda depois de escalar a imagem sozinho
+    t = Term(cols=20, rows=4)
+    raw = bytes(range(24))                       # 4x2 RGB
+    b64 = base64.b64encode(zlib.compress(raw)).decode()
+    t.feed(f"\x1b_Ga=T,f=24,o=z,s=4,v=2,C=1,X=3;{b64}\x1b\\")
+    pl = t.graphics.placements[0]
+    check("gráficos: o=z + offset X", (pl.dx, pl.cols, pl.rows), (3, 1, 1))
+    # CSI com intermediário (`CSI * x` = DECSACE, que o icat manda antes de
+    # desenhar) não pode terminar no `*` e imprimir o `x` como texto
+    t = Term(cols=20, rows=2)
+    t.feed("\x1b[?s\x1b[*x\x1b[4lA")
+    check("csi: intermediário * não vira texto",
+          "".join(c[0] for c in t.grid[0]).rstrip(), "A")
 
     # -- reflow (P3): re-quebra mantendo a linha lógica ---------------
     t = Term(cols=20, rows=4)

@@ -15,7 +15,7 @@ cd pyterm
 ./run.sh --cmd 'mc'           # comando inicial
 ./run.sh --kill               # fecha a instância do runner
 ./run.sh --status             # pid / rodando?
-python3 pyterm.py --selftest  # testa parser/mouse/histórico/reflow/gráficos (35 checks, sem janela)
+python3 pyterm.py --selftest  # testa parser/mouse/histórico/reflow/gráficos (37 checks, sem janela)
 ```
 
 ## Como o código está organizado
@@ -33,7 +33,7 @@ pyterm_core/
 ├── graphics.py  # protocolo de imagens do kitty (APC G, puro)
 ├── gui.py       # import único de Gtk/Gdk/GLib/cairo (require_version)
 ├── window.py    # janela GTK: pty, io_add_watch, desenho cairo, eventos
-├── selftest.py  # 35 checks, sem abrir janela
+├── selftest.py  # 37 checks, sem abrir janela
 └── cli.py       # argv e arranque
 ```
 
@@ -88,9 +88,12 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   `:1`/`:2`/`:3`; `report all keys as escape codes` manda tudo em CSI-u.
 - **Protocolo de gráficos do kitty** (`pyterm_core/graphics.py`): APC `G` com
   `a=t`/`a=T`/`a=p`/`a=d`/`a=q`, `f=24` (RGB), `f=32` (RGBA) e `f=100` (PNG),
-  imagem em pedaços (`m=1`), `i`/`c`/`r`/`C=1`/`q`. O `kitten icat` funciona
-  (detecta via `a=q` + `DA`, transmite e desenha). As imagens rolam junto com
-  o texto e são desenhadas por cima das células.
+  imagem em pedaços (`m=1`), `i`/`c`/`r`/`C=1`/`q`, compressão `o=z` (zlib) e
+  os offsets `X=`/`Y=` em pixels dentro da célula (é assim que o `icat`
+  centraliza e posiciona). O `kitten icat` funciona inteiro, inclusive
+  `--place` e `--scale-up` (detecta via `a=q` + `DA`, transmite em stream ou
+  comprimido e desenha). As imagens rolam junto com o texto e são desenhadas
+  por cima das células.
 - **Fecha quando o shell termina**: `GLib.child_watch_add` reapa o filho (sem
   zumbi) e fecha a janela no `Ctrl+D`/`exit`; antes de fechar drena o que
   sobrou no pty (senão some a última tela) e manda `SIGHUP` pro grupo do filho
@@ -115,7 +118,7 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
   bloco/retangular.
 - **Truecolor aproximado** para a paleta de 16 cores.
 - **Gráficos sem animação/z-index**: `a=f`/`a=a` são ignorados, sem
-  `t=f`/`t=t`/`t=s` (arquivo, temp file, shared memory) e sem compressão.
+  `t=f`/`t=t`/`t=s` (arquivo, temp file, shared memory) e sem `z=` (z-index).
 - **Sem ligaduras**, sem fontes fallback para emoji/CJK.
 - **Kitty keyboard protocol parcial**: sem `report alternate keys` (a flag 4
   exige o keysym alternativo, que o Gdk não entrega direto), sem repeat

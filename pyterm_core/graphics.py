@@ -16,13 +16,14 @@ Suportado (o suficiente pro `kitten icat` e pro experimento):
     f=24 RGB  f=32 RGBA  f=100 PNG   (m=1 pra imagem em pedaços)
     i=<id>  c=<colunas>  r=<linhas>  C=1 (não move o cursor)  q=<silêncio>
 
-Fora: animação (`a=f`/`a=a`), z-index, transmissão por arquivo/shared-memory
-(`t=f`/`t=t`/`t=s`) e compressão (`o=z`).
+Fora: animação (`a=f`/`a=a`), z-index e transmissão por arquivo/shared-memory
+(`t=f`/`t=t`/`t=s`). Compressão `o=z` é suportada (zlib).
 """
 
 import base64
 import math
 import struct
+import zlib
 
 
 def png_size(data):
@@ -41,11 +42,15 @@ class Image:
 
 
 class Placement:
-    __slots__ = ("image_id", "col", "row", "cols", "rows")
+    __slots__ = ("image_id", "col", "row", "cols", "rows", "dx", "dy")
 
-    def __init__(self, image_id, col, row, cols, rows):
+    def __init__(self, image_id, col, row, cols, rows, dx=0, dy=0):
         self.image_id, self.col, self.row = image_id, col, row
         self.cols, self.rows = cols, rows
+        # `X=`/`Y=`: deslocamento em PIXELS da imagem dentro da primeira
+        # célula. É assim que o `icat` centraliza (ele move o cursor por
+        # células inteiras e deixe o resto no offset).
+        self.dx, self.dy = dx, dy
 
 
 class Graphics:
@@ -78,7 +83,10 @@ class Graphics:
         cols = int(kv["c"]) if kv.get("c") else max(1, math.ceil(img.width / cw))
         rows = int(kv["r"]) if kv.get("r") else max(1, math.ceil(img.height / ch))
         col, row = cursor
-        self.placements.append(Placement(img.id, col, row, cols, rows))
+        dx = int(kv.get("X") or 0)
+        dy = int(kv.get("Y") or 0)
+        self.placements.append(Placement(img.id, col, row, cols, rows,
+                                         dx, dy))
         return rows
 
     # -- o protocolo --------------------------------------------------
@@ -114,6 +122,13 @@ class Graphics:
             data = base64.b64decode(b64 + "=" * (-len(b64) % 4)) if b64 else b""
         except Exception:
             return ["G" + self._err(kv, "EINVAL:base64")], 0, False
+        if kv.get("o") == "z" and data:
+            # `o=z`: o payload vem comprimido (o `icat --place` manda PNG
+            # decodificado + zlib pra escalar no terminal sem reencodar)
+            try:
+                data = zlib.decompress(data)
+            except zlib.error:
+                return ["G" + self._err(kv, "EINVAL:zlib")], 0, False
 
         action = kv.get("a", "t")
         quiet = kv.get("q", "0") != "0"

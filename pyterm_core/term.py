@@ -557,10 +557,18 @@ class Term:
                 else:
                     self.state = "ground"
             elif st == "csi":
-                if ch.isdigit() or ch in ";?: " or ch in "<=>":
+                # ECMA-48: params 0x30-0x3f, DEPOIS intermediários 0x20-0x2f,
+                # e só então o byte final. Sem aceitar os intermediários, um
+                # `CSI * x` (DECSACE, que o icat manda) terminava no `*` e o
+                # `x` caía no ground — imprimia um "x" solto na tela.
+                if (ch.isdigit() or ch in ";?: " or ch in "<=>" or
+                        0x20 <= o <= 0x2f):
                     self.csi += ch
                 else:
                     body = self.csi
+                    # separa os intermediários do fim (não usamos nenhum)
+                    while body and 0x20 <= ord(body[-1]) <= 0x2f:
+                        body = body[:-1]
                     # prefixo privado: ?, <, =, > (o > e o < são do protocolo
                     # de teclado do kitty, o ? dos modos DEC)
                     prefix = ""
