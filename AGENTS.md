@@ -14,7 +14,8 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 
 - AGENTS.md (este) — convenções, arquitetura, scripts, ferramentas.
 - TASK-bzmux.md — ficha magra: status, por onde retomar, fila.
-- docs/BACKLOG.md — backlog pendente (P9 shaping, P10 fallback de fonte).
+- docs/BACKLOG.md — backlog pendente (P9 shaping, P10 fallback de fonte,
+  P13 lateral com fundo preto).
 - docs/HISTORY.md — backlog concluído (P1–P8, P11, P12), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
 - README.md — visão para humano: como rodar, ferramentas, ambiente, o que
