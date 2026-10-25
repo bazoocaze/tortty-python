@@ -94,7 +94,8 @@ core/
 ├── selftest.py  # runner sem dependências (--selftest)
 └── cli.py       # argv, -h/--help e arranque
 tests/                   # runner pytest de core/checks.py
-tools/                   # xtest.py, pixel.py — teste manual, precisa de X
+tools/                   # xtest.py, pixel.py (manual, precisa de X),
+                         # doomfire.py (carga de medição, roda em qualquer um)
 ```
 
 A regra é a dependência apontar para dentro: `term`/`palette` não importam

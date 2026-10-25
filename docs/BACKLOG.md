@@ -75,20 +75,6 @@ Armadilhas:
 - O pi também costuma usar o título para progresso/spinner: oscilação rápida,
   não uma troca só.
 
-### P16 — Doom fire como carga de medição — não iniciado
-
-Ideia: um script de doom-fire (o efeito de fogo do Doom PSX: buffer 0..36
-propagado de baixo para cima com decaimento e paleta de 37 cores) desenhando em
-meio-bloco com truecolor, como carga máxima de escrita para medir o caminho
-quente — parser, grade de células, agrupamento por cor e desenho no cairo — sem
-depender de app real.
-
-É medição, não teste: fica em `tools/`, roda à mão, e o número vai para o
-`TASK-bzmux.md`/`docs/HISTORY.md` como os outros, não vira benchmark na suíte.
-
-Detalhes (resolução, alvo de fps, se compara com o kitty) ficam para quando o
-item for tocado.
-
 ### P17 — Lateral aparece com um workspace só — não iniciado
 
 Descoberto na verificação do P14: com **um** workspace a lateral já aparece

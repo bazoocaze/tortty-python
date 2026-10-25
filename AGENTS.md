@@ -15,8 +15,7 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 - AGENTS.md (este) — convenções, arquitetura, scripts, ferramentas.
 - TASK-bzmux.md — ficha magra: status, por onde retomar, fila.
 - docs/BACKLOG.md — backlog pendente (P9 shaping, P10 fallback de fonte,
-  P15 tela bagunçada ao subir o `pi`, P16 doom-fire como carga de medição,
-  P17 lateral visível com um workspace só).
+  P15 tela bagunçada ao subir o `pi`, P17 lateral visível com um workspace só).
 - docs/HISTORY.md — backlog concluído (P1–P8, P11–P13), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
 - README.md — visão para humano: como rodar, ferramentas, ambiente, o que
@@ -51,7 +50,8 @@ bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core
       selftest.py  runner sem dependências do --selftest
       cli.py       argv e arranque
     tests/         runner pytest de core/checks.py
-    tools/         xtest.py, pixel.py — teste manual com X11
+    tools/         xtest.py, pixel.py — teste manual com X11;
+                   doomfire.py — carga de medição
 
 O que sustenta essa divisão: o caminho do --selftest importa só palette, term
 (que puxa graphics), kitty_kbd e mouse, e nenhum deles puxa gi/cairo — é isso
@@ -104,6 +104,10 @@ experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
   python3 bzmux.py --selftest (sem dependências, útil para provar que o caminho
   dos testes não puxa gi). O que precisar de X11 fica como comando manual em
   Scripts e ferramentas, não vira infraestrutura.
+- tools/doomfire.py — carga de medição, não teste: doom-fire em meio-bloco
+  truecolor (fg e bg por célula, pior caso), sem dependência de X.
+  python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to ARQ imprime fps e
+  MB/s na saída, então dá para comparar dois terminais na mesma grade.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
 - Medição não é teste: os números do README.md vêm de execução real e não

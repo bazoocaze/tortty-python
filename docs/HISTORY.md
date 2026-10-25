@@ -609,3 +609,27 @@ o `:hover` não enganar a amostra).
 
 De quebra, `Pango` entrou no `gui.py` (ponto único de import) e o `Entry` de
 renomear ganhou `width_chars(6)` — ele também publicava largura.
+
+### P16 — Doom fire como carga de medição — **feito**
+
+`tools/doomfire.py`: o efeito do port de PSX do Doom (buffer 0..36 propagado de
+baixo para cima com decaimento, paleta de 37 tons) em meio-bloco, com fg e bg
+truecolor **por célula**, sem agrupar nada — o pior caso para o parser e para o
+desenho, sem depender de app real. `--fps 0` solta a mão: quem limita passa a
+ser o terminal, e o fps alcançado é a medida de vazão dele.
+
+Medido, 1200 frames, mesma grade (51 colunas), `--fps 0`:
+
+| | fps | MB/s de escapes |
+|---|---|---|
+| bzmux | 24,6 | 1,0 |
+| kitty | 412,6 | 15,6 |
+
+O bzmux fica em 100% de um core nos 24,6 fps: ~40 ms por frame de 1020 células,
+ou ~39 µs por célula. É a carga mais pesada que o caminho quente já encarou e o
+número de partida para o P9 (o desenho com Pango muda exatamente isso).
+
+Duas armadilhas do próprio script, que só apareceram com ele rodando dentro do
+bzmux: sem `SGR 0` na saída as estatísticas herdam a última cor do fogo (texto
+com fundo amarelo), e SIGTERM no meio deixava a tela no alt-screen — agora tem
+handler e o `finally` restaura pincel, cursor e tela.
