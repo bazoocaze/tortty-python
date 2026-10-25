@@ -78,8 +78,23 @@ class Term:
             self._resize_crop(cols, rows)
 
     def _resize_crop(self, cols, rows):
-        """Recorta/preenche, sem re-quebrar (alt-screen)."""
-        old_grid, old_rows = self.grid, self.rows
+        """Alt-screen: recorta a tela e re-quebra o buffer principal salvo.
+
+        O `alt_grid` (o buffer principal guardado enquanto o app está em tela
+        cheia) TAMBÉM tem que acompanhar o tamanho novo — senão, ao sair de
+        `mc`/`vim` depois de um resize, a grade volta com a largura antiga e a
+        primeira `EL` estoura (`IndexError` em `erase_line`), o que derruba o
+        watch do pty e congela o terminal.
+        """
+        old_grid, old_cols, old_rows = self.grid, self.cols, self.rows
+        old_wrapped, old_cx, old_cy = self.row_wrapped, self.cx, self.cy
+        if self.alt_grid is not None:
+            self.grid, self.row_wrapped = self.alt_grid, self.alt_wrapped
+            self.cols, self.rows = old_cols, old_rows
+            self.cx, self.cy = self.saved or (0, 0)
+            self._reflow(cols, rows)          # re-quebra o principal salvo
+            self.alt_grid, self.alt_wrapped = self.grid, self.row_wrapped
+            self.saved = (self.cx, self.cy)
         self.cols, self.rows = cols, rows
         new = []
         for y in range(rows):
@@ -92,11 +107,11 @@ class Term:
             else:
                 new.append([self._blank_cell_raw() for _ in range(cols)])
         self.grid = new
-        self.row_wrapped = (self.row_wrapped[:rows] +
-                            [False] * max(0, rows - len(self.row_wrapped)))
+        self.row_wrapped = (old_wrapped[:rows] +
+                            [False] * max(0, rows - len(old_wrapped)))
         self.top, self.bottom = 0, rows - 1
-        self.cx = min(self.cx, cols - 1)
-        self.cy = min(self.cy, rows - 1)
+        self.cx = min(old_cx, cols - 1)
+        self.cy = min(old_cy, rows - 1)
         self.wrap_pending = False
 
     def _reflow(self, cols, rows):
@@ -403,6 +418,10 @@ class Term:
                     if len(self.alt_wrapped) == self.rows:
                         self.row_wrapped = self.alt_wrapped
                     self.alt_wrapped = None
+                    if self.grid and len(self.grid[0]) != self.cols:
+                        # tamanho mudou com a tela cheia ligada: re-quebra
+                        # em vez de deixar linha curta na grade
+                        self._reflow(self.cols, self.rows)
                     if self.saved:
                         self.cx, self.cy = self.saved
                     self.top, self.bottom = 0, self.rows - 1
