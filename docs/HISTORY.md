@@ -529,6 +529,38 @@ e quem manda na visibilidade é só o nosso `set_visible`. Verificado por pixel
 (ponto da lateral preto/ocupado com 2+ workspaces, sem lateral com 1) e pelo
 dump (`68x20` com um workspace, `51x20` com dois).
 
+### P15 — Tela do `pi` estabilizava bagunçada — **feito**
+
+Relato: abrir o `pi` no bzmux, esperar a subida, e a tela parar incoerente (no
+kitty ficava certa). O que se via: os blocos de aviso do startup com a linha de
+status e a barra `bh/P/X` *no meio deles*, bordas repetidas e linhas em branco
+entre uma linha e outra — layout "dobrado".
+
+Causa: **o `\r\n` depois de uma linha que enche a largura avançava DUAS linhas.**
+Em `put()`, a quebra pendente (`wrap_pending`, a que marca "esta linha cheia
+continua na de baixo") era executada ANTES do tratamento de `\r`, `\n`, `\b` e
+`\t`; então o `\r\n` pagava a quebra pendente + o próprio LF. App que preenche
+a linha inteira até o fim — pi renderiza com padding até a última coluna, como
+todo renderizador Ink — crescia uma linha por linha, a tela rolava sem parar e
+o conteúdo se sobrepunha.
+
+Fix: controle primeiro, quebra depois. `\r`/`\n`/`\b`/`\t` zeram
+`wrap_pending` e só então fazem o que fazem; a quebra pendente continua valendo
+para texto (aí sim a linha quebra). Check novo: `wrap_and_control`.
+
+Verificação (foi o que fechou o diagnóstico, depois de duas tentativas erradas):
+com `PYTERM_RAWLOG` gravou-se a saída do `pi` e ela foi reproduzida no `Term` sem
+display — a bagunça aparecia igual. Comparada com um emulador de referência
+(`uv pip install pyte`, temporário), a nossa grade passou de **38 linhas
+diferentes em 45** para **0**, com o mesmo cursor e zero scrollback espúrio.
+Depois, ao vivo: janela de 140x45, `pi` renderizado igual ao kitty.
+
+Duas pistas falsas, registradas porque custaram tempo: (1) faltar resposta às
+consultas `CSI 16t` e `OSC 10/11/4` *não* era a causa — implementar as respostas
+não mudou o layout; (2) rodar os dois terminais ao mesmo tempo contamina a
+medição e a comparação visual. O que resolveu foi replay determinístico contra
+referência, não screenshot de screenshot.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.
@@ -652,6 +684,10 @@ Todos foram achados com medição, não por leitura — vale registrar o método
   devolve **5** valores (ascent, descent, height, max_x_advance,
   max_y_advance) — não 6.
 
+- **Quebra pendente e caracteres de controle**: emulador nenhum deve contar o
+  `\n` que vem depois de uma linha cheia como segunda quebra; texto preenchendo
+  a última coluna e `\r\n` é o padrão de qualquer TUI que desenha com padding
+  até a borda.
 - **`show_all()` desfaz `set_visible(False)`**: `Gtk.Widget.show_all()` mostra
   todos os descendentes, então um widget escondido no construtor volta a
   aparecer. Para controlar visibilidade na mão, `set_no_show_all(True)` nele.

@@ -82,6 +82,17 @@ def charset_and_replies():
     t = Term()
     t.feed("\x1b]0;titulo\x07")
     assert t.title == "titulo"
+    # consultas que as TUIs fazem: tamanho de célula, cores e paleta
+    t = Term()
+    t.cell_size = (10, 21)
+    t.feed("\x1b[16t")
+    assert bytes(t.child_out) == b"\x1b[6;21;10t"
+    t.child_out = bytearray()
+    t.feed("\x1b]11;?\x07")
+    assert bytes(t.child_out).startswith(b"\x1b]11;rgb:")
+    t.child_out = bytearray()
+    t.feed("\x1b]4;1;?\x07")
+    assert bytes(t.child_out).startswith(b"\x1b]4;1;rgb:")
 
 
 def csi_with_intermediate():
@@ -159,6 +170,18 @@ def graphics_follow_history():
     assert pl.row + len(t.scrollback) >= 0
     t.resize(40, 4)
     assert all(p.row >= -len(t.scrollback) for p in t.graphics.placements)
+
+
+def wrap_and_control():
+    """Linha que enche a largura + CR/LF avança UMA linha (regressão do P15)."""
+    t = Term(cols=10, rows=4)
+    t.feed("0123456789")
+    assert t.cx == 9            # quebra pendente, cursor na última coluna
+    t.feed("\r\n")
+    assert (t.cx, t.cy) == (0, 1), (t.cx, t.cy)
+    # a quebra pendente continua valendo quando vem texto, não controle
+    t.feed("0123456789X")
+    assert (t.cx, t.cy) == (1, 2), (t.cx, t.cy)
 
 
 # -- reflow e histórico (P2/P3) ----------------------------------------
@@ -263,6 +286,7 @@ ALL = (
     kitty_keyboard,
     graphics_image_and_offset,
     graphics_follow_history,
+    wrap_and_control,
     reflow,
     history,
     mouse_modes_and_sgr,

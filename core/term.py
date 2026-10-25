@@ -5,7 +5,8 @@ abrir janela (e sem display). Quem desenha é `window.BzmuxWindow`.
 """
 
 from .graphics import Graphics
-from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, rgb, DEC_SPECIAL)
+from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, rgb, DEC_SPECIAL,
+                      PALETTE256, FG_DEFAULT, BG_DEFAULT)
 
 
 class Term:
@@ -260,6 +261,24 @@ class Term:
             self.cy = min(self.cy + 1, self.rows - 1)
 
     def put(self, ch):
+        # Controle vem ANTES da quebra pendente: um `\r\n` depois de uma linha
+        # que encheu a largura avançava DUAS linhas (a quebra pendente + o LF),
+        # e app que preenche a linha inteira (pi, Ink) caía em layout dobrado
+        # e tela rolando sem parar (P15).
+        if ch == "\r":
+            self.cx, self.wrap_pending = 0, False
+            return
+        if ch == "\n":
+            self.wrap_pending = False
+            self.newline()
+            return
+        if ch == "\b":
+            self.cx, self.wrap_pending = max(0, self.cx - 1), False
+            return
+        if ch == "\t":
+            self.wrap_pending = False
+            self.cx = min(self.cols - 1, ((self.cx // 8) + 1) * 8)
+            return
         if self.wrap_pending:
             # a linha que encheu continua na de baixo (quebra mole): é o que
             # o reflow usa pra juntar de novo ao alargar
@@ -267,18 +286,6 @@ class Term:
             self.cx = 0
             self.newline()
             self.wrap_pending = False
-        if ch == "\n":
-            self.newline()
-            return
-        if ch == "\r":
-            self.cx, self.wrap_pending = 0, False
-            return
-        if ch == "\b":
-            self.cx, self.wrap_pending = max(0, self.cx - 1), False
-            return
-        if ch == "\t":
-            self.cx = min(self.cols - 1, ((self.cx // 8) + 1) * 8)
-            return
         if self.charset_dec:
             ch = DEC_SPECIAL.get(ch, ch)
         self.grid[self.cy][self.cx] = [ch, self.fg, self.bg, self.flags]
@@ -546,6 +553,15 @@ class Term:
             self.set_mode(params or [0], private, final == "h")
         elif final == "c" and not params and not private:
             self.child_out += b"\x1b[?62c"  # DA: VT102
+        elif final == "t" and params:
+            # 16 = tamanho da célula em px; 18 = área de texto em chars. Apps
+            # de TUI (pi, neovim) perguntam para calcular layout em pixels e
+            # ficam esperando a resposta; sem ela o startup arrasta.
+            if params[0] == 16:
+                cw, ch = self.cell_size
+                self.child_out += f"\x1b[6;{ch};{cw}t".encode()
+            elif params[0] == 18:
+                self.child_out += f"\x1b[8;{self.rows};{self.cols}t".encode()
         elif final == "n" and params == [6]:
             # DSR: informa posição do cursor
             self.child_out += f"\x1b[{self.cy + 1};{self.cx + 1}R".encode()
@@ -672,11 +688,32 @@ class Term:
                 self.newline()
 
     def _osc_done(self):
-        # só título (0/2); resto ignorado
-        if self.osc[:2] in ("0;", "2;"):
-            self.title = self.osc[2:]
+        o = self.osc
         self.osc = ""
         self.state = "ground"
+        if o[:2] in ("0;", "2;"):
+            self.title = o[2:]
+        elif o in ("10;?", "11;?"):
+            # cor padrão de frente/fundo (X11: 4 dígitos por componente)
+            r, g, b = FG_DEFAULT if o[0] == "1" and o[1] == "0" else BG_DEFAULT
+            self.child_out += (
+                f"\x1b]{o[:2]};rgb:{r*257:04x}/{g*257:04x}/{b*257:04x}\x1b\\"
+                .encode())
+        elif o.startswith("4;"):
+            # entrada da paleta: OSC 4 ; índice ; ? (pode vir em pares)
+            parts = o.split(";")[1:]
+            out = ""
+            for i in range(0, len(parts) - 1, 2):
+                if not parts[i + 1].startswith("?"):
+                    continue
+                try:
+                    n = int(parts[i])
+                except ValueError:
+                    continue
+                if 0 <= n < len(PALETTE256):
+                    r, g, b = PALETTE256[n]
+                    out += f"\x1b]4;{n};rgb:{r*257:04x}/{g*257:04x}/{b*257:04x}\x1b\\"
+            self.child_out += out.encode()
 
     def _kbd_protocol(self, params, prefix):
         """CSI > flags u (push) / CSI < n u (pop) / CSI = flags ; modo u (set)
