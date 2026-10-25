@@ -14,9 +14,22 @@ import termios
 
 from .gui import Gtk, Gdk, GLib, cairo
 from .keys import encode_key
+from . import mouse
 from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, PALETTE256,
                       BG_DEFAULT, FG_DEFAULT)
 from .term import Term
+
+
+def _in_sel(y, x, sel):
+    """A célula (y, x) está dentro da seleção? (r1,c1,r2,c2) inclusivo."""
+    r1, c1, r2, c2 = sel
+    if y < r1 or y > r2:
+        return False
+    if y == r1 and x < c1:
+        return False
+    if y == r2 and x > c2:
+        return False
+    return True
 
 
 class PyTermWindow(Gtk.Window):
@@ -25,11 +38,27 @@ class PyTermWindow(Gtk.Window):
         self.dump_to = dump_to
         self.dead_mark = 0   # dead key pendente (marca combinante)
         self.term = Term()
+        # seleção local (quando o app NÃO pediu mouse): âncora e ponta
+        self.sel_start = None
+        self.sel_end = None
+        self.dragging = False
+        self._held = None    # botão do protocolo apertado agora
+        self._state = 0      # modificadores do último evento (shift/alt/ctrl)
         self.area = Gtk.DrawingArea()
         self.area.set_can_focus(True)
+        self.area.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
+                             Gdk.EventMask.BUTTON_RELEASE_MASK |
+                             Gdk.EventMask.POINTER_MOTION_MASK |
+                             Gdk.EventMask.SCROLL_MASK)
         self.add(self.area)
         self.area.connect("draw", self.on_draw)
         self.connect("key-press-event", self.on_key)
+        self.area.connect("button-press-event", self.on_button_press)
+        self.area.connect("button-release-event", self.on_button_release)
+        self.area.connect("motion-notify-event", self.on_motion)
+        self.area.connect("scroll-event", self.on_scroll)
+        self.connect("focus-in-event", self.on_focus_in)
+        self.connect("focus-out-event", self.on_focus_out)
         # size-allocate (e não configure-event): o configure do GtkWindow
         # chega ANTES do filho ser re-alocado, então get_allocation() ali
         # ainda devolve o tamanho antigo e o resize nunca era aplicado.
@@ -156,6 +185,15 @@ class PyTermWindow(Gtk.Window):
             pass
 
     # -- desenho ------------------------------------------------------
+    def sel_range(self):
+        """Seleção normalizada (r1, c1, r2, c2) ou None."""
+        if self.sel_start is None or self.sel_end is None:
+            return None
+        (r1, c1), (r2, c2) = self.sel_start, self.sel_end
+        if (r1, c1) > (r2, c2):
+            (r1, c1), (r2, c2) = (r2, c2), (r1, c1)
+        return (r1, c1, r2, c2)
+
     def on_draw(self, area, cr):
         t = self.term
         cw, ch = self.metrics()
@@ -168,25 +206,33 @@ class PyTermWindow(Gtk.Window):
         r, g, b = [c / 255 for c in BG_DEFAULT]
         cr.set_source_rgb(r, g, b)
         cr.paint()
+        sel = self.sel_range()
         for y in range(t.rows):
             row = t.grid[y]
             x = 0
             while x < t.cols:
                 cell = row[x]
-                j = x
-                while (j < t.cols and row[j][1] == cell[1]
-                       and row[j][2] == cell[2]
-                       and row[j][3] == cell[3]):
-                    j += 1
                 fg, bg, fl = cell[1], cell[2], cell[3]
-                if fl & INV:
-                    fg, bg = bg, fg
+                s0 = bool(sel) and _in_sel(y, x, sel)
+                j = x + 1
+                while j < t.cols:
+                    c2 = row[j]
+                    if (c2[1] != fg or c2[2] != bg or c2[3] != fl
+                            or (bool(sel) and _in_sel(y, j, sel)) != s0):
+                        break
+                    j += 1
+                # a cor vira RGB ANTES de inverter: trocar os índices e só
+                # depois converter transformava o texto default (256) em
+                # "cor 1" (vermelho), porque 256/257 são sentinelas e não
+                # índices da paleta.
+                fgc = FG_DEFAULT if fg == DEF_FG else PALETTE256[fg % 256]
                 bgc = BG_DEFAULT if bg == DEF_BG else PALETTE256[bg % 256]
+                if (fl & INV) or s0:
+                    fgc, bgc = bgc, fgc      # inverso / seleção = reverso
                 if bgc != BG_DEFAULT:
                     cr.set_source_rgb(*[c / 255 for c in bgc])
                     cr.rectangle(x * cw, y * ch, (j - x) * cw, ch)
                     cr.fill()
-                fgc = FG_DEFAULT if fg == DEF_FG else PALETTE256[fg % 256]
                 cr.set_source_rgb(*[c / 255 for c in fgc])
                 txt = "".join(c[0] for c in row[x:j])
                 if fl & BOLD:
@@ -213,14 +259,154 @@ class PyTermWindow(Gtk.Window):
             cr.show_text(cell[0])
         return False
 
+    # -- mouse, seleção e cópia ---------------------------------------
+    def cell_at(self, px, py):
+        """Pixel -> (col, row) 0-based, preso à grade."""
+        cw, ch = self.metrics()
+        t = self.term
+        col = max(0, min(t.cols - 1, int(px // int(cw))))
+        row = max(0, min(t.rows - 1, int(py // int(ch))))
+        return col, row
+
+    def _write_child(self, data):
+        if not data:
+            return
+        try:
+            os.write(self.master, data.encode("utf-8", "replace"))
+        except OSError:
+            pass
+
+    def report_mouse(self, button, col, row, pressed=True, motion=False):
+        """Manda um evento de mouse pro app (o app pediu com ?1000/1002/3)."""
+        st = self._state
+        mods = mouse.mods_from_state(
+            bool(st & Gdk.ModifierType.SHIFT_MASK),
+            bool(st & Gdk.ModifierType.MOD1_MASK),
+            bool(st & Gdk.ModifierType.CONTROL_MASK))
+        self._write_child(mouse.encode(button, col, row, pressed=pressed,
+                                       sgr=self.term.mouse_sgr, mods=mods,
+                                       motion=motion))
+
+    def on_button_press(self, widget, ev):
+        t = self.term
+        self._state = ev.state
+        col, row = self.cell_at(ev.x, ev.y)
+        btn = mouse.GDK_BUTTONS.get(ev.button)
+        if t.mouse_mode and btn is not None:
+            # o app quer saber do mouse: nada de seleção local
+            self._held = btn
+            self.report_mouse(btn, col, row, True)
+            return True
+        if ev.button == 1:
+            self.sel_start = self.sel_end = (row, col)
+            self.dragging = True
+            self.area.queue_draw()
+            return True
+        if ev.button == 2:
+            self.paste(Gdk.SELECTION_PRIMARY)
+            return True
+        return False
+
+    def on_button_release(self, widget, ev):
+        t = self.term
+        self._state = ev.state
+        col, row = self.cell_at(ev.x, ev.y)
+        if t.mouse_mode and self._held is not None:
+            self.report_mouse(self._held, col, row, False)
+            self._held = None
+            return True
+        if ev.button == 1 and self.dragging:
+            self.dragging = False
+            self.area.queue_draw()
+            # convenção X11: seleção também vai pro PRIMARY (colar com o
+            # botão do meio), sem precisar do Ctrl+Shift+C
+            self.copy(Gdk.SELECTION_PRIMARY)
+            return True
+        return False
+
+    def on_motion(self, widget, ev):
+        t = self.term
+        self._state = ev.state
+        if self.dragging:
+            col, row = self.cell_at(ev.x, ev.y)
+            if (row, col) != self.sel_end:
+                self.sel_end = (row, col)
+                self.area.queue_draw()
+            return True
+        if t.mouse_mode == 2 and self._held is not None:
+            self.report_mouse(self._held, *self.cell_at(ev.x, ev.y),
+                              motion=True)
+            return True
+        if t.mouse_mode == 3:
+            # movimento sem botão: código 35 (32 + "botão 3")
+            self.report_mouse(mouse.RELEASE, *self.cell_at(ev.x, ev.y),
+                              motion=True)
+            return True
+        return False
+
+    def on_scroll(self, widget, ev):
+        t = self.term
+        self._state = ev.state
+        btn = {Gdk.ScrollDirection.UP: mouse.WHEEL_UP,
+               Gdk.ScrollDirection.DOWN: mouse.WHEEL_DOWN,
+               Gdk.ScrollDirection.LEFT: mouse.WHEEL_LEFT,
+               Gdk.ScrollDirection.RIGHT: mouse.WHEEL_RIGHT}.get(ev.direction)
+        if btn is None:
+            return False
+        if t.mouse_mode:
+            col, row = self.cell_at(ev.x, ev.y)
+            self.report_mouse(btn, col, row, True)
+            self.report_mouse(btn, col, row, False)
+            return True
+        return False
+
+    def on_focus_in(self, widget, ev):
+        if self.term.focus_report:
+            self._write_child("\x1b[I")
+        return False
+
+    def on_focus_out(self, widget, ev):
+        if self.term.focus_report:
+            self._write_child("\x1b[O")
+        return False
+
+    # -- área de transferência ----------------------------------------
+    def copy(self, selection=Gdk.SELECTION_CLIPBOARD):
+        """Copia a seleção — ou a viewport inteira, se não houver seleção."""
+        sel = self.sel_range()
+        if sel:
+            r1, c1, r2, c2 = sel
+            text = self.term.selection_text((r1, c1), (r2, c2))
+            if text:
+                text += "\n"          # seleção de linha inteira já vem sem
+        else:
+            text = self.term.all_text()
+        cb = Gtk.Clipboard.get(selection)
+        cb.set_text(text, -1)
+        cb.store()
+        return text
+
+    def paste(self, selection=Gdk.SELECTION_CLIPBOARD):
+        text = Gtk.Clipboard.get(selection).wait_for_text()
+        if text:
+            self._write_child(text)
+        return bool(text)
+
     # -- teclado -------------------------------------------------------
     def on_key(self, widget, ev):
         """Traduz e manda a tecla; a tradução em si está em keys.encode_key."""
+        ctrl = bool(ev.state & Gdk.ModifierType.CONTROL_MASK)
+        shift = bool(ev.state & Gdk.ModifierType.SHIFT_MASK)
+        kv = ev.keyval
+        # Ctrl+Shift+C/V são do terminal, não do app (senão Ctrl+Shift+C
+        # virava o mesmo ^C de Ctrl+C e matava o processo)
+        if ctrl and shift and kv in (Gdk.KEY_c, Gdk.KEY_C):
+            self.copy()
+            return True
+        if ctrl and shift and kv in (Gdk.KEY_v, Gdk.KEY_V):
+            self.paste()
+            return True
         out, self.dead_mark, handled = encode_key(
             ev.keyval, ev.state, self.dead_mark, self.term.app_cursor)
-        if out:
-            try:
-                os.write(self.master, out.encode("utf-8", "replace"))
-            except OSError:
-                pass
+        self._write_child(out or "")
         return handled

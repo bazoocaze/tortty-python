@@ -72,13 +72,20 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   cubo 6×6×6 + 24 cinzas); truecolor é aproximado para essa paleta.
 - **Desenho** com cairo: runs agrupados por atributos, bold, sublinhado,
   inverso, cursor em bloco.
+- **Mouse**: reporta pro app quando ele pede (`?1000` clique, `?1002`
+  arrasto, `?1003` movimento, `?1006` coordenadas SGR, `?1004` foco), e fora
+desses modos faz **seleção local** arrastando — e ela vira cópia:
+  `Ctrl+Shift+C` copia (seleção ou viewport), `Ctrl+Shift+V` cola, e o
+  **botão do meio** cola o PRIMARY (convenção X11). A seleção é vídeo
+  reverso. Clique em `mc`/`vim` chega como `CSI < b ; x ; y M/m`.
 
 Testado com `ls --color`, `mc` (painéis, molduras, barra de teclas, cores,
 setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen).
 
 ## Limites conhecidos (de propósito)
 
-- **Sem mouse** (nem seleção, nem report de clique para o app).
+- **Seleção só por célula**: sem duplo-clique por palavra e sem modo
+  bloco/retangular.
 - **Truecolor aproximado** para a paleta de 16 cores.
 - **Sem reflow** ao redimensionar: recorta/preenche, não re-quebra.
 - **Sem protocolo de gráficos** (nada de `kitten icat`) e sem kitty keyboard

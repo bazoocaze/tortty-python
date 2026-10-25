@@ -1,8 +1,10 @@
 """Autochetcagem do parser: `python3 pyterm.py --selftest`.
 
-Roda sem display e sem PyGObject: só importa `term`, nunca `window`.
+Roda sem display e sem PyGObject: só importa `term`, `palette` e `mouse`,
+nunca `window`/`gui`.
 """
 
+from . import mouse
 from .palette import DEF_FG
 from .term import Term
 
@@ -66,6 +68,23 @@ def selftest():
     t = Term()
     t.feed("\x1b]0;titulo\x07")
     check("OSC título", t.title, "titulo")
+
+    # -- mouse (?1000/?1002/?1006) e seleção -------------------------
+    t = Term()
+    t.feed("\x1b[?1002h\x1b[?1006h")
+    check("mouse modo dragg + sgr", (t.mouse_mode, t.mouse_sgr), (2, True))
+
+    check("SGR press", mouse.encode(mouse.LEFT, 0, 0, True, sgr=True),
+          "\x1b[<0;1;1M")
+    check("SGR release", mouse.encode(mouse.LEFT, 4, 2, False, sgr=True),
+          "\x1b[<0;5;3m")
+    check("X10 press", mouse.encode(mouse.LEFT, 0, 0, True),
+          "\x1b[M" + chr(32) + chr(33) + chr(33))
+
+    t = Term()
+    t.feed("abc\r\ndef\r\nghi")
+    check("seleção multi-linha", t.selection_text((0, 1), (1, 1)), "bc\nde")
+    check("seleção invertida", t.selection_text((1, 1), (0, 1)), "bc\nde")
 
     if fails:
         print(f"SELFTEST FAIL ({len(fails)}):")

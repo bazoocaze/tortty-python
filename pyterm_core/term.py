@@ -21,6 +21,9 @@ class Term:
         self.wrap_pending = False
         self.cursor_visible = True
         self.app_cursor = False       # DECCKM (?1): setas em modo aplicação
+        self.mouse_mode = 0           # ?1000=1 ?1002=2 ?1003=3 (0 = off)
+        self.mouse_sgr = False        # ?1006: coordenadas SGR
+        self.focus_report = False     # ?1004: avisar foco in/out
         self.charset_dec = False      # ESC ( 0 ativo?
         self.saved = None
         self.child_out = bytearray()  # respostas ao filho (DA, CPR...)
@@ -255,8 +258,20 @@ class Term:
                     self.saved = (self.cx, self.cy)
                 elif self.saved:
                     self.cx, self.cy = self.saved
-            # mouse (1000/1002/1006), bracketed paste (2004),
-            # foco (1004): rastreados e ignorados — sem mouse aqui
+            elif private and p in (1000, 1002, 1003):
+                # modos de mouse: 1 = só cliques, 2 = clique + arrasto,
+                # 3 = qualquer movimento. Desligar qualquer um desliga o
+                # report (é o que o xterm faz).
+                self.mouse_mode = {1000: 1, 1002: 2, 1003: 3}[p] if on else 0
+            elif private and p == 1006:
+                self.mouse_sgr = on     # coordenadas SGR (>223 e release)
+            elif private and p == 1004:
+                self.focus_report = on  # CSI I / CSI O no foco
+            elif private and p in (1005, 1015):
+                # UTF-8 / urxvt: o SGR (1006) cobre; não vale implementar
+                # três codificações de coordenada para o experimento
+                pass
+            # bracketed paste (2004): fora de escopo (P7)
 
     def csi_dispatch(self, final, params, private):
         get = lambda i, d: (params[i] if i < len(params)
@@ -410,3 +425,30 @@ class Term:
 
     def row_text(self, y):
         return "".join(c[0] for c in self.grid[y])
+
+    # -- texto (cópia) ------------------------------------------------
+    def selection_text(self, start, end):
+        """Texto entre duas células (row, col), 0-based, pontas inclusivas.
+
+        Ordem invertida (arrastar de baixo pra cima) é normalizada. Espaço à
+        direita de cada linha sai fora — é o que todo terminal faz ao copiar.
+        """
+        (r1, c1), (r2, c2) = start, end
+        if (r1, c1) > (r2, c2):
+            (r1, c1), (r2, c2) = (r2, c2), (r1, c1)
+        r1 = max(0, min(self.rows - 1, r1))
+        r2 = max(0, min(self.rows - 1, r2))
+        out = []
+        for y in range(r1, r2 + 1):
+            a = c1 if y == r1 else 0
+            b = (c2 + 1) if y == r2 else self.cols
+            row = self.grid[y]
+            out.append("".join(c[0] for c in row[a:b]).rstrip())
+        return "\n".join(out)
+
+    def all_text(self):
+        """A viewport inteira (Ctrl+Shift+C sem seleção)."""
+        lines = [self.row_text(y).rstrip() for y in range(self.rows)]
+        while lines and not lines[-1]:
+            lines.pop()
+        return "\n".join(lines) + ("\n" if lines else "")
