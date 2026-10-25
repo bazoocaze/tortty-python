@@ -104,8 +104,11 @@ def main(argv):
     buf = bytearray(w * h)
     buf[-w:] = bytes([LAST]) * w          # última fileira no fogo máximo
 
-    # SIGTERM (kill) não pode deixar a tela no alt-screen com o pincel sujo
-    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+    # SIGTERM/SIGINT param o laço (e não matam antes das estatísticas): dá para
+    # medir com `timeout -s TERM 20 python3 tools/doomfire.py --fps 0`
+    stop = []
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda *_: stop.append(True))
 
     out = sys.stdout.buffer
     out.write(b"\033[?1049h\033[0m\033[2J\033[?25l")
@@ -116,7 +119,7 @@ def main(argv):
     t0 = time.monotonic()
     deadline = t0
     try:
-        while not a.frames or frames < a.frames:
+        while not stop and (not a.frames or frames < a.frames):
             update(buf, w)
             frame = render(buf, w, h)
             out.write(frame)

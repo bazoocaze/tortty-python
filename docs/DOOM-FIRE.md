@@ -33,27 +33,55 @@ e o arquivo evita depender de ler a tela. Grade = tamanho do terminal
 
 ## O número
 
-Uma execução, 1200 frames, grade de 51 colunas, `--fps 0` (2026-10-25):
+Uma execução, grade de 51 colunas, `--fps 0`, **um terminal de cada vez** (rodar
+os dois juntos contamina o número):
 
 | | fps | MB/s de escapes | bytes/frame |
 |---|---|---|---|
-| bzmux | 24,6 | 1,0 | ~39 KB |
+| bzmux | 16,2 | 0,6 | ~38 KB |
 | kitty | 412,6 | 15,6 | ~38 KB |
 
-O bzmux fica com **100% de um core** durante a medição: ~40 ms por frame de
-~1020 células, ou **~39 µs por célula**. O kitty faz o mesmo em ~2 ms.
+O bzmux fica com **100% de um core**: ~62 ms por frame de ~1020 células. O kitty
+faz o mesmo em ~2,4 ms.
 
-O 1,0 MB/s casa com o número independente que já estava no README (0,7–1,9 MiB/s
-de parse + grade em despejo contínuo) — cargas diferentes, mesma ordem de
-grandeza, o que dá confiança de que o doom-fire está medindo o mesmo gargalo.
+O 0,6 MB/s é o dobro *abaixo* do 0,7–1,9 MiB/s de "parse + grade" do README, e a
+diferença é exatamente o desenho: o número do README mede um despejo de texto
+uniforme, este mede uma tela que troca de cor em toda célula.
 
-O que o número **não** diz: onde o tempo vai. O agregado (parse, agrupamento,
-cairo) não é decomposto por esta medição; para isso é preciso instrumentar ou
-usar perfilador, e o custo de desenho isolado é o que o README mede à parte
-(~2 ms por frame de 1920 células).
+### Onde o tempo vai
+
+`PYTERM_PROF=1` (ver abaixo) decompõe, 150 frames: **parse 63%** (4,2 ms por
+leitura de 64 KiB) e **desenho 34%** (11,2 ms por frame, ~30 draws/s).
+
+O desenho custa caro pelo número de *runs* de cor, não de células: 37 tons por
+linha fazem quase toda célula ser um run próprio, e o custo por célula sai
+~11 µs — contra ~1 µs do caso uniforme que o README mede (~2 ms / 1920 células).
+Medir desenho com tela de uma cor subestima o pior caso em 10x.
+
+### A primeira medição era inválida
+
+Deu 24,6 fps / 1,0 MB/s e **estava errada**: a tela estava congelada por um bug
+de prioridade do GLib (bug 12 do HISTORY), então aquilo media só parse. Vale
+como regra: número de vazão só significa alguma coisa depois de conferir que a
+tela muda — é o teste de três capturas abaixo.
+
+## Perfil do bzmux
+
+`PYTERM_PROF=1` liga contadores no `TermView` (`core/view.py`): tempo e número
+de chamadas de `on_pty` (parse) e `on_draw` (desenho), impressos no stderr
+(portanto no `/tmp/bzmux.log` do `debug.sh`) quando a sessão fecha:
+
+    PYTERM_PROF=1 ./debug.sh --cmd 'python3 tools/doomfire.py --fps 0' \
+        --quit-after 30
+    grep prof: /tmp/bzmux.log
+    # prof: pty 1396x 4.21ms/call (5884ms) | draw 280x 11.20ms/call (3137ms)
+
+Sem a variável o código não faz nada (só o `if not _PROF` na entrada).
 
 ## Protocolo (para comparar dois terminais)
 
+0. **um de cada vez** — dois terminais desenhando ao mesmo tempo disputam CPU
+   e os dois números saem piores;
 1. mesmas colunas e mesmas linhas nos dois (no kitty:
    `kitty --override remember_window_size=no --override initial_window_width=51c
    --override initial_window_height=20c -e ...`; a janela do bzmux é 680 px, o
@@ -64,8 +92,15 @@ usar perfilador, e o custo de desenho isolado é o que o README mede à parte
 ## Como saber que está desenhando
 
 Dump do bzmux (`kill -USR1 $(cat /tmp/bzmux.pid)`) traz `▀` em todas as linhas
-da viewport (1020 células em 51×20) e a captura mostra o fogo. Se o dump tiver
-`▀` e a tela estiver preta, o problema é no desenho, não no tool.
+da viewport (1020 células em 51×20). Isso prova que o parser está recebendo —
+**não** prova que a tela está mudando. O teste que prova são duas capturas com
+~1,5 s de intervalo e comparação de pixels:
+
+    import -window $(python3 tools/xtest.py id) /tmp/a.png; sleep 2
+    import -window $(python3 tools/xtest.py id) /tmp/b.png
+    # comparar as áreas: 0 pixels diferentes = tela congelada
+
+Foi assim que se achou o bug 12 (três capturas idênticas com 0,3 MB/s correndo).
 
 ## Armadilhas
 

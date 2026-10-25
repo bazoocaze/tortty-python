@@ -111,7 +111,9 @@ experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
   truecolor (fg e bg por célula, pior caso), sem dependência de X.
   python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to ARQ imprime fps e
   MB/s na saída, então dá para comparar dois terminais na mesma grade. Por que,
-  resultados e protocolo: docs/DOOM-FIRE.md.
+  resultados e protocolo: docs/DOOM-FIRE.md. Com PYTERM_PROF=1 no ambiente o
+  app imprime, ao fechar a sessão, o custo de parse (on_pty) e de desenho
+  (on_draw) — é o que decompõe a vazão.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
 - Medição não é teste: os números do README.md vêm de execução real e não

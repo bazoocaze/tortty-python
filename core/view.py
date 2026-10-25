@@ -15,6 +15,7 @@ import signal
 import struct
 import sys
 import termios
+import time
 
 from .gui import Gtk, Gdk, GLib, cairo
 from .keys import encode_key, is_modifier
@@ -22,6 +23,16 @@ from . import mouse
 from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, BG_DEFAULT, FG_DEFAULT,
                       cell_rgb)
 from .term import Term
+
+_PROF = bool(os.environ.get("PYTERM_PROF"))   # mede o custo de draw e de pty
+
+
+def _tick(prof, name, t0):
+    """Acumula (chamadas, segundos) de uma etapa; só faz algo com PYTERM_PROF."""
+    if _PROF:
+        st = prof.setdefault(name, [0, 0.0])
+        st[0] += 1
+        st[1] += time.perf_counter() - t0
 
 
 def surface_from_image(img, cairo):
@@ -118,6 +129,8 @@ class TermView(Gtk.DrawingArea):
         self.child_pid = None
         self.child_exited = False     # waitpid já chegou?
         self.exit_code = None
+        self._draw_pending = False
+        self._prof = {}
         self.pty_watch = 0
         self._closing = False
         self._hungup = False
@@ -151,15 +164,47 @@ class TermView(Gtk.DrawingArea):
         self.child_pid = pid
         self.master = fd
         os.set_blocking(fd, False)
-        self.pty_watch = GLib.io_add_watch(fd, GLib.IO_IN | GLib.IO_HUP |
-                                          GLib.IO_ERR, self.on_pty)
+        # Prioridade DEFAULT_IDLE (200), não DEFAULT (0): o redraw do GDK roda
+        # em GDK_PRIORITY_REDRAW (120) e um pty sempre pronto em prioridade 0
+        # ganhava a disputa sempre — com despejo contínuo a tela congelava no
+        # último frame desenhado (bug do doom-fire)
+        self.pty_watch = GLib.io_add_watch(
+            fd, GLib.PRIORITY_DEFAULT_IDLE,
+            GLib.IO_IN | GLib.IO_HUP | GLib.IO_ERR, self.on_pty)
         # O EOF do pty NÃO é sinal confiável de que o shell morreu: no Linux
         # o master devolve EIO, o watch morre e o loop do Gtk segue vivo (a
         # janela ficava aberta depois do Ctrl+D). O sinal de verdade é o
         # waitpid — o GLib reapa e entrega o status aqui.
         GLib.child_watch_add(GLib.PRIORITY_DEFAULT, pid, self.on_child_exit)
 
+    def request_draw(self):
+        """Pede um desenho, no máximo um a cada ~16 ms (60 Hz).
+
+        `queue_draw` a cada leitura de pty dava dezenas de draws por frame sob
+        despejo contínuo: o custo do desenho passava a dominar a vazão e a tela
+        ainda congelava, porque o redraw do GDK tem prioridade MENOR que o
+        watch do pty. Agora o desenho é coalescido e ritmado.
+        """
+        if self._draw_pending:
+            return
+        self._draw_pending = True
+        GLib.timeout_add(16, self._flush_draw)
+
+    def _flush_draw(self):
+        self._draw_pending = False
+        self.queue_draw()
+        return False          # um tiro só
+
     def on_pty(self, fd, cond):
+        if not _PROF:
+            return self._on_pty(fd, cond)
+        t0 = time.perf_counter()
+        try:
+            return self._on_pty(fd, cond)
+        finally:
+            _tick(self._prof, "pty", t0)
+
+    def _on_pty(self, fd, cond):
         try:
             data = os.read(fd, 65536)
         except BlockingIOError:
@@ -196,7 +241,7 @@ class TermView(Gtk.DrawingArea):
         # falando, o usuário não está mais lendo o histórico)
         if self.view_off:
             self.view_off = 0
-        self.queue_draw()
+        self.request_draw()
         return True
 
     def on_child_exit(self, pid, status):
@@ -238,6 +283,10 @@ class TermView(Gtk.DrawingArea):
         """Fecha a sessão (aba fechada, shell saiu, --quit-after)."""
         if self._closing:
             return
+        if _PROF and self._prof:
+            parts = [f"{k} {n}x {t*1000/n:.2f}ms/call ({t*1000:.0f}ms)"
+                     for k, (n, t) in self._prof.items() if n]
+            print("prof:", " | ".join(parts), file=sys.stderr)
         self._closing = True
         if self.pty_watch:
             GLib.source_remove(self.pty_watch)
@@ -366,6 +415,15 @@ class TermView(Gtk.DrawingArea):
         return (r1, c1, r2, c2)
 
     def on_draw(self, area, cr):
+        if not _PROF:
+            return self._on_draw(area, cr)
+        t0 = time.perf_counter()
+        try:
+            return self._on_draw(area, cr)
+        finally:
+            _tick(self._prof, "draw", t0)
+
+    def _on_draw(self, area, cr):
         t = self.term
         cw, ch = self.metrics()
         cw, ch = int(cw), int(ch)

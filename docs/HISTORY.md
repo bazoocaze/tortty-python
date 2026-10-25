@@ -444,6 +444,78 @@ Contrastes: 15,9:1 (nome normal), 6,1:1 (info), 9,7:1 e 7,2:1 no selecionado.
 Fora: a barra de abas e a moldura da janela continuam com o tema do sistema —
 entram quando houver token de aba.
 
+### P14 — Largura da lateral não fica fixa — **feito**
+
+`SIDEBAR_W` é 170, mas medido numa captura do P13 a lateral abria com **234 px**
+e a barra de abas começava em x=234. `set_size_request` é mínimo, não largura:
+o texto do cartão (`1 workspace`, título da aba ativa) é que dava a largura.
+
+Duas propriedades do `Gtk.Label` atrapalham, e são diferentes:
+
+- **o mínimo** — um `Label` sem `ellipsize` publica a largura do texto como
+  mínimo, e a `ListBox` cresce junto;
+- **o natural** — corrigido o mínimo (só `ellipsize`), o `pack_start` com
+  `expand=False` ainda entrega ao filho a largura *natural*, que continua sendo
+  a do texto: medido 454 px de lateral, 22 colunas de grade.
+
+A receita que fecha os dois: `ellipsize(END)` + `max_width_chars(1)` +
+`set_single_line_mode(True)` e `pack_start(label, False, True, 0)` (o `fill`
+faz o rótulo ocupar os 170 px e truncar dentro deles).
+
+O mesmo problema existia na **aba** do `Gtk.Notebook`, e aí era pior: o título
+longo virava mínimo do notebook e a janela inteira esticava — medido 1062 px de
+janela e 121 colunas de grade em vez de 680/51. `scrollable(True)` não resolve
+(o mínimo continua vindo do rótulo). Fix: as mesmas três propriedades no rótulo
+da aba, com `TAB_TITLE_CHARS = 20` (largura em chars porque a aba é medida em
+chars; já a lateral é px, e é ela que não pode depender da fonte).
+
+O texto inteiro foi para tooltip (cartão e aba): truncar sem tooltip esconde
+informação.
+
+Verificação (e a razão de existir como item): um `while` alternando
+`printf '\033]2;curto\007'` com um título de 60 chars fazia a grade oscilar
+entre **73 e 121 colunas** — 48 colunas de resize, SIGWINCH e reflow a cada
+troca — e a janela crescia para 1062 px. Depois: `cols` constante em 51 nos
+dumps de SIGUSR1 e janela em 680, com o título longo truncado em "…" no cartão
+e na aba (fronteira da lateral medida por pixel em x=170, mouse fora dela para
+o `:hover` não enganar a amostra).
+
+De quebra, `Pango` entrou no `gui.py` (ponto único de import) e o `Entry` de
+renomear ganhou `width_chars(6)` — ele também publicava largura.
+
+### P16 — Doom fire como carga de medição — **feito**
+
+`tools/doomfire.py`: o efeito do port de PSX do Doom (buffer 0..36 propagado de
+baixo para cima com decaimento, paleta de 37 tons) em meio-bloco, com fg e bg
+truecolor **por célula**, sem agrupar nada — o pior caso para o parser e para o
+desenho, sem depender de app real. `--fps 0` solta a mão: quem limita passa a
+ser o terminal, e o fps alcançado é a medida de vazão dele.
+
+Medido, mesma grade de 51 colunas, `--fps 0`, terminais um de cada vez:
+
+| | fps | MB/s de escapes |
+|---|---|---|
+| bzmux | 16,2 | 0,6 |
+| kitty | 412,6 | 15,6 |
+
+O `PYTERM_PROF=1` decompõe o tempo no bzmux (150 frames): **parse 63%**
+(4,2 ms por leitura de 64 KiB) e **desenho 34%** (11,2 ms por frame de 1020
+células, ~30 draws/s). O desenho custa caro aqui não pelo número de células, e
+sim pelo número de *runs* de cor: com 37 tons por linha quase toda célula é um
+run próprio, e o custo por célula sai ~11 µs, contra ~1 µs do caso uniforme que
+o README mede. É a linha de base do P9 (Pango muda exatamente esse custo).
+
+A primeira medição (24,6 fps / 1,0 MB/s) era inválida: foi feita com a tela
+congelada pelo bug 12, ou seja, medindo só o parse. Registro mantido porque a
+lição vale: número de vazão sem conferir que a tela está mudando não mede
+desenho.
+
+Duas armadilhas do próprio script, que só apareceram rodando dentro do bzmux:
+sem `SGR 0` na saída as estatísticas herdam a última cor do fogo (texto com
+fundo amarelo), e SIGTERM no meio deixava a tela no alt-screen — agora tem
+handler e o `finally` restaura pincel, cursor e tela. O handler também permite
+medir com `timeout -s TERM 20`, que é como as medições rápidas são feitas.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.
@@ -510,6 +582,17 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     próprio chamando o mesmo `handle_shortcut` (a view trata primeiro e
     retorna `True`, então não há tratamento duplo).
 
+12. **Tela congelava sob despejo contínuo.** O watch do pty estava em
+    `GLib.PRIORITY_DEFAULT` (0) e o redraw do GDK roda em `GDK_PRIORITY_REDRAW`
+    (120): com pty sempre pronto a leitura ganhava a disputa em toda iteração e
+    o desenho nunca acontecia — a surface ficava com o último frame, para
+    sempre, até o app parar de escrever. Foi visto com o doom-fire (P16): três
+    capturas com 2 s de intervalo, pixels idênticos, enquanto o pty consumia
+    0,3 MB/s. Fix: watch do pty em `PRIORITY_DEFAULT_IDLE` (200, abaixo do
+    redraw) e desenho coalescido em ~16 ms (`request_draw`, 60 Hz) — sem o
+    coalescimento eram dezenas de draws por frame e a vazão caía para 7,9 fps.
+    Resultado: tela anima e vazão de 16,2 fps / 0,6 MB/s.
+
 ## Quirks registrados (não redescobrir)
 
 - **`pkill -f bzmux.py` mata o próprio shell** de quem chama (o padrão casa com
@@ -556,6 +639,14 @@ Todos foram achados com medição, não por leitura — vale registrar o método
   devolve **5** valores (ascent, descent, height, max_x_advance,
   max_y_advance) — não 6.
 
+- **Prioridade de fonte do GLib**: `io_add_watch` sem prioridade explícita usa
+  `DEFAULT` (0), que é *maior* que qualquer coisa de desenho. Um fd sempre
+  pronto em prioridade 0 congela a tela; `PRIORITY_DEFAULT_IDLE` (200) deixa o
+  redraw (120) passar na frente. O mesmo vale para `timeout_add` de animação.
+- **Custo de desenho depende de runs, não de células**: 1020 células com 37
+  cores por linha custam ~11 ms; o mesmo número de células com uma cor custa
+  ~1 ms. Medir desenho com tela uniforme subestima o pior caso por 10x.
+
 ## Git e origem do repositório
 
 Nasceu no repositório do experimento `kitty`
@@ -570,66 +661,3 @@ mensagens antigas ainda dizem `pyterm`. O `520447b` é a renomeação para
 
 Histórico completo: `git log --oneline` (a lista de hashes não é mantida à
 mão).
-
-### P14 — Largura da lateral não fica fixa — **feito**
-
-`SIDEBAR_W` é 170, mas medido numa captura do P13 a lateral abria com **234 px**
-e a barra de abas começava em x=234. `set_size_request` é mínimo, não largura:
-o texto do cartão (`1 workspace`, título da aba ativa) é que dava a largura.
-
-Duas propriedades do `Gtk.Label` atrapalham, e são diferentes:
-
-- **o mínimo** — um `Label` sem `ellipsize` publica a largura do texto como
-  mínimo, e a `ListBox` cresce junto;
-- **o natural** — corrigido o mínimo (só `ellipsize`), o `pack_start` com
-  `expand=False` ainda entrega ao filho a largura *natural*, que continua sendo
-  a do texto: medido 454 px de lateral, 22 colunas de grade.
-
-A receita que fecha os dois: `ellipsize(END)` + `max_width_chars(1)` +
-`set_single_line_mode(True)` e `pack_start(label, False, True, 0)` (o `fill`
-faz o rótulo ocupar os 170 px e truncar dentro deles).
-
-O mesmo problema existia na **aba** do `Gtk.Notebook`, e aí era pior: o título
-longo virava mínimo do notebook e a janela inteira esticava — medido 1062 px de
-janela e 121 colunas de grade em vez de 680/51. `scrollable(True)` não resolve
-(o mínimo continua vindo do rótulo). Fix: as mesmas três propriedades no rótulo
-da aba, com `TAB_TITLE_CHARS = 20` (largura em chars porque a aba é medida em
-chars; já a lateral é px, e é ela que não pode depender da fonte).
-
-O texto inteiro foi para tooltip (cartão e aba): truncar sem tooltip esconde
-informação.
-
-Verificação (e a razão de existir como item): um `while` alternando
-`printf '\033]2;curto\007'` com um título de 60 chars fazia a grade oscilar
-entre **73 e 121 colunas** — 48 colunas de resize, SIGWINCH e reflow a cada
-troca — e a janela crescia para 1062 px. Depois: `cols` constante em 51 nos
-dumps de SIGUSR1 e janela em 680, com o título longo truncado em "…" no cartão
-e na aba (fronteira da lateral medida por pixel em x=170, mouse fora dela para
-o `:hover` não enganar a amostra).
-
-De quebra, `Pango` entrou no `gui.py` (ponto único de import) e o `Entry` de
-renomear ganhou `width_chars(6)` — ele também publicava largura.
-
-### P16 — Doom fire como carga de medição — **feito**
-
-`tools/doomfire.py`: o efeito do port de PSX do Doom (buffer 0..36 propagado de
-baixo para cima com decaimento, paleta de 37 tons) em meio-bloco, com fg e bg
-truecolor **por célula**, sem agrupar nada — o pior caso para o parser e para o
-desenho, sem depender de app real. `--fps 0` solta a mão: quem limita passa a
-ser o terminal, e o fps alcançado é a medida de vazão dele.
-
-Medido, 1200 frames, mesma grade (51 colunas), `--fps 0`:
-
-| | fps | MB/s de escapes |
-|---|---|---|
-| bzmux | 24,6 | 1,0 |
-| kitty | 412,6 | 15,6 |
-
-O bzmux fica em 100% de um core nos 24,6 fps: ~40 ms por frame de 1020 células,
-ou ~39 µs por célula. É a carga mais pesada que o caminho quente já encarou e o
-número de partida para o P9 (o desenho com Pango muda exatamente isso).
-
-Duas armadilhas do próprio script, que só apareceram com ele rodando dentro do
-bzmux: sem `SGR 0` na saída as estatísticas herdam a última cor do fogo (texto
-com fundo amarelo), e SIGTERM no meio deixava a tela no alt-screen — agora tem
-handler e o `finally` restaura pincel, cursor e tela.

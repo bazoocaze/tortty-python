@@ -23,8 +23,9 @@ Nada pela metade: árvore limpa, tudo commitado.
 P9 (ligaduras/shaping) e P10 (fallback de fonte) — na prática caem juntos na
 migração para Pango. P15 (tela bagunçada ao subir o `pi`), que provavelmente era consequência do P14
 (feito). P17 (lateral com um workspace só) é pequeno. O doom-fire (P16, feito) deixou
-a linha de base de vazão: 24,6 fps / 1,0 MB/s contra 412 fps / 15,6 MB/s do
-kitty na mesma grade — é o antes do P9. Detalhe, protocolo e armadilhas em
+a linha de base de vazão: 16,2 fps / 0,6 MB/s contra 412 fps / 15,6 MB/s do
+kitty na mesma grade, com parse em 63% do tempo e desenho em 34% — é o antes do
+P9. Detalhe, protocolo e armadilhas em
 [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md).
 Detalhe em [`docs/BACKLOG.md`](docs/BACKLOG.md).
 
