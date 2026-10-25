@@ -11,10 +11,25 @@ O que é de sessão mora na `view.py`; aqui só há ciclo de vida e atalhos.
 import os
 import signal
 
+from . import style
 from .gui import Gtk, Gdk, GLib
 from .view import TermView
 
 SIDEBAR_W = 170          # largura fixa (arrastável fica pra depois)
+_styled = False          # o provider é da tela: aplica uma vez por processo
+
+
+def apply_style():
+    """Registra o CSS de `style.py` na tela (idempotente)."""
+    global _styled
+    if _styled:
+        return
+    provider = Gtk.CssProvider()
+    provider.load_from_data(style.css().encode())
+    Gtk.StyleContext.add_provider_for_screen(
+        Gdk.Screen.get_default(), provider,
+        Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+    _styled = True
 
 
 def _leaf_descendant(pid, depth=8):
@@ -50,9 +65,8 @@ def _digit_of(ev):
 
 
 def _card_info(text):
-    """Texto pequeno e apagado do cartão da lateral (markup evita Pango aqui)."""
-    return ("<small><span foreground='#8a8a8a'>"
-            + GLib.markup_escape_text(text) + "</span></small>")
+    """Texto pequeno da segunda linha do cartão (a cor vem da classe .info)."""
+    return "<small>" + GLib.markup_escape_text(text) + "</small>"
 
 
 class Workspace:
@@ -70,11 +84,15 @@ class Workspace:
         # cartão da lateral: "<n>  <nome>" e, embaixo, a aba ativa
         self.name_label = Gtk.Label(xalign=0)
         self.info_label = Gtk.Label(xalign=0)
+        self.info_label.get_style_context().add_class("info")
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         vbox.set_border_width(6)
         vbox.pack_start(self.name_label, False, False, 0)
         vbox.pack_start(self.info_label, False, False, 0)
         self.card = Gtk.EventBox()
+        # o EventBox é transparente no CSS: quem pinta o fundo é a ListBoxRow,
+        # senão o cartão cobre o :selected do tema
+        self.card.get_style_context().add_class("card")
         # sem a máscara o EventBox tem janela e máscara vazia (get_events()==0)
         # e não chega nenhum clique
         self.card.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
@@ -277,7 +295,9 @@ class BzmuxWindow(Gtk.Window):
         self.font_size = 16
         self._closing = False
 
+        apply_style()
         self.sidebar = Gtk.ListBox()
+        self.sidebar.set_name("sidebar")     # alvo do CSS (style.py)
         self.sidebar.set_size_request(SIDEBAR_W, -1)
         self.sidebar.set_visible(False)      # só com 2+ workspaces
         self.stack = Gtk.Stack()

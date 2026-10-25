@@ -1,8 +1,9 @@
 """Os checks do bzmux: uma fonte de verdade, chamada pelo --selftest e pelo pytest.
 
 Cada função é um teste de comportamento, sem display e sem PyGObject — o módulo
-só importa term (que puxa graphics), palette, mouse e kitty_kbd. Um bug
-corrigido virou uma asserção (regressão vale mais que cobertura); nada de matriz de casos.
+só importa term (que puxa graphics), palette, mouse, kitty_kbd e style. Um bug
+corrigido virou uma asserção (regressão vale mais que cobertura); nada de
+matriz de casos.
 """
 
 import base64
@@ -10,7 +11,7 @@ import contextlib
 import io
 import zlib
 
-from . import kitty_kbd, mouse
+from . import kitty_kbd, mouse, style
 from .palette import DEF_BG, DEF_FG, FG_DEFAULT, cell_rgb, rgb
 from .term import Term
 
@@ -233,6 +234,25 @@ def truecolor():
     assert t.grid[0][0][1] == rgb(1, 2, 3)
 
 
+def style_contrast():
+    """O cromo da janela: texto claro em fundo escuro, com contraste medido.
+
+    "Bem claro" precisa de número: WCAG pede 4.5:1 para texto normal. Se alguém
+    escurecer o verde do selecionado ou apagar o texto da segunda linha, isto
+    quebra antes de virar reclamação de olho.
+    """
+    for fg, bg in ((style.CARD_FG, style.SIDEBAR_BG),
+                   (style.CARD_INFO_FG, style.SIDEBAR_BG),
+                   (style.CARD_SEL_FG, style.CARD_SEL_BG),
+                   (style.CARD_SEL_INFO_FG, style.CARD_SEL_BG)):
+        assert style.contrast(fg, bg) >= 4.5, (fg, bg, style.contrast(fg, bg))
+    # e o CSS tem que realmente usar os tokens, não uma cópia à mão
+    css = style.css()
+    for token in (style.SIDEBAR_BG, style.CARD_SEL_BG, style.CARD_SEL_FG):
+        assert token in css
+    assert style.CARD_INFO_FG in css
+
+
 ALL = (
     parser_text_and_cursor,
     sgr_and_erasing,
@@ -249,4 +269,5 @@ ALL = (
     selection,
     paste_markers,
     truecolor,
+    style_contrast,
 )

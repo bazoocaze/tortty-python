@@ -402,6 +402,48 @@ atual**, renomear por duplo clique, `Ctrl+Shift+Q` e clique do meio fecham o
 workspace (lateral some com 1), `exit` na última aba do ws2 fecha só o ws2 e
 `exit`/`Ctrl+Shift+Q` no último fecha a janela. `--selftest` não cobre.
 
+### P13 — Sistema de estilo da interface — **feito**
+
+Pedido: lateral preta, workspace selecionado em cor escura (verde) e texto
+claro. O que existia era o tema do sistema pintando tudo, com um hex solto
+(`#8a8a8a`) no `_card_info`.
+
+Agora `core/style.py` é a única fonte de cor do cromo: tokens
+(`SIDEBAR_BG`, `CARD_HOVER_BG`, `CARD_FG`, `CARD_INFO_FG`, `CARD_SEL_BG`,
+`CARD_SEL_FG`, `CARD_SEL_INFO_FG`), `css()` montando o texto a partir deles e
+`contrast()` em sRGB relativo (WCAG). Puro: sem Gtk, então o check roda no
+`--selftest`. A paleta do terminal (`palette.py`) continua separada — célula e
+cromo não se misturam.
+
+`apply_style()` em `window.py` registra o provider uma vez por processo
+(`add_provider_for_screen`, prioridade de aplicação) e o CSS alcança os
+widgets por nome e classe: `set_name("sidebar")` na `ListBox`, classe `.card`
+no `EventBox` do cartão e `.info` no rótulo da segunda linha.
+
+Decisões que custaram alguma coisa:
+
+- **O `EventBox` do cartão é transparente no CSS.** Ele tem janela própria e
+  pintava por cima da `ListBoxRow`, escondendo o `:selected`; quem pinta o
+  fundo é a linha.
+- **A cor da segunda linha saiu do markup.** `_card_info` embrulhava o texto
+  num `<span foreground='#8a8a8a'>`, e atributo de markup ganha do CSS — a
+  linha não mudaria de cor no cartão selecionado. Agora é a classe `.info` e o
+  markup só carrega o `<small>`.
+- **`row`, `row:hover` e `row:selected` precisam estar no CSS**: sem o
+  `:selected` explícito o tema volta a mandar; sem o `:hover`, o cartão sob o
+  mouse fica com o realce claro do tema.
+- **O check mede contraste, não gosto**: `style_contrast` exige >= 4.5:1 nos
+  quatro pares texto/fundo (normal e selecionado) — "bem claro" virou número.
+  Também confere que o CSS usa os tokens, para não voltar a ter cópia à mão.
+
+Verificado com `import -window` + `tools/pixel.py`: lateral e cartão normal em
+`(0,0,0)`, cartão ativo em `(31,77,46)` (`CARD_SEL_BG`), hover em `(20,20,20)`
+(`CARD_HOVER_BG`), nome do ativo em branco e a segunda linha em verde claro.
+Contrastes: 15,9:1 (nome normal), 6,1:1 (info), 9,7:1 e 7,2:1 no selecionado.
+
+Fora: a barra de abas e a moldura da janela continuam com o tema do sistema —
+entram quando houver token de aba.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.

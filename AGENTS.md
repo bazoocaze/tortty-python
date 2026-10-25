@@ -14,9 +14,8 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 
 - AGENTS.md (este) — convenções, arquitetura, scripts, ferramentas.
 - TASK-bzmux.md — ficha magra: status, por onde retomar, fila.
-- docs/BACKLOG.md — backlog pendente (P9 shaping, P10 fallback de fonte,
-  P13 sistema de estilo da interface).
-- docs/HISTORY.md — backlog concluído (P1–P8, P11, P12), bugs corrigidos,
+- docs/BACKLOG.md — backlog pendente (P9 shaping, P10 fallback de fonte).
+- docs/HISTORY.md — backlog concluído (P1–P8, P11–P13), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
 - README.md — visão para humano: como rodar, ferramentas, ambiente, o que
   funciona, limites, medição, licença.
@@ -43,6 +42,7 @@ bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core
       mouse.py     protocolo de mouse (SGR e o antigo) — puro
       graphics.py  protocolo de imagens do kitty (APC G) — puro
       gui.py       único import de Gtk/Gdk/GLib/cairo
+      style.py     tokens de cor do cromo + CSS gerado + contraste (puro)
       view.py      TermView: uma sessão (pty, cairo, eventos)
       window.py    Workspace + BzmuxWindow (abas, lateral, atalhos globais)
       checks.py    a bateria: asserts puros, sem display
@@ -79,6 +79,8 @@ experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
   em inglês.
 - Docstrings e comentários no código: no máximo uma linha.
 - Formato pensado para agente, não precisa ser agradável para humano.
+- Cor de interface só em core/style.py (tokens + CSS gerado); nenhum hex solto
+  no código. Cor de célula do terminal é palette.py — não misturar as duas.
 - Não atualizar a documentação a cada iteração de código. Quando o usuário
   terminar uma iteração, mencionar discretamente que a doc está pendente; a
   decisão de sincronizar é dele.
@@ -94,7 +96,7 @@ experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
 - Um bug corrigido = um check, quando der; não uma bateria em volta dele.
 - Áreas cobertas hoje: parser, SGR/EL/ED, alt-screen e scroll, charset e
   respostas (DA/CPR), CSI com intermediário, CLI, teclado do kitty, gráficos,
-  reflow, histórico, mouse, seleção, paste, truecolor.
+  reflow, histórico, mouse, seleção, paste, truecolor, contraste do estilo.
 - Teste barato de rodar: um comando (./run-tests.sh), sem display. Os checks
   ficam em core/checks.py e têm dois runners: o pytest e o
   python3 bzmux.py --selftest (sem dependências, útil para provar que o caminho

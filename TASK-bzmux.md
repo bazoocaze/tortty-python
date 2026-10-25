@@ -21,9 +21,7 @@ Nada pela metade: árvore limpa, tudo commitado.
 ## Fila
 
 P9 (ligaduras/shaping) e P10 (fallback de fonte) — na prática caem juntos na
-migração para Pango. P13 (sistema de estilo da interface: lateral preta,
-selecionado escuro, texto claro) é independente e mexe só no GTK. Detalhe em
-[`docs/BACKLOG.md`](docs/BACKLOG.md).
+migração para Pango. Detalhe em [`docs/BACKLOG.md`](docs/BACKLOG.md).
 
 ## Documentos
 

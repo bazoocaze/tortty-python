@@ -87,6 +87,7 @@ core/
 ├── mouse.py     # protocolo de mouse: SGR e o antigo (puro)
 ├── graphics.py  # protocolo de imagens do kitty (APC G, puro)
 ├── gui.py       # import único de Gtk/Gdk/GLib/cairo (require_version)
+├── style.py     # tokens de cor do cromo + CSS gerado + contraste WCAG
 ├── view.py      # TermView: uma sessão (pty, desenho cairo, eventos)
 ├── window.py    # Workspace (Gtk.Notebook + cartão) e BzmuxWindow
 ├── checks.py    # a bateria de testes
@@ -180,6 +181,11 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   zumbi) e fecha a janela no `Ctrl+D`/`exit`; antes de fechar drena o que
   sobrou no pty (senão some a última tela) e manda `SIGHUP` pro grupo do filho
   (jobs em background não ficam órfãos).
+- **Cromo escuro** (`core/style.py`): as cores da interface (lateral dos
+  workspaces, cartões) vêm de uma tabela de tokens e o CSS é gerado dela — sem
+  hex solto no código. A lateral é preta, o workspace ativo fica num verde
+  escuro com texto claro, e o contraste (>= 4.5:1) é conferido por check. A
+  paleta da célula do terminal é outra coisa e não se mistura com esta.
 - **Reflow no resize**: linhas que quebraram mole são re-quebradas na largura
   nova (uma linha longa vira várias ao estreitar, volta a ser uma ao alargar),
   o cursor fica sobre o mesmo caractere e o scrollback é re-aproveitado. Fundo
