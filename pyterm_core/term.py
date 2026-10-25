@@ -31,6 +31,7 @@ class Term:
         self.mouse_mode = 0           # ?1000=1 ?1002=2 ?1003=3 (0 = off)
         self.mouse_sgr = False        # ?1006: coordenadas SGR
         self.focus_report = False     # ?1004: avisar foco in/out
+        self.bracketed_paste = False  # ?2004: colar com marcadores
         # protocolo de teclado do kitty (P5): flags atuais + pilha para
         # push/pop (CSI > flags u / CSI < n u / CSI = flags ; modo u)
         self.kbd_flags = 0
@@ -457,7 +458,10 @@ class Term:
                 # UTF-8 / urxvt: o SGR (1006) cobre; não vale implementar
                 # três codificações de coordenada para o experimento
                 pass
-            # bracketed paste (2004): fora de escopo (P7)
+            elif private and p == 2004:
+                # bracketed paste: o app pede pra saber que o texto colado não
+                # foi digitado. Sem isso, colar 3 linhas no shell executa 3.
+                self.bracketed_paste = on
 
     def csi_dispatch(self, final, params, prefix=""):
         get = lambda i, d: (params[i] if i < len(params)
@@ -687,6 +691,17 @@ class Term:
         return self.scrollback[-off:] + self.grid[:self.rows - off]
 
     # -- texto (cópia) ------------------------------------------------
+    def paste_payload(self, text):
+        """O que mandar pro filho quando o usuário cola `text`.
+
+        Com `?2004` ligado, o texto vai entre `ESC[200~` e `ESC[201~`: o app
+        (readline, vim, python) sabe que é cola e não trata `\n` como Enter.
+        A política mora aqui (e não na janela) pra ser testável sem display.
+        """
+        if self.bracketed_paste:
+            return "\x1b[200~" + text + "\x1b[201~"
+        return text
+
     def selection_text(self, start, end, rows=None):
         """Texto entre duas células (row, col), 0-based, pontas inclusivas.
 

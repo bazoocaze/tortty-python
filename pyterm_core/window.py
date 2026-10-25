@@ -593,9 +593,11 @@ class PyTermWindow(Gtk.Window):
         sel = self.sel_range()
         if sel:
             r1, c1, r2, c2 = sel
+            # Sem `+ "\n"`: o kitty só junta as linhas com "\n" ENTRE elas, e
+            # o fim de linha entra quando o arrasto chega na coluna 0 da linha
+            # seguinte (aí a última "linha" da seleção é vazia). O newline
+            # incondicional fazia colar "abcdef" executar `abcdef`.
             text = self.term.selection_text((r1, c1), (r2, c2), rows=rows)
-            if text:
-                text += "\n"          # seleção de linha inteira já vem sem
         else:
             text = self.term.all_text(rows=rows)
         cb = Gtk.Clipboard.get(selection)
@@ -606,7 +608,7 @@ class PyTermWindow(Gtk.Window):
     def paste(self, selection=Gdk.SELECTION_CLIPBOARD):
         text = Gtk.Clipboard.get(selection).wait_for_text()
         if text:
-            self._write_child(text)
+            self._write_child(self.term.paste_payload(text))
         return bool(text)
 
     # -- teclado -------------------------------------------------------

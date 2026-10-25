@@ -166,9 +166,21 @@ def selftest():
     check("X10 press", mouse.encode(mouse.LEFT, 0, 0, True),
           "\x1b[M" + chr(32) + chr(33) + chr(33))
 
+    # bracketed paste (P7): a política de colar mora no Term, sem display
+    t = Term()
+    check("paste cru quando o app não pediu", t.paste_payload("a\nb"), "a\nb")
+    t.feed("\x1b[?2004h")
+    check("paste com marcadores no ?2004",
+          t.paste_payload("a\nb"), "\x1b[200~a\nb\x1b[201~")
+    t.feed("\x1b[?2004l")
+    check("paste volta ao cru no ?2004l", t.paste_payload("a"), "a")
+
     t = Term()
     t.feed("abc\r\ndef\r\nghi")
     check("seleção multi-linha", t.selection_text((0, 1), (1, 1)), "bc\nde")
+    # bug que apareceu no uso: copiar "abcdef" colava com "\n" e executava
+    check("seleção não ganha newline no fim",
+          t.selection_text((0, 0), (0, 2)), "abc")
     check("seleção invertida", t.selection_text((1, 1), (0, 1)), "bc\nde")
 
     if fails:
