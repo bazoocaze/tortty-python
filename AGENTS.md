@@ -1,6 +1,6 @@
 # bzmux
 
-Terminal em Python puro: pty + parser VT + grade + desenho com cairo.
+Terminal em Python puro: pty + parser VT + grade + desenho com cairo + Pango.
 Experimento funcional que existe para medir o custo do caminho quente em Python
 (não é produto). Roda shell, mc e vim; tem mouse com seleção/cópia, histórico
 com wheel, reflow, truecolor, protocolo de teclado e de imagens do kitty,
@@ -14,12 +14,11 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 
 - AGENTS.md (este) — convenções, arquitetura, scripts, ferramentas.
 - TASK-bzmux.md — ficha magra: status, por onde retomar, fila.
-- docs/BACKLOG.md — backlog pendente (P9 shaping e P10 fallback de fonte; os
-  dois caem juntos no Pango).
-- docs/HISTORY.md — backlog concluído (P1–P8, P11–P18), bugs corrigidos,
+- docs/BACKLOG.md — backlog pendente (vazio hoje).
+- docs/HISTORY.md — backlog concluído (P1–P18), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
 - docs/DOOM-FIRE.md — a carga de medição: por que ela existe, como rodar, o
-  número (bzmux 0,6 MB/s contra 15,9 MB/s do kitty, 26x) e o protocolo de
+  número (bzmux 0,5 MB/s contra 15,9 MB/s do kitty, 32x) e o protocolo de
   comparação.
 - README.md — visão para humano: como rodar, ferramentas, ambiente, o que
   funciona, limites, medição, licença.
@@ -47,7 +46,7 @@ bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core
       graphics.py  protocolo de imagens do kitty (APC G) — puro
       gui.py       único import de Gtk/Gdk/GLib/Pango/cairo
       style.py     tokens de cor do cromo + CSS gerado + contraste (puro)
-      view.py      TermView: uma sessão (pty, cairo, eventos)
+      view.py      TermView: uma sessão (pty, cairo + Pango, eventos)
       window.py    Workspace + BzmuxWindow (abas, lateral, atalhos globais)
       checks.py    a bateria: asserts puros, sem display
       selftest.py  runner sem dependências do --selftest

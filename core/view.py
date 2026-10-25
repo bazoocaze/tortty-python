@@ -17,7 +17,7 @@ import sys
 import termios
 import time
 
-from .gui import Gtk, Gdk, GLib, cairo
+from .gui import Gtk, Gdk, GLib, Pango, PangoCairo, cairo
 from .keys import encode_key, is_modifier
 from . import mouse
 from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, BG_DEFAULT, FG_DEFAULT,
@@ -124,6 +124,9 @@ class TermView(Gtk.DrawingArea):
         self.connect("size-allocate", self.on_resize)
         self.font_size = font_size
         self._metrics = None
+        self._font_desc = None        # Pango.FontDescription (P9)
+        self._bold_attrs = None       # Pango.AttrList do negrito
+        self._layouts = {}            # (texto, negrito) -> Pango.Layout
 
         self.master = None
         self.child_pid = None
@@ -345,19 +348,30 @@ class TermView(Gtk.DrawingArea):
         return "\n".join(lines)
 
     # -- métricas ----------------------------------------------------
+    def font_desc(self):
+        """Fonte do desenho: Pango (P9), tamanho em PIXELS como era no cairo."""
+        if self._font_desc is None:
+            d = Pango.FontDescription()
+            d.set_family("Monospace")
+            # set_absolute_size (device units), não set_size (pontos): senão o
+            # DPI do Pango (96) mudaria o tamanho da fonte em relação ao cairo
+            d.set_absolute_size(self.font_size * Pango.SCALE)
+            self._font_desc = d
+        return self._font_desc
+
     def metrics(self):
         if self._metrics:
             return self._metrics
         surf = cairo.ImageSurface(cairo.FORMAT_A1, 8, 8)
-        ctx = cairo.Context(surf)
-        ctx.select_font_face("Monospace", cairo.FONT_SLANT_NORMAL,
-                             cairo.FONT_WEIGHT_NORMAL)
-        ctx.set_font_size(self.font_size)
-        # largura da célula = avanço da fonte arredondado PRA CIMA: se for
-        # menor que o avanço real, o texto derrapa e as colunas desalinham.
-        adv = ctx.text_extents("M")[4]
-        ascent, descent = ctx.font_extents()[0], ctx.font_extents()[1]
-        self._metrics = (math.ceil(adv), math.ceil(ascent + descent))
+        cr = cairo.Context(surf)
+        layout = PangoCairo.create_layout(cr)
+        layout.set_font_description(self.font_desc())
+        layout.set_text("M", -1)
+        # largura = avanço do glifo; altura = ascent + descent do layout. Sai da
+        # MESMA fonte que desenha, então não existe divergência de arredondamento
+        # entre a grade e o texto.
+        w, h = layout.get_pixel_size()
+        self._metrics = (math.ceil(w), math.ceil(h))
         self.term.cell_size = self._metrics   # o protocolo de imagem usa isso
         return self._metrics
 
@@ -427,10 +441,14 @@ class TermView(Gtk.DrawingArea):
         t = self.term
         cw, ch = self.metrics()
         cw, ch = int(cw), int(ch)
-        cr.select_font_face("Monospace", cairo.FONT_SLANT_NORMAL,
-                            cairo.FONT_WEIGHT_NORMAL)
-        cr.set_font_size(self.font_size)
-        ascent = cr.font_extents()[0]
+        # um layout por draw, reaproveitado em cada run (criar por run custaria
+        # mais que o próprio desenho)
+        layout = PangoCairo.create_layout(cr)
+        layout.set_font_description(self.font_desc())
+        if self._bold_attrs is None:
+            al = Pango.AttrList()
+            al.insert(Pango.attr_weight_new(Pango.Weight.BOLD))
+            self._bold_attrs = al
         # fundo
         r, g, b = [c / 255 for c in BG_DEFAULT]
         cr.set_source_rgb(r, g, b)
@@ -473,14 +491,25 @@ class TermView(Gtk.DrawingArea):
                     cr.fill()
                 cr.set_source_rgb(*[c / 255 for c in fgc])
                 txt = "".join(c[0] for c in row[x:j])
-                if fl & BOLD:
-                    cr.select_font_face("Monospace", cairo.FONT_SLANT_NORMAL,
-                                        cairo.FONT_WEIGHT_BOLD)
-                cr.move_to(x * cw, y * ch + ascent + 1)
-                cr.show_text(txt)
-                if fl & BOLD:
-                    cr.select_font_face("Monospace", cairo.FONT_SLANT_NORMAL,
-                                        cairo.FONT_WEIGHT_NORMAL)
+                # Pango (P9): layout de verdade, com shaping e fallback de
+                # fonte; `cr.move_to` na quina da célula e o layout desenha a
+                # partir dali (a linha de base sai do ascent do próprio layout)
+                # cache por (texto, negrito): `set_text` é o caro do layout, e
+                # um run se repete muito (fundo do mesmo tom, texto de app
+                # parado). Teto para não crescer sem limite em dump de texto.
+                key = (txt, bool(fl & BOLD))
+                lay = self._layouts.get(key)
+                if lay is None:
+                    if len(self._layouts) > 800:
+                        self._layouts.clear()
+                    lay = PangoCairo.create_layout(cr)
+                    lay.set_font_description(self.font_desc())
+                    lay.set_attributes(self._bold_attrs if fl & BOLD
+                                       else None)
+                    lay.set_text(txt, -1)
+                    self._layouts[key] = lay
+                cr.move_to(x * cw, y * ch)
+                PangoCairo.show_layout(cr, lay)
                 if fl & UL:
                     cr.rectangle(x * cw, y * ch + ch - 2, (j - x) * cw, 1)
                     cr.fill()
@@ -526,19 +555,23 @@ class TermView(Gtk.DrawingArea):
             cell = t.grid[t.cy][t.cx]
             bgc = cell_rgb(cell[2], BG_DEFAULT)
             cr.set_source_rgb(*[c / 255 for c in bgc])
-            cr.move_to(t.cx * cw, t.cy * ch + ascent + 1)
-            cr.show_text(cell[0])
+            layout.set_attributes(None)
+            layout.set_text(cell[0], -1)
+            cr.move_to(t.cx * cw, t.cy * ch)
+            PangoCairo.show_layout(cr, layout)
         if self.view_off:
             # marcador de histórico no canto ("↑") com o quanto se voltou
             label = f"↑{self.view_off} "
-            ext = cr.text_extents(label)
-            x0 = (t.cols - 1) * cw - ext[2]
+            layout.set_attributes(None)
+            layout.set_text(label, -1)
+            lw = layout.get_pixel_size()[0]
+            x0 = (t.cols - 1) * cw - lw
             cr.set_source_rgb(*[c / 255 for c in FG_DEFAULT])
-            cr.rectangle(x0 - 2, 0, ext[2] + 4, ch)
+            cr.rectangle(x0 - 2, 0, lw + 4, ch)
             cr.fill()
             cr.set_source_rgb(*[c / 255 for c in BG_DEFAULT])
-            cr.move_to(x0, ascent + 1)
-            cr.show_text(label)
+            cr.move_to(x0, 0)
+            PangoCairo.show_layout(cr, layout)
         return False
 
     # -- mouse, seleção e cópia ---------------------------------------

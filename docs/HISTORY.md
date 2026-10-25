@@ -499,6 +499,10 @@ terminais um de cada vez:
 | bzmux | 11,8 | 0,6 |
 | kitty | 314,2 | 15,9 |
 
+Essa é a medição da época do P16, com o desenho do cairo. Depois do P9 (Pango) o
+bzmux ficou em 11,0 fps / 0,5 MB/s — o número vivo está no
+[DOOM-FIRE.md](DOOM-FIRE.md).
+
 O `PYTERM_PROF=1` decompõe o tempo no bzmux: **parse 61%** (4,3 ms por leitura)
 e **desenho 37%** (12,8 ms por frame de 1360 células, ~29 draws/s). O desenho custa caro aqui não pelo número de células, e
 sim pelo número de *runs* de cor: com 37 tons por linha quase toda célula é um
@@ -583,6 +587,50 @@ press novo).
 Verificação: check no `kitty_keyboard` (com flags=7, `a` no press e `""` no
 release) e ao vivo no `pi` — digitar `abcabc` e ler a linha de entrada: sai
 `abcabc`, não `aabbcc…`.
+
+### P9 — Ligaduras e shaping — **feito**
+
+O desenho era `cairo.show_text` (API toy): sem shaping, então ligadura não saía,
+árabe não ligava, marca combinante se separava do corpo da letra. Migrado para
+**Pango**: um `Pango.Layout` por draw, reaproveitado em cada run, com
+`PangoCairo.show_layout`.
+
+Decisões que custaram teste:
+
+- **`set_absolute_size` (pixels), não `set_size` (pontos)**: com `set_size` o
+  Pango aplica o DPI 96 e a fonte muda de tamanho em relação ao cairo antigo.
+- **Métricas saem do mesmo layout que desenha**: largura = avanço de "M",
+  altura = `get_pixel_size()` do layout. Antes eram `text_extents`/`font_extents`
+  do cairo; misturar as duas fontes de número desalinha a grade.
+- **`move_to` na quina da célula e o layout desenha dali**: a linha de base sai
+  do ascent do próprio layout, então não existe mais `+ ascent + 1` na mão.
+- **Cache de layout por `(texto, negrito)`**, teto de 800 (limpa quando estoura):
+  `set_text` é a parte cara, e run se repete muito. Sem o cache o desenho dobra
+  de custo (ver números abaixo).
+- Sublinhado continua sendo retângulo do cairo, não atributo do Pango: é o mesmo
+  pixel em qualquer fonte e não depende de métrica de underline.
+
+Medido com o doom-fire (P16), 68×20, `PYTERM_PROF=1`:
+
+| desenho | ms/frame | fps | MB/s |
+|---|---|---|---|
+| `cairo.show_text` (antes) | 12,8 | 11,8 | 0,6 |
+| Pango sem cache | 30,5 | 8,1 | 0,4 |
+| Pango com cache de layout | 15,2–15,6 | 11,0 | 0,5 |
+
+Ou seja: shaping + fallback custam **~20% do frame** com cache, **2,4x** sem.
+O parse não mudou (4,3 ms por leitura), como esperado — a migração é só desenho.
+
+### P10 — Fallback de fonte (emoji/CJK) — **feito**
+
+Caiu junto com o P9: o fontconfig acha a fonte que tem o glifo, então CJK e
+emoji em cor passam a desenhar sem nenhum código a mais. Verificado na tela com
+`printf '\u4e2d\u6587 \U0001F600'` no bzmux.
+
+Limite que fica (e não é bug do fallback): a grade **não tem `wcwidth`**, então
+caractere largo ocupa uma célula só e o glifo é espremido/estourado nela. App que
+conta coluna dupla (tabela em CJK) sai desalinhado; resolver isso é mexer no
+modelo de célula, não no desenho.
 
 ## Bugs encontrados e corrigidos (histórico útil)
 

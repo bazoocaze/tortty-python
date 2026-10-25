@@ -20,14 +20,14 @@ Nada pela metade: árvore limpa, tudo commitado.
 
 ## Fila
 
-P9 (ligaduras/shaping) e P10 (fallback de fonte) — caem juntos na migração para
-Pango, e são os dois últimos. O P10 já aparece no `pi` (as barras `bh/P/X` são
-glifos que a fonte não tem). O doom-fire (P16, feito) deixou a linha de base do
-antes/depois do P9: 0,6 MB/s contra 15,9 MB/s do kitty (26x) na mesma grade
-68×20, com parse em 61% do tempo e desenho em 37% (12,8 ms por frame de 1360
-células). Detalhe, protocolo e armadilhas em
-[`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md); o backlog em
-[`docs/BACKLOG.md`](docs/BACKLOG.md).
+Vazia: P1–P18 concluídos (o P9/P10, o último par, saiu com o desenho por Pango —
+custo medido no [`docs/HISTORY.md`](docs/HISTORY.md) e a linha de base nova no
+[`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md): bzmux 0,5 MB/s contra 15,9 MB/s do
+kitty, 32x, com desenho em 41% e parse em 57%).
+
+O que não é item de backlog, e sim limite registrado: caractere largo sem
+`wcwidth`, protocolo de teclado do kitty parcial, sequências não implementadas —
+lista em "Limites conhecidos" no [`README.md`](README.md).
 
 ## Documentos
 

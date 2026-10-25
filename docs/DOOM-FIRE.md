@@ -38,25 +38,29 @@ Uma execução, grade de 68 colunas (a padrão hoje: 68×20, 1360 células),
 
 | | fps | MB/s de escapes | bytes/frame |
 |---|---|---|---|
-| bzmux | 11,8 | 0,6 | ~49 KB |
+| bzmux | 11,0 | 0,5 | ~49 KB |
 | kitty | 314,2 | 15,9 | ~50 KB |
 
-O bzmux fica com **98% de um core**: ~85 ms por frame de 1360 células. O kitty
-faz o mesmo em ~3,2 ms. A distância é de **26x**.
+O bzmux fica com **98% de um core**: ~91 ms por frame de 1360 células. O kitty
+faz o mesmo em ~3,2 ms. A distância é de **32x**.
+
+Este número é o **depois do P9** (desenho por Pango): o desenho subiu de 12,8
+para ~15,4 ms por frame e a vazão caiu de 0,6 para 0,5 MB/s. É o preço de
+shaping + fallback de fonte; o antes/depois está no HISTORY, item P9.
 
 O fps depende da grade (célula maior = menos frames por segundo com a mesma
 vazão); **MB/s é o número que compara**. A grade do kitty sai 68×19, não 68×20 —
 arredondamento de célula dele, e a diferença de bytes/frame é essa.
 
-O 0,6 MB/s é o dobro *abaixo* do 0,7–1,9 MiB/s de "parse + grade" do README, e a
+O 0,5 MB/s fica *abaixo* do 0,7–1,9 MiB/s de "parse + grade" do README, e a
 diferença é exatamente o desenho: o número do README mede um despejo de texto
 uniforme, este mede uma tela que troca de cor em toda célula.
 
 ### Onde o tempo vai
 
-`PYTERM_PROF=1` (ver abaixo) decompõe, 8 s de fogo a 68×20: **parse 61%** (4,3 ms
-por leitura, 1144 leituras) e **desenho 37%** (12,8 ms por frame, ~29 draws/s).
-Desenho roda ~29x/s mas só 11,8 frames/s completos chegam à tela: o parse não
+`PYTERM_PROF=1` (ver abaixo) decompõe, 8 s de fogo a 68×20: **parse 57%** (4,3 ms
+por leitura, ~1065 leituras) e **desenho 41%** (15,4 ms por frame, ~27 draws/s).
+Desenho roda ~27x/s mas só 11 frames/s completos chegam à tela: o parse não
 acompanha.
 
 O desenho custa caro pelo número de *runs* de cor, não de células: 37 tons por

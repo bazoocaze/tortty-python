@@ -88,7 +88,7 @@ core/
 ├── graphics.py  # protocolo de imagens do kitty (APC G, puro)
 ├── gui.py       # import único de Gtk/Gdk/GLib/Pango/cairo (require_version)
 ├── style.py     # tokens de cor do cromo + CSS gerado + contraste WCAG
-├── view.py      # TermView: uma sessão (pty, desenho cairo, eventos)
+├── view.py      # TermView: uma sessão (pty, desenho cairo+Pango, eventos)
 ├── window.py    # Workspace (Gtk.Notebook + cartão) e BzmuxWindow
 ├── checks.py    # a bateria de testes
 ├── selftest.py  # runner sem dependências (--selftest)
@@ -144,8 +144,9 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
 - **Truecolor 24-bit** (`38;2;r;g;b`/`48;2;…`, e a forma com `:`): o RGB fica na
   célula marcado no bit 24, sem tabela de cores alocadas — `vim` com
   `termguicolors`, `bat`, gradiente em texto saem com a cor exata.
-- **Desenho** com cairo: runs agrupados por atributos, bold, sublinhado,
-  inverso, cursor em bloco.
+- **Desenho** com cairo + Pango: runs agrupados por atributos, bold,
+  sublinhado, inverso, cursor em bloco, shaping de verdade (árabe ligado,
+  combinações) e fallback de fonte (CJK, emoji em cor).
 - **Kitty keyboard protocol** (`core/kitty_kbd.py`): `CSI > flags u`
   (push), `CSI < n u` (pop), `CSI = flags ; modo u` (set/add/remove) e
   `CSI ? u` (query). Com `disambiguate`, Esc/Enter/Tab/Backspace e
@@ -207,8 +208,10 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
   bloco/retangular.
 - **Gráficos sem animação/z-index**: `a=f`/`a=a` são ignorados, sem
   `t=f`/`t=t`/`t=s` (arquivo, temp file, shared memory) e sem `z=` (z-index).
-- **Sem ligaduras**, sem fontes fallback para emoji/CJK (backlog P9/P10:
-  `show_text` não faz shaping; Pango resolveria os dois de uma vez).
+- **Caractere largo (CJK/emoji) ocupa uma célula**: a grade não tem `wcwidth`,
+  então o glifo é desenhado na largura da célula e o espaçamento de app que
+  conta coluna dupla (tabela em CJK) sai errado. Ligadura depende da fonte: com
+  a Monospace padrão (DejaVu) quase não há, mas o shaping está lá.
 - **Kitty keyboard protocol parcial**: sem `report alternate keys` (a flag 4
   exige o keysym alternativo, que o Gdk não entrega direto), sem repeat
   distinguido de press (o Gdk repete como key-press) e sem o modo de teclado
@@ -231,7 +234,7 @@ Medido nesta máquina (2026-10-26):
 | parse + grade, despejo contínuo | **0,7–1,9 MiB/s** | 300–800 MiB/s (`rio-vt`, `alacritty_terminal`, `vt100`) |
 | `seq 1 100000` (575 KiB) | **~0,8 s** | milissegundos |
 | desenho de 1 frame (1920 células) | ~2,0 ms | ~1 ms (T2→T3 do `lat-battery`) |
-| doom-fire, tela cheia trocando de cor (`tools/doomfire.py`) | **11,8 fps / 0,6 MB/s** | 314 fps / 15,9 MB/s (kitty) |
+| doom-fire, tela cheia trocando de cor (`tools/doomfire.py`) | **11,0 fps / 0,5 MB/s** | 314 fps / 15,9 MB/s (kitty) |
 
 A carga do doom-fire (tela toda trocando de cor, pior caso do parser) tem
 detalhe, protocolo e armadilhas em [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md).
