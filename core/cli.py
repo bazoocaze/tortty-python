@@ -1,4 +1,4 @@
-"""Linha de comando: `pyterm.py [--cmd CMD] [--quit-after SEG] ...`."""
+"""Linha de comando: `bzmux.py [--cmd CMD] [--quit-after SEG] ...`."""
 
 from .selftest import selftest
 
@@ -23,10 +23,10 @@ def main(argv):
         return selftest()
     # import tardio: --selftest roda sem tocar em Gtk/PyGObject
     from .gui import Gtk, Gdk, GdkX11
-    from .window import PyTermWindow
+    from .window import BzmuxWindow
 
     cmd, quit_after, dump_to = parse_args(argv)
-    win = PyTermWindow(cmd=cmd, quit_after=quit_after, dump_to=dump_to)
+    win = BzmuxWindow(cmd=cmd, quit_after=quit_after, dump_to=dump_to)
     win.show_all()
     # O Marco (MATE) nega present() com timestamp 0 (GDK_CURRENT_TIME): é
     # preciso o timestamp ATUAL do servidor X, como fazem os apps Qt.

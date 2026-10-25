@@ -1,30 +1,33 @@
-# pyterm — terminal mínimo em Python (experimento)
+# bzmux — terminal mínimo em Python (experimento)
+
+> Repositório `pybzmux`; o projeto se chama **bzmux**. Nasceu como `pyterm`
+> dentro do experimento `kitty` e virou repo próprio em 2026-10-25 — por isso
+> os commits antigos falam `pyterm` e os caminhos da época eram `pyterm/...`.
 
 Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**,
 para sentir na pele o custo do caminho quente em Python comparado ao núcleo C
 do `gtkterm`. Não é produto: é a resposta empírica à pergunta "daria pra fazer
 tudo em Python?". Escopo, medições, bugs já corrigidos, backlog e armadilhas de
-teste ficam em [`TASK-pyterm.md`](../TASK-pyterm.md).
+teste ficam em [`TASK-bzmux.md`](TASK-bzmux.md).
 
 ## Como rodar
 
 ```sh
-cd pyterm
-./run.sh                      # abre em background (log /tmp/pyterm.log)
+./run.sh                      # abre em background (log /tmp/bzmux.log)
 ./run.sh --fg                 # foreground (erros aparecem na hora)
 ./run.sh --cmd 'mc'           # comando inicial
 ./run.sh --kill               # fecha a instância do runner
 ./run.sh --status             # pid / rodando?
-python3 pyterm.py --selftest  # testa parser/mouse/histórico/reflow/gráficos (50 checks, sem janela)
+python3 bzmux.py --selftest   # parser/mouse/histórico/reflow/gráficos (50 checks, sem janela)
 ```
 
 ## Como o código está organizado
 
-`pyterm.py` é só o ponto de entrada; o código vive em `pyterm_core/`:
+`bzmux.py` é só o ponto de entrada; o código vive em `core/`:
 
 ```
-pyterm.py                 # 20 linhas: só chama pyterm_core.cli.main
-pyterm_core/
+bzmux.py                 # 20 linhas: só chama core.cli.main
+core/
 ├── palette.py   # célula [char,fg,bg,flags], paleta xterm-256, charset DEC
 ├── term.py      # grade, cursor, parser VT — NÃO conhece Gtk
 ├── keys.py      # keyval do X11 -> bytes do filho (dead keys, DECCKM)
@@ -33,7 +36,7 @@ pyterm_core/
 ├── graphics.py  # protocolo de imagens do kitty (APC G, puro)
 ├── gui.py       # import único de Gtk/Gdk/GLib/cairo (require_version)
 ├── view.py      # TermView: uma sessão (pty, desenho cairo, eventos)
-├── window.py    # Workspace (Gtk.Notebook + cartão) e PyTermWindow
+├── window.py    # Workspace (Gtk.Notebook + cartão) e BzmuxWindow
 ├── selftest.py  # 50 checks, sem abrir janela
 └── cli.py       # argv e arranque
 ```
@@ -43,8 +46,8 @@ A regra é a dependência apontar para dentro: `term`/`palette` não importam
 (o import de Gtk é tardio, dentro de `cli.main`), e a janela pode ser trocada
 sem tocar no núcleo de emulação.
 
-O `run.sh` controla a instância por **PID file** (`/tmp/pyterm.pid`) de
-propósito: `pkill -f pyterm.py` casa com a linha de comando de quem chama e
+O `run.sh` controla a instância por **PID file** (`/tmp/bzmux.pid`) de
+propósito: `pkill -f bzmux.py` casa com a linha de comando de quem chama e
 mata o próprio shell (já aconteceu, deixando janelas órfãs).
 
 Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
@@ -84,13 +87,13 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   `termguicolors`, `bat`, gradiente em texto saem com a cor exata.
 - **Desenho** com cairo: runs agrupados por atributos, bold, sublinhado,
   inverso, cursor em bloco.
-- **Kitty keyboard protocol** (`pyterm_core/kitty_kbd.py`): `CSI > flags u`
+- **Kitty keyboard protocol** (`core/kitty_kbd.py`): `CSI > flags u`
   (push), `CSI < n u` (pop), `CSI = flags ; modo u` (set/add/remove) e
   `CSI ? u` (query). Com `disambiguate`, Esc/Enter/Tab/Backspace e
   Ctrl/Alt/Super+tecla saem como `CSI codigo ; mods u`, então `Ctrl+Shift+letra`
   deixa de se confundir com `Ctrl+letra`; `report event types` acrescenta
   `:1`/`:2`/`:3`; `report all keys as escape codes` manda tudo em CSI-u.
-- **Protocolo de gráficos do kitty** (`pyterm_core/graphics.py`): APC `G` com
+- **Protocolo de gráficos do kitty** (`core/graphics.py`): APC `G` com
   `a=t`/`a=T`/`a=p`/`a=d`/`a=q`, `f=24` (RGB), `f=32` (RGBA) e `f=100` (PNG),
   imagem em pedaços (`m=1`), `i`/`c`/`r`/`C=1`/`q`, compressão `o=z` (zlib) e
   os offsets `X=`/`Y=` em pixels dentro da célula (é assim que o `icat`
@@ -156,14 +159,14 @@ setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen
 
 Medido nesta máquina (2026-10-26):
 
-| cenário | pyterm (Python) | núcleo nativo (referência) |
+| cenário | bzmux (Python) | núcleo nativo (referência) |
 |---|---|---|
 | **uma tecla** (eco de 1 char) | **0,4 µs por caractere** | ~1 ms de ponta a ponta (dominado por desenho) |
 | parse + grade, despejo contínuo | **0,7–1,9 MiB/s** | 300–800 MiB/s (`rio-vt`, `alacritty_terminal`, `vt100`) |
 | `seq 1 100000` (575 KiB) | **~0,8 s** | milissegundos |
 | desenho de 1 frame (1920 células) | ~2,0 ms | ~1 ms (T2→T3 do `lat-battery`) |
 
-Conclusão honesta: **na interação o pyterm é imperceptível** — digitar, andar
+Conclusão honesta: **na interação o bzmux é imperceptível** — digitar, andar
 no `mc`, abrir `vim` custa microssegundos por tecla, porque a carga por evento
 é minúscula. A diferença de 100–400× só aparece em **volume**: `cat` de log
 grande, `seq 100000`, scroll de saída massiva — aí são centenas de ms contra
@@ -176,16 +179,16 @@ o mesmo motivo pelo qual o `gtkterm` usa o núcleo C.
 
 ## Autochetcagem
 
-`kill -USR1 <pid>` dumpar a grade visível em `/tmp/pyterm-dump.txt` (ou no
+`kill -USR1 <pid>` dumpar a grade visível em `/tmp/bzmux-dump.txt` (ou no
 arquivo de `--dump-to`) — foi assim que se provou que o `mc` é renderizado
 fielmente: o dump bate byte a byte com o que o `mc` escreve.
 
-`python3 pyterm.py --selftest` exercita o parser sem GTK: texto, SGR, CUP,
+`python3 bzmux.py --selftest` exercita o parser sem GTK: texto, SGR, CUP,
 EL/ED, alt-screen (ida e volta), scroll, charset DEC, DA, DSR/CPR, região de
 scroll e título por OSC.
 
 ## Licença
 
-**MIT** (ver `LICENSE`). O `pyterm` é código original, sem uma linha do
+**MIT** (ver `LICENSE`). O `bzmux` é código original, sem uma linha do
 kitty, então a licença dele não é ditada pelo núcleo. O `native-port/` continua
 **GPL-3.0-only** porque linka `libkittycore.a` (derivado do kitty).

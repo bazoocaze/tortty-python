@@ -1,6 +1,6 @@
 """A janela GTK: workspaces (P12) e, dentro de cada um, abas (P11).
 
-    PyTermWindow  Gtk.Box[ lateral (Gtk.ListBox) | Gtk.Stack ]
+    BzmuxWindow  Gtk.Box[ lateral (Gtk.ListBox) | Gtk.Stack ]
     Workspace     um Gtk.Notebook + as TermView dele + o cartão da lateral
 
 Cada workspace tem o seu conjunto de abas (`Gtk.Stack` e não trocar páginas do
@@ -188,12 +188,12 @@ class Workspace:
         """Rótulo da aba: título do app ou, sem OSC, o cwd da sessão.
 
         O bash não manda OSC 0/2 por padrão, então todas as abas ficariam
-        "pyterm"; o diretório é a informação que o usuário usa pra saber onde
+        "bzmux"; o diretório é a informação que o usuário usa pra saber onde
         está (o `Alt+N` já dá o número, por isso não tem prefixo numérico).
         """
         if view.app_title and view._title:
             return view._title
-        return os.path.basename(view.start_cwd or "") or "pyterm"
+        return os.path.basename(view.start_cwd or "") or "bzmux"
 
     # -- cartão da lateral ---------------------------------------------
     def update_card(self):
@@ -264,9 +264,9 @@ class Workspace:
         return False
 
 
-class PyTermWindow(Gtk.Window):
+class BzmuxWindow(Gtk.Window):
     def __init__(self, cmd=None, quit_after=0, dump_to=None):
-        super().__init__(title="pyterm")
+        super().__init__(title="bzmux")
         # O comando dado na linha de comando é replicado em cada aba nova
         # (decisão do P11): `run.sh --cmd ...` e os testes continuam
         # previsíveis. Sem `--cmd`, cada aba nasce com $SHELL.
@@ -432,11 +432,11 @@ class PyTermWindow(Gtk.Window):
     def sync_title(self):
         ws = self.current
         v = ws.view if ws is not None else None
-        self.set_title(ws.label_text(v) if (ws and v) else "pyterm")
+        self.set_title(ws.label_text(v) if (ws and v) else "bzmux")
 
     # -- dump / ciclo de vida ------------------------------------------
     def dump(self):
-        path = self.dump_to or "/tmp/pyterm-dump.txt"
+        path = self.dump_to or "/tmp/bzmux-dump.txt"
         parts = []
         multi_ws = len(self.workspaces) > 1
         for wi, ws in enumerate(self.workspaces, 1):

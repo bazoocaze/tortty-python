@@ -1,13 +1,13 @@
 #!/bin/sh
-# run.sh — abre/fecha o pyterm sem deixar instâncias órfãs.
+# run.sh — abre/fecha o bzmux sem deixar instâncias órfãs.
 #
-# O pyterm é um experimento (terminal mínimo em Python); este runner existe
-# porque usar `pkill -f pyterm.py` mata o próprio shell de quem chama (o
+# O bzmux é um experimento (terminal mínimo em Python); este runner existe
+# porque usar `pkill -f bzmux.py` mata o próprio shell de quem chama (o
 # padrão casa com a linha de comando) e já deixou janelas duplicadas abertas.
 # Aqui o controle é por PID file: só mata o processo que NÓS subimos.
 #
 # Uso:
-#   ./run.sh                 abre em background (log em /tmp/pyterm.log)
+#   ./run.sh                 abre em background (log em /tmp/bzmux.log)
 #   ./run.sh --fg            abre em foreground (vê os erros na hora)
 #   ./run.sh --kill          fecha a instância aberta por este runner
 #   ./run.sh --status        diz se há instância e qual o PID
@@ -19,14 +19,14 @@
 set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-PIDFILE=/tmp/pyterm.pid
-LOG=/tmp/pyterm.log
+PIDFILE=/tmp/bzmux.pid
+LOG=/tmp/bzmux.log
 
 is_ours() {
-    # o PID existe E ainda é um pyterm.py? (protege contra PID reciclado)
+    # o PID existe E ainda é um bzmux.py? (protege contra PID reciclado)
     [ -n "${1:-}" ] || return 1
     [ -d "/proc/$1" ] || return 1
-    tr '\0' ' ' < "/proc/$1/cmdline" 2>/dev/null | grep -q 'pyterm\.py'
+    tr '\0' ' ' < "/proc/$1/cmdline" 2>/dev/null | grep -q 'bzmux\.py'
 }
 
 kill_previous() {
@@ -39,7 +39,7 @@ kill_previous() {
                 sleep 0.2
             done
             is_ours "$pid" && kill -9 "$pid" 2>/dev/null
-            echo "fechou pyterm anterior (pid $pid)"
+            echo "fechou bzmux anterior (pid $pid)"
         fi
         rm -f "$PIDFILE"
     fi
@@ -66,14 +66,14 @@ done
 case "$MODE" in
     kill)
         kill_previous
-        echo "pyterm fechado"
+        echo "bzmux fechado"
         exit 0
         ;;
     status)
         if [ -f "$PIDFILE" ] && is_ours "$(cat "$PIDFILE" 2>/dev/null)"; then
-            echo "pyterm rodando (pid $(cat "$PIDFILE"))"
+            echo "bzmux rodando (pid $(cat "$PIDFILE"))"
         else
-            echo "pyterm não está rodando"
+            echo "bzmux não está rodando"
         fi
         exit 0
         ;;
@@ -86,18 +86,18 @@ set -- --cmd "$CMD"
 [ -n "$DUMP" ] && set -- "$@" --dump-to "$DUMP"
 
 if [ "$MODE" = fg ]; then
-    exec python3 "$HERE/pyterm.py" "$@"
+    exec python3 "$HERE/bzmux.py" "$@"
 fi
 
 : > "$LOG"
-setsid nohup python3 "$HERE/pyterm.py" "$@" >>"$LOG" 2>&1 &
+setsid nohup python3 "$HERE/bzmux.py" "$@" >>"$LOG" 2>&1 &
 pid=$!
 echo "$pid" > "$PIDFILE"
 sleep 0.6
 if is_ours "$pid"; then
-    echo "pyterm aberto (pid $pid), log em $LOG"
+    echo "bzmux aberto (pid $pid), log em $LOG"
 else
-    echo "pyterm FALHOU ao subir; log:" >&2
+    echo "bzmux FALHOU ao subir; log:" >&2
     tail -20 "$LOG" >&2
     rm -f "$PIDFILE"
     exit 1

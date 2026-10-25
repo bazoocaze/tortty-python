@@ -1,4 +1,4 @@
-"""pyterm_core — as partes do pyterm, separadas por responsabilidade.
+"""core — as partes do bzmux, separadas por responsabilidade.
 
     palette.py   célula, paleta xterm-256, charset DEC        (puro dado)
     term.py      grade, cursor, parser VT                     (sem GTK)
@@ -10,23 +10,23 @@
     cli.py       argv e arranque                              (liga tudo)
 
 Dependência: `term`/`palette` não conhecem `window`. Assim o parser roda em
-máquina sem PyGObject (`python3 pyterm.py --selftest`) e a janela pode ser
+máquina sem PyGObject (`python3 bzmux.py --selftest`) e a janela pode ser
 trocada sem tocar no núcleo.
 
 MIT (ver LICENSE).
 """
 
-__all__ = ["Term", "PyTermWindow", "selftest"]
+__all__ = ["Term", "BzmuxWindow", "selftest"]
 
 
 def __getattr__(name):
-    """Import preguiçoso: `pyterm_core.Term` não puxa o Gtk."""
+    """Import preguiçoso: `core.Term` não puxa o Gtk."""
     if name == "Term":
         from .term import Term
         return Term
-    if name == "PyTermWindow":
-        from .window import PyTermWindow
-        return PyTermWindow
+    if name == "BzmuxWindow":
+        from .window import BzmuxWindow
+        return BzmuxWindow
     if name == "selftest":
         from .selftest import selftest
         return selftest

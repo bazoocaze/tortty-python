@@ -1,6 +1,6 @@
 """A view de uma sessão: pty, desenho em cairo e eventos de input.
 
-Era o `PyTermWindow` inteiro até o P11 (abas): o que é por-aba veio pra cá, e
+Era o `BzmuxWindow` inteiro até o P11 (abas): o que é por-aba veio pra cá, e
 `window.py` ficou com a janela — `Gtk.Notebook`, atalhos globais e o ciclo de
 vida das abas. Continua sendo a única camada que desenha; o estado do
 terminal está em `term`.
@@ -80,7 +80,7 @@ class TermView(Gtk.DrawingArea):
         self.on_exit = on_exit        # chamada quando o shell sai
         self.on_title = on_title      # chamada quando o título (OSC) muda
         self.shortcuts = shortcuts    # atalhos da janela (prioridade)
-        self._title = "pyterm"
+        self._title = "bzmux"
         self.app_title = False        # o app já mandou OSC 0/2?
         self.start_cwd = cwd or os.getcwd()
         self._notified = False
@@ -189,7 +189,7 @@ class TermView(Gtk.DrawingArea):
             self.term.child_out = bytearray()
         if self.term.title != self._title:
             self._title = self.term.title
-            self.app_title = self._title != "pyterm"
+            self.app_title = self._title != "bzmux"
             if self.on_title:
                 self.on_title(self, self._title)
         # output novo volta pro vivo (é o que todo terminal faz: o app está
@@ -210,7 +210,7 @@ class TermView(Gtk.DrawingArea):
         # fechar a ABA manda SIGHUP no filho: aí o "código -1" é nosso, não
         # notícia (só interessa a saída que o usuário pediu)
         if self.exit_code and not self._closing:
-            print(f"pyterm: shell saiu com código {self.exit_code}",
+            print(f"bzmux: shell saiu com código {self.exit_code}",
                   file=sys.stderr)
         self._notify_exit()
         return False          # remove o child watch

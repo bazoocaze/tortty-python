@@ -1,4 +1,4 @@
-"""Autochetcagem do parser: `python3 pyterm.py --selftest`.
+"""Autochetcagem do parser: `python3 bzmux.py --selftest`.
 
 Roda sem display e sem PyGObject: só importa `term`, `palette` e `mouse`,
 nunca `window`/`gui`.

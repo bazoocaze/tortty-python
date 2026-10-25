@@ -1,7 +1,7 @@
 """Estado do terminal: grade de células, cursor e parser VT.
 
 Sem GTK aqui dentro — é o que deixa o parser testável por `--selftest` sem
-abrir janela (e sem display). Quem desenha é `window.PyTermWindow`.
+abrir janela (e sem display). Quem desenha é `window.BzmuxWindow`.
 """
 
 from .graphics import Graphics
@@ -42,7 +42,7 @@ class Term:
         self.child_out = bytearray()  # respostas ao filho (DA, CPR...)
         self.graphics = Graphics()    # protocolo de imagens do kitty (P6)
         self.apc = ""
-        self.title = "pyterm"
+        self.title = "bzmux"
         self.state = "ground"
         self.csi = ""
         self.osc = ""
