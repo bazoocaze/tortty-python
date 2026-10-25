@@ -21,6 +21,13 @@ teste ficam em [`TASK-bzmux.md`](TASK-bzmux.md).
 python3 bzmux.py --selftest   # parser/mouse/histórico/reflow/gráficos (50 checks, sem janela)
 ```
 
+## Ferramentas de teste
+
+`--selftest` cobre o parser sem display. O que só se prova com janela aberta é
+feito à mão com `tools/xtest.py` (XTest: tecla, clique, duplo clique, wheel,
+arrasto, texto) e conferido com `tools/pixel.py` (cor de pixel numa captura) —
+ver `TASK-bzmux.md`. Precisa de servidor X e de `python3-xlib`.
+
 ## Como o código está organizado
 
 `bzmux.py` é só o ponto de entrada; o código vive em `core/`:

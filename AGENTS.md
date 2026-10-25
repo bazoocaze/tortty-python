@@ -20,6 +20,9 @@ Na prática:
   o comando manual no `TASK-bzmux.md` em vez de montar infraestrutura de teste.
 - **Sem infraestrutura de suíte** (pytest, `tests/`, `pyproject.toml`, CI) sem o
   autor pedir: os checks vivem em `core/selftest.py` e rodam com `--selftest`.
+- **`tools/` é manual, não suíte**: `tools/xtest.py` (injeção XTest) e
+  `tools/pixel.py` (cor de pixel) precisam de display/X11 e são chamados à mão
+  durante a verificação, como o `TASK-bzmux.md` descreve.
 - **Medição não é teste**: os números do `TASK-bzmux.md` vêm de execução real;
   não transformar isso em benchmark automatizado sem necessidade.
 

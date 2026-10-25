@@ -126,8 +126,8 @@ wheel, **reflow** ao estreitar/alargar, **`kitten icat`** desenhando PNG,
 **workspaces** (lateral, renomear, fechar por aba/workspace/janela).
 
 Teste automatizado até agora: `--selftest` (50 checks, sem display) e injeção
-sintética de mouse/teclado via XTest (`/tmp/xmouse.py`, fora do repo) —
-foi assim que P1/P2/P5 foram verificados de ponta a ponta.
+sintética de mouse/teclado via XTest (`tools/xtest.py`, no repo) — foi assim
+que P1/P2/P5/P11/P12 foram verificados de ponta a ponta.
 
 ### Medições (nesta máquina, 2026-10-26)
 
@@ -219,11 +219,18 @@ Injeção de teclas para teste automatizado (do projeto C):
 `<...>` aceita nomes (`Return`, `Up`, `space`, `dead_tilde`, `Shift_L`...) e
 prefixos `C-`, `S-`, `M-`, `A-`.
 
-Atalhos globais testados assim (`Ctrl+Shift+N/1..9/Q`, `Alt+N`, duplo clique no
-cartão da lateral) usam `/tmp/xmouse.py key ctrl+shift+n` e
-`/tmp/xclick.py 1 <x> <y> 2`; conferir o efeito por `kill -USR1` +
-`/tmp/bzmux-dump.txt` (cabeçalhos `=== workspace N: nome ===` e
-`=== aba N: título ===` aparecem só quando há mais de um).
+Atalhos globais (`Ctrl+Shift+N/1..9/Q`, `Alt+N`) e o duplo clique no cartão da
+lateral saem de `tools/xtest.py`:
+
+```sh
+python3 tools/xtest.py key ctrl+shift+n     # workspace novo
+python3 tools/xtest.py dclick 60 28         # duplo clique no cartão 1
+python3 tools/xtest.py type 'echo ok'       # texto com símbolos
+kill -USR1 $(cat /tmp/bzmux.pid)            # dumpar
+```
+
+O efeito aparece em `/tmp/bzmux-dump.txt` (cabeçalhos `=== workspace N: nome ===`
+e `=== aba N: título ===` só quando há mais de um).
 
 ## Backlog
 
@@ -245,7 +252,7 @@ não índices, então `256 - 256 % 256 = 0` virava preto e `257 % 256 = 1` virav
 **vermelho**: selecionar texto default saía vermelho-em-preto, e `\e[7m`
 idem. Fix: converter pra RGB primeiro, inverter depois.
 
-Verificado com XTest sintético (`/tmp/xmouse.py`): clique →
+Verificado com XTest sintético (`tools/xtest.py`): clique →
 `\e[<0;5;4M`/`m`, arrasto → `\e[<32;12;6M`, wheel → `\e[<65;31;11M`;
 seleção + `Ctrl+Shift+C` + `Ctrl+Shift+V` num `cat` devolveu o texto certo, e
 screenshot confirmou o realce.
@@ -662,45 +669,30 @@ workspace (lateral some com 1), `exit` na última aba do ws2 fecha só o ws2 e
   `xset q`.
 - **`chr(kv)` para keyval de tecla especial não existe**: só `0x20–0x7e`,
   `0xa0–0xff` e `0x01000000+U` são caractere. O resto é modificador/função.
-- **O harness de XTest mora em `~/.local/share/bzmux-tools/`** (cópia boa;
-  `/tmp` é limpo no reboot) e roda com o `python3` do sistema:
-  `/tmp/xmouse.py` (`id`, `key`, `type`, `activate`, `wheel`, `drag`, `click`),
-  `/tmp/xclick.py <btn> <x> <y> [vezes]` (clique e **duplo clique**),
-  `/tmp/sample.py` (cor de pixel num PNG). Só vale a pena para o que o
-  `xdotool` não cobre bem.
-- **`xdotool` está instalado** (`1:3.20160805`) e virou o caminho preferido:
-
-  ```sh
-  W=$(xdotool search --pid $(cat /tmp/bzmux.pid) | tail -1)
-  xdotool windowactivate "$W"
-  xdotool type --delay 20 'echo /usr/lib -x $HOME'      # símbolo e espaço ok
-  xdotool key ctrl+shift+n                              # atalho global
-  xdotool mousemove --window "$W" 60 28 click --repeat 2 --delay 60 1  # duplo
-  xdotool mousemove --window "$W" 400 250 click 4       # wheel = botão 4/5
-  xdotool mousemove --window "$W" 200 60 mousedown 1 mousemove --window "$W" 320 60 mouseup 1
-  import -window "$W" /tmp/shot.png
-  ```
-
-  Ele resolve o furo do harness antigo: `python-xlib` digitando `/` e `-` (vira
-  espaço / some) — o `xdotool type` escreve texto arbitrário.
-- **Cuidado com as coordenadas**: com lateral e abas, a sessão **não** começa em
-  `(0,0)` — o cartão da lateral ocupa 170 px à esquerda e a barra de abas ~28 px
-  no topo. Clicar em `y=8` acerta a **barra de abas** (e arrastar ali reordena
-  aba, não seleciona texto); a grade começa em `y≈58` quando há uma aba só.
-- **Helpers legados (o mesmo que acima, em `python3`)**: `/tmp/xmouse.py`
-  (`id`, `key`, `type`, `activate`, `wheel`, `drag`, `click`),
-  `/tmp/xclick.py <btn> <x> <y> [vezes]` (clique e **duplo clique**),
-  `/tmp/sample.py` (cor de pixel num PNG). **Não precisa de venv**: o
-  `python3-xlib` 0.33 está instalado no sistema, então basta `python3`.
-  Como `/tmp` é limpo no reboot (aconteceu), a cópia boa é a durável em
-  `~/.local/share/bzmux-tools/`. Coordenadas são **relativas à janela** do bzmux (o helper
-  soma a origem), e `type` só é confiável para letras/dígitos (`/` vira
-  espaço, `-` some) — para caminho/símbolo, usar `key slash`, `key minus`.
-  É o único ponto onde o `xdotool` (`apt install xdotool`, o `libxdo3` já
-  está instalado) seria melhor: o `xdotool type` escreve texto arbitrário.
-- **`xdotool` não existe nesta máquina**; janela se acha com
-  `/tmp/xmouse.py id` (por `_NET_WM_PID`), move/redimensiona com `wmctrl -i -r
-  <id> -e 0,x,y,w,h` e screenshot com `import -window <id>`.
+- **As ferramentas de teste moram em `tools/`** (rodam com o `python3` do
+  sistema — `python3-xlib` 0.33 e `gi` já estão instalados). `tools/xtest.py`
+  injeta eventos: `id`, `geometry`, `activate`, `move`, `click`, `dclick`,
+  `wheel`, `drag`, `key`, `type` (texto arbitrário, com `/ - . , ; = { } [ ]
+  | ~ ?` e maiúsculas). `tools/pixel.py` lê cor de pixel de um PNG:
+  `tools/pixel.py shot.png 400,200`, `--scan X` (uma amostra por faixa de
+  19 px), `--row Y`.
+- **`xdotool` também está instalado** (`1:3.20160805`): `search --pid`,
+  `type`, `key`, `mousemove --window`, `click --repeat 2`. Serve para o que não
+  vale escrever à mão. As duas ferramentas usam **as mesmas coordenadas**
+  (conferido: mesmo pixel para o mesmo ponto relativo).
+- **Coordenadas são relativas à janela, e a grade não começa em (0,0)**: com
+  lateral (170 px) e barra de abas (~28 px), a sessão começa em `y≈58`. Clicar
+  em `y=8` acerta a **barra de abas** — e arrastar ali **reordena aba** em vez
+  de selecionar texto.
+- **`xwininfo` "Absolute upper-left" é a origem do cliente** (é o que se usa para
+  injetar); o `Position` do `xdotool getwindowgeometry` é o **frame** do WM —
+  aqui 11/40 px deslocado. Confundir os dois desloca todo clique e todo teste.
+- **Achar a janela por `_NET_WM_PID` tem de pegar a maior visível**: o GTK cria
+  ajudantes de 10x10 com o mesmo PID, e a primeira que aparece engana
+  (`geometry` devolvia 10x10 e `set_input_focus` estourava `BadMatch`).
+- **`~`, `^` e `` ` `` são dead keys no ABNT2**: `type '~nome'` digita `~` e o
+  `n` compõe `ǹ` — é o comportamento certo do terminal (composição por NFC),
+  não falha da ferramenta. Para um til literal, digitar espaço depois.
 - **`cairo` com `FORMAT_A1`** serve para medir fonte, mas `font_extents()`
   devolve **5** valores (ascent, descent, height, max_x_advance,
   max_y_advance) — não 6.
