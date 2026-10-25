@@ -18,7 +18,7 @@ teste ficam em [`TASK-bzmux.md`](TASK-bzmux.md).
 ./run.sh --cmd 'mc'           # comando inicial
 ./run.sh --kill               # fecha a instância do runner
 ./run.sh --status             # pid / rodando?
-./run-tests.sh                # testes (15 checks, sem janela)
+./run-tests.sh                # testes, sem janela
 uv run pytest -q              # só a parte pytest
 python3 bzmux.py --selftest   # os mesmos checks, sem depender de pytest
 python3 bzmux.py --help       # opções, sem abrir janela
@@ -53,7 +53,7 @@ Se quiser rodar o app de dentro do venv, crie-o com
 `bzmux.py` é só o ponto de entrada; o código vive em `core/`:
 
 ```
-bzmux.py                 # 20 linhas: só chama core.cli.main
+bzmux.py                 # ponto de entrada: só chama core.cli.main
 core/
 ├── palette.py   # célula [char,fg,bg,flags], paleta xterm-256, charset DEC
 ├── term.py      # grade, cursor, parser VT — NÃO conhece Gtk
@@ -64,7 +64,7 @@ core/
 ├── gui.py       # import único de Gtk/Gdk/GLib/cairo (require_version)
 ├── view.py      # TermView: uma sessão (pty, desenho cairo, eventos)
 ├── window.py    # Workspace (Gtk.Notebook + cartão) e BzmuxWindow
-├── checks.py    # a bateria: 15 checks, sem abrir janela
+├── checks.py    # a bateria de testes
 ├── selftest.py  # runner sem dependências (--selftest)
 └── cli.py       # argv e arranque
 ```

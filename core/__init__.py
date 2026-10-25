@@ -2,12 +2,18 @@
 
     palette.py   célula, paleta xterm-256, charset DEC        (puro dado)
     term.py      grade, cursor, parser VT                     (sem GTK)
-    keys.py      keyval do X11 -> bytes do terminal            (pura)
+    keys.py      keyval do X11 -> bytes do terminal           (sem GTK*)
+    kitty_kbd.py protocolo de teclado do kitty (CSI ... u)    (puro)
+    mouse.py     protocolo de mouse (SGR e o antigo)          (puro)
+    graphics.py  protocolo de imagens do kitty (APC G)         (puro)
     gui.py       import único de Gtk/Gdk/GLib/cairo           (só glue)
-    view.py      uma sessão: pty, desenho, input              (só GTK)
-    window.py    a janela: abas (Notebook) e atalhos globais   (só GTK)
-    selftest.py  14 checks do parser, sem janela              (sem GTK)
+    view.py      uma sessão: pty, desenho, input               (só GTK)
+    window.py    a janela: abas, lateral, atalhos globais      (só GTK)
+    checks.py    a bateria de testes, sem janela              (sem GTK)
+    selftest.py  runner sem dependências (--selftest)         (sem GTK)
     cli.py       argv e arranque                              (liga tudo)
+
+* keys usa as constantes de keyval do Gdk, mas não importa Gtk.
 
 Dependência: `term`/`palette` não conhecem `window`. Assim o parser roda em
 máquina sem PyGObject (`python3 bzmux.py --selftest`) e a janela pode ser

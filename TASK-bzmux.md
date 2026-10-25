@@ -22,7 +22,7 @@ nem testada aqui.
 ### Por onde retomar
 
 ```sh
-python3 bzmux.py --selftest     # 50 checks, sem abrir janela
+python3 bzmux.py --selftest     # checks, sem abrir janela
 ./run.sh --cmd 'mc -d /usr/share'
 ```
 
@@ -99,7 +99,8 @@ core/
 │   ├── workspaces: Ctrl+Shift+N, Ctrl+Shift+1..9, Ctrl+Shift+Q, duplo
 │   │   clique renomeia, lateral só com 2+
 │   └── dump/quit-after/SIGUSR1 (agrega workspaces e abas)
-├── selftest.py  # 50 checks, sem abrir janela
+├── checks.py    # a bateria de testes, sem abrir janela
+├── selftest.py  # runner sem dependências do --selftest
 └── cli.py       # argv e arranque (import tardio do Gtk: --selftest roda
                  #   em máquina sem PyGObject)
 ```
@@ -125,7 +126,7 @@ wheel, **reflow** ao estreitar/alargar, **`kitten icat`** desenhando PNG,
 **abas** (ativa independente por aba, cwd herdado, título OSC no rótulo) e
 **workspaces** (lateral, renomear, fechar por aba/workspace/janela).
 
-Teste automatizado até agora: `--selftest` (50 checks, sem display) e injeção
+Teste automatizado até agora: `--selftest` e pytest (sem display) e injeção
 sintética de mouse/teclado via XTest (`tools/xtest.py`, no repo) — foi assim
 que P1/P2/P5/P11/P12 foram verificados de ponta a ponta.
 
@@ -202,7 +203,8 @@ diretriz está no [`AGENTS.md`](AGENTS.md) do repositório. Na prática aqui:
 quebraram), e o resto é smoke test manual com clique/tecla de verdade.
 
 ```sh
-python3 bzmux.py --selftest        # 50 checks, sem abrir janela
+python3 bzmux.py --selftest         # checks, sem abrir janela
+./run-tests.sh                     # o mesmo, pelos dois runners
 ./run.sh                            # abre (fecha a instância anterior)
 ./run.sh --cmd 'mc -d /usr/share'   # direto no mc
 ./run.sh --status                   # pid / rodando?
@@ -331,9 +333,8 @@ O desenho resolve a cor antes de inverter (`cell_rgb`), então inverso/seleção
 seguem trocando RGB, e o agrupamento em runs continua comparando `int`
 (células truecolor de cor distinta não se agrupam, como tem que ser).
 
-Verificado: 7 checks no `--selftest` (fg/bg na célula, ida e volta,
-forma `:`, 256 cores não virando RGB, reset, sobrevive ao reflow) e
-pixel a pixel com `vim -c 'set termguicolors'`:
+Verificado no `--selftest` (fg/bg na célula, ida e volta, forma `:`, 256
+cores não virando RGB, reset, sobrevive ao reflow) e pixel a pixel com `vim -c 'set termguicolors'`:
 `hi Normal guibg=#123456 guifg=#ffcc00` → fundo `(18,52,86)` e glifo
 `(255,204,0)` exatos na captura. `38;2` não passa mais por `_nearest`.
 
@@ -434,7 +435,7 @@ juntar as linhas com `\n` ENTRE elas (`add_trailing_newline = insert_newlines
 chega na coluna 0 da linha seguinte, porque aí a última linha da seleção é
 vazia. Tirado o `+= "\n"`.
 
-Verificado no `--selftest` (3 checks de `paste_payload`, 1 de seleção sem
+Verificado no `--selftest` (os dois modos de `paste_payload`, seleção sem
 newline) e ponta a ponta com filho que liga `?2004` e despeja os bytes:
 
 ```
