@@ -4,7 +4,7 @@ Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**,
 para sentir na pele o custo do caminho quente em Python comparado ao núcleo C
 do `gtkterm`. Não é produto: é a resposta empírica à pergunta "daria pra fazer
 tudo em Python?". Escopo, medições, bugs já corrigidos, backlog e armadilhas de
-teste ficam em [`TASK-pyterm.md`](TASK-pyterm.md).
+teste ficam em [`TASK-pyterm.md`](../TASK-pyterm.md).
 
 ## Como rodar
 
