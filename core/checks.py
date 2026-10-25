@@ -1,8 +1,8 @@
 """Os checks do bzmux: uma fonte de verdade, chamada pelo --selftest e pelo pytest.
 
 Cada função é um teste de comportamento, sem display e sem PyGObject — o módulo
-só importa term, palette, mouse e kitty_kbd. Um bug corrigido virou uma
-asserção (regressão vale mais que cobertura); nada de matriz de casos.
+só importa term (que puxa graphics), palette, mouse e kitty_kbd. Um bug
+corrigido virou uma asserção (regressão vale mais que cobertura); nada de matriz de casos.
 """
 
 import base64

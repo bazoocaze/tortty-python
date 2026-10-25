@@ -13,7 +13,7 @@ Este arquivo é só o ponto de entrada. O código está em `core/`: ver o mapa e
 README.md ou em AGENTS.md.
 
 Só depende de PyGObject (Gtk3) + pycairo, que já existem no sistema — e
-`--selftest` nem disso: só importa `term.py`.
+`--selftest` nem disso: não toca em `gui.py`, então roda sem gi/cairo.
 MIT (ver LICENSE): código original, não derivado do kitty, e não usa nada do
 núcleo dele.
 """

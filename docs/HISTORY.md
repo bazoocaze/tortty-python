@@ -47,7 +47,7 @@ usa `off = view_off` no desenho, na cópia e no dump.
 - Wheel sem app em modo mouse rola a visão; com app em modo mouse manda
   `64`/`65` (`CSI < b ; x ; y M`/`m`) — mas **se a visão está no histórico o
   wheel continua no histórico**, senão o app "roubava" o scroll justo quando
-o usuário estava lendo.
+  o usuário estava lendo.
 - Indicador `↑N` no canto superior direito; cursor do app não é desenhado no
   histórico (o cursor de visÃo é separado, de propósito).
 
@@ -108,7 +108,8 @@ seguem trocando RGB, e o agrupamento em runs continua comparando `int`
 (células truecolor de cor distinta não se agrupam, como tem que ser).
 
 Verificado no `--selftest` (fg/bg na célula, ida e volta, forma `:`, 256
-cores não virando RGB, reset, sobrevive ao reflow) e pixel a pixel com `vim -c 'set termguicolors'`:
+cores não virando RGB, reset, sobrevive ao reflow) e pixel a pixel com
+`vim -c 'set termguicolors'`:
 `hi Normal guibg=#123456 guifg=#ffcc00` → fundo `(18,52,86)` e glifo
 `(255,204,0)` exatos na captura. `38;2` não passa mais por `_nearest`.
 
@@ -150,8 +151,8 @@ Shift+Up → `\e[1;2A` + `\e[1;2:3A`, e digitar `x` continua sendo `x`.
 ### P6 — Protocolo de gráficos (kitty) — **feito**
 
 `core/graphics.py` (parse/decodificação/placements, sem cairo) +
-desenho no `window.py`. Parse do APC (`ESC _ G ... ESC \`) no parser do
-`Term`, com estado `apc`/`apc-esc`.
+desenho na `TermView` (era `window.py`; o P11 separou em `view.py`). Parse do
+APC (`ESC _ G ... ESC \`) no parser do `Term`, com estado `apc`/`apc-esc`.
 
 - Ações: `a=t` (transmitir), `a=T` (transmitir e mostrar), `a=p` (mostrar),
   `a=d` (apagar: `d=i,i=<id>` ou `d=A`), `a=q` (sonda).
@@ -259,7 +260,7 @@ da frente).
 ### P11 — Abas — **feito**
 
 `Ctrl+Shift+T` abre aba nova; `Alt+1` … `Alt+9` selecionam a aba N (`Alt+0` =
-10ª?); `Ctrl+Shift+W` fecha a aba; fechar a última fecha a janela.
+a 10ª); `Ctrl+Shift+W` fecha a aba; fechar a última fecha a janela.
 
 Hoje o `BzmuxWindow` acumula tudo de uma sessão: `Term`, `master`/`child_pid`,
 decoder, seleção (`sel_start`/`sel_end`/`_held`/`_state`), `view_off`,
@@ -500,8 +501,8 @@ Todos foram achados com medição, não por leitura — vale registrar o método
   lateral (170 px) e barra de abas (~28 px), a sessão começa em `y≈58`. Clicar
   em `y=8` acerta a **barra de abas** — e arrastar ali **reordena aba** em vez
   de selecionar texto.
-- **`xwininfo` "Absolute upper-left" é a origem do cliente** (é o que se usa para
-  injetar); o `Position` do `xdotool getwindowgeometry` é o **frame** do WM —
+- **`xwininfo` "Absolute upper-left" é a origem do cliente** (é o que se usa
+  para injetar); o `Position` do `xdotool getwindowgeometry` é o **frame** do WM —
   aqui 11/40 px deslocado. Confundir os dois desloca todo clique e todo teste.
 - **Achar a janela por `_NET_WM_PID` tem de pegar a maior visível**: o GTK cria
   ajudantes de 10x10 com o mesmo PID, e a primeira que aparece engana

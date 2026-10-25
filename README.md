@@ -136,7 +136,8 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   `CSI ? u` (query). Com `disambiguate`, Esc/Enter/Tab/Backspace e
   Ctrl/Alt/Super+tecla saem como `CSI codigo ; mods u`, então `Ctrl+Shift+letra`
   deixa de se confundir com `Ctrl+letra`; `report event types` acrescenta
-  `:1`/`:2`/`:3`; `report all keys as escape codes` manda tudo em CSI-u.
+  `:1`/`:2`/`:3`; `report all keys as escape codes` manda tudo em CSI-u;
+  `report associated text` (`16`) anexa o texto da tecla.
 - **Protocolo de gráficos do kitty** (`core/graphics.py`): APC `G` com
   `a=t`/`a=T`/`a=p`/`a=d`/`a=q`, `f=24` (RGB), `f=32` (RGBA) e `f=100` (PNG),
   imagem em pedaços (`m=1`), `i`/`c`/`r`/`C=1`/`q`, compressão `o=z` (zlib) e
@@ -172,7 +173,7 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   colorido de barra/status não é cortado junto com o espaço em branco.
 - **Mouse**: reporta pro app quando ele pede (`?1000` clique, `?1002`
   arrasto, `?1003` movimento, `?1006` coordenadas SGR, `?1004` foco), e fora
-desses modos faz **seleção local** arrastando — e ela vira cópia:
+  desses modos faz **seleção local** arrastando — e ela vira cópia:
   `Ctrl+Shift+C` copia (seleção ou viewport), `Ctrl+Shift+V` cola, e o
   **botão do meio** cola o PRIMARY (convenção X11). A seleção é vídeo
   reverso. Clique em `mc`/`vim` chega como `CSI < b ; x ; y M/m`.

@@ -33,6 +33,7 @@ bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core
     run.sh         abre/fecha o app por PID file
     run-tests.sh   roda a bateria de testes
     core/
+      __init__.py  fachada com import preguiçoso (core.Term não puxa o Gtk)
       palette.py   célula [char, fg, bg, flags], paleta xterm-256, charset DEC
       term.py      grade, cursor, parser VT — não conhece GTK
       keys.py      keyval do X11 -> bytes do filho (dead keys, DECCKM)
@@ -48,10 +49,11 @@ bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core
     tests/         runner pytest de core/checks.py
     tools/         xtest.py, pixel.py — teste manual com X11
 
-O que sustenta essa divisão: o caminho do --selftest importa só palette, term,
-kitty_kbd e mouse, e nenhum deles puxa gi/cairo — é isso que deixa os checks
-rodarem sem display e sem GTK (keys fica de fora: usa as constantes de keyval do
-Gdk). Cada aba tem o seu Term; a janela só orquestra, sem estado de sessão.
+O que sustenta essa divisão: o caminho do --selftest importa só palette, term
+(que puxa graphics), kitty_kbd e mouse, e nenhum deles puxa gi/cairo — é isso
+que deixa os checks rodarem sem display e sem GTK (keys fica de fora: usa as
+constantes de keyval do Gdk). Cada aba tem o seu Term; a janela só orquestra,
+sem estado de sessão.
 
 Dentro das duas maiores: term.py tem feed (máquina de estados), put/chars,
 csi_dispatch/sgr/set_mode e child_out (respostas ao filho, drenadas pelo host);
