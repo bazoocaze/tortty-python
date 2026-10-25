@@ -1,0 +1,106 @@
+# pyterm — terminal mínimo em Python (experimento)
+
+Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**,
+para sentir na pele o custo do caminho quente em Python comparado ao núcleo C
+do `gtkterm`. Não é produto: é a resposta empírica à pergunta "daria pra fazer
+tudo em Python?".
+
+## Como rodar
+
+```sh
+cd pyterm
+./run.sh                      # abre em background (log /tmp/pyterm.log)
+./run.sh --fg                 # foreground (erros aparecem na hora)
+./run.sh --cmd 'mc'           # comando inicial
+./run.sh --kill               # fecha a instância do runner
+./run.sh --status             # pid / rodando?
+python3 pyterm.py --selftest  # testa o parser sem abrir janela (14 checks)
+```
+
+O `run.sh` controla a instância por **PID file** (`/tmp/pyterm.pid`) de
+propósito: `pkill -f pyterm.py` casa com a linha de comando de quem chama e
+mata o próprio shell (já aconteceu, deixando janelas órfãs).
+
+Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
+
+## O que funciona
+
+- **pty real** com `forkpty`-equivalente (`pty.fork`), resize por `TIOCSWINSZ`.
+- **Parser VT** com estados ground/esc/csi/osc, SGR (16 cores, 256 e truecolor
+  aproximado), cursor (`CUP`/`CUU`/`CUD`/`CUF`/`CUB`/`CNL`/`CPL`/`CHA`),
+  apagamento (`ED`/`EL`/`ECH`), inserção/remoção de linha e caractere
+  (`IL`/`DL`/`ICH`/`DCH`), região de scroll (`DECSTBM`), save/restore
+  (`DECSC`/`DECRC`, `CSI s`/`u`), `DECAWM`, cursor on/off (`?25`),
+  **alt-screen** (`?1047`/`?1049`), charset DEC (`ESC ( 0`) para molduras,
+  título por `OSC 0/2`, respostas `DA`/`CPR` de volta ao filho.
+- **Scrollback** de 1000 linhas no buffer principal.
+- **Teclado**: letras (incluindo UTF-8), setas, Home/End, PgUp/PgDn,
+  Insert/Delete, F1–F12, Ctrl+letra, Alt+letra, Shift+Tab. Respeita
+  **DECCKM (`?1`)**: com o modo aplicação ligado (o que `mc`, `vim` e `less`
+  fazem em tela cheia) as setas viram `\EOA`..`\EOD`, como no terminfo de
+  xterm — sem isso o `mc` ignorava as setas.
+- **Só caractere imprimível vira byte**: keyval de modificador e de função
+  fica em `0xff00-0xffff` (`Shift_L`=0xffe1, `Control_L`=0xffe3, `Alt_L`=0xffe9,
+  `Super_L`=0xffeb, `Caps_Lock`=0xffe5, `Menu`=0xff67). Sem esse filtro cada
+  uma dessas teclas virava um caractere sem glifo (a "caixinha" na tela).
+- **Dead keys** (`´ \` ^ ~ ¨ ¸`): guarda a marca e compõe com a letra seguinte
+  por NFC (`~`+`a` → `ã`); dead key + espaço emite o caractere isolado
+  (`~`, `^`, `` ` ``...), a convenção do X11.
+- **256 cores** (`TERM=xterm-256color`): paleta xterm completa (16 base +
+  cubo 6×6×6 + 24 cinzas); truecolor é aproximado para essa paleta.
+- **Desenho** com cairo: runs agrupados por atributos, bold, sublinhado,
+  inverso, cursor em bloco.
+
+Testado com `ls --color`, `mc` (painéis, molduras, barra de teclas, cores,
+setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen).
+
+## Limites conhecidos (de propósito)
+
+- **Sem mouse** (nem seleção, nem report de clique para o app).
+- **Truecolor aproximado** para a paleta de 16 cores.
+- **Sem reflow** ao redimensionar: recorta/preenche, não re-quebra.
+- **Sem protocolo de gráficos** (nada de `kitten icat`) e sem kitty keyboard
+  protocol.
+- **Sem ligaduras**, sem fontes fallback para emoji/CJK.
+- **Sem kitty keyboard protocol**: modificadores não são reportados ao app,
+  então Ctrl+Shift+letra chega como Ctrl+letra.
+- **Scrollback sem tela de histórico** (só guarda; não há como rolar com o
+  teclado).
+- **Sem reflow** e sem re-pintura no resize: preserva recortando/preenchendo
+  (quem redesenha é o app, via SIGWINCH — `mc` redesenha certo).
+
+## O que a medição realmente mostra (corrigido)
+
+Medido nesta máquina (2026-10-26):
+
+| cenário | pyterm (Python) | núcleo nativo (referência) |
+|---|---|---|
+| **uma tecla** (eco de 1 char) | **0,4 µs por caractere** | ~1 ms de ponta a ponta (dominado por desenho) |
+| parse + grade, despejo contínuo | **0,7–1,9 MiB/s** | 300–800 MiB/s (`rio-vt`, `alacritty_terminal`, `vt100`) |
+| `seq 1 100000` (575 KiB) | **~0,8 s** | milissegundos |
+| desenho de 1 frame (1920 células) | ~2,0 ms | ~1 ms (T2→T3 do `lat-battery`) |
+
+Conclusão honesta: **na interação o pyterm é imperceptível** — digitar, andar
+no `mc`, abrir `vim` custa microssegundos por tecla, porque a carga por evento
+é minúscula. A diferença de 100–400× só aparece em **volume**: `cat` de log
+grande, `seq 100000`, scroll de saída massiva — aí são centenas de ms contra
+milissegundos.
+
+Ou seja: Python não impede um terminal *usável*; impede um terminal que não
+engasga em despejo grande. É por isso que o kitty é Python onde dá
+(boss/config/CLI/kittens) e C onde o volume chega (grade/parser/render) — e é
+o mesmo motivo pelo qual o `gtkterm` usa o núcleo C.
+
+## Autochetcagem
+
+`kill -USR1 <pid>` dumpar a grade visível em `/tmp/pyterm-dump.txt` (ou no
+arquivo de `--dump-to`) — foi assim que se provou que o `mc` é renderizado
+fielmente: o dump bate byte a byte com o que o `mc` escreve.
+
+`python3 pyterm.py --selftest` exercita o parser sem GTK: texto, SGR, CUP,
+EL/ED, alt-screen (ida e volta), scroll, charset DEC, DA, DSR/CPR, região de
+scroll e título por OSC.
+
+## Licença
+
+GPL-3.0-only (o resto do projeto é derivado do kitty, GPL-3.0).
