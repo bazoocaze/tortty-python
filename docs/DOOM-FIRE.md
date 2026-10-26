@@ -85,7 +85,7 @@ Duas sondas isolam as etapas: `PYTERM_NODRAW=1` desliga o desenho
 | geração pura, fora do terminal (80×24) | 256,5 | 18,5 | é o teto do gerador |
 | só read do pty (NOPARSE+NODRAW) | 249 / 242 | 14,0 / 13,6 | pty 0,06 ms/leitura: 138 ms em 1,2 s = 11% |
 | read + parse → grade (NODRAW), **antes do P20** | 17,2 | 1,0 | pty 4,17 ms/leitura: 17,1 s de 17,4 s = 99% |
-| read + parse → grade (NODRAW), **depois do P20** | **85,0 / 84,6** | **4,8 / 4,7** | pty 0,72 ms/leitura: 3,0 s de 3,5 s = 85% |
+| read + parse → grade (NODRAW), **depois do P20** | **86,6 / 86,0** | **4,9 / 4,8** | pty 0,72 ms/leitura: 2,9 s de 3,5 s = 85% |
 | + desenho (normal), antes do P20 | 8,2 | 0,5 | parse 48% + desenho 52% |
 | + desenho (normal), depois do P20 | 10,4 | 0,6 | parse 11% + desenho 71% (draw anômalo, ver abaixo) |
 
@@ -168,9 +168,11 @@ outros C0 no meio.
 3. **`csi_dispatch` em uma passada**: sem `parts`+`nums`, sem `strip()` quando
 não há intermediário, `params` direto no `sgr` quando não houver tupla. Agora
 isso só afeta escape fora do padrão (cache miss). Ganho pequeno e barato.
-4. **`deque` no `scrollback`**: `pop(0)`/`append` com teto de 1000 é O(1000) por
-linha; 14 µs/linha pode cair para ~2. Relevante só sob rolagem, e mexe no
-reflow (indexação por posição). É o maior custo que sobrou no parse.
+4. ~~**`deque` no `scrollback`**~~: descartado por medição no P21 — o `pop(0)`
+não aparece (13,64 / 13,81 / 13,69 µs com 0 / 500 / 1000 linhas). O custo do
+scroll era a linha em branco (11,5 dos 13,7 µs, 70 listas de célula), resolvido
+no P21 com célula compartilhada: 13,7 → 3,27 µs/linha e 38,4 → 10,9 µs/linha na
+rolagem de 20000 linhas.
 5. **Não ajuda**: decode UTF-8 (0,11), `put` isolado (0,97).
 
 Ressalva de prioridade: com o desenho em 22,7–98 ms/frame, otimizar o parse só

@@ -14,6 +14,11 @@ _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 _ESC_CACHE = {}
 _ESC_MAX = 1024
 
+# Célula em branco compartilhada (P21): escrever SEMPRE substitui a célula na
+# linha (`row[x] = [...]`), nunca muta in-place — é o que permite uma única
+# lista servir de linha em branco inteira.
+_BLANK_CELL = [" ", DEF_FG, DEF_BG, 0]
+
 
 def _parse_truecolor(key):
     """`\x1b[38;2;r;g;bm`/`48;2;...` -> (True se fg, cor) ou False."""
@@ -76,8 +81,7 @@ class Term:
 
     # -- grade ------------------------------------------------------
     def _blank_row(self):
-        return [[" ", DEF_FG, self.bg if False else DEF_BG, 0]
-                for _ in range(self.cols)]
+        return [_BLANK_CELL] * self.cols
 
     def blank_cell(self):
         # áreas apagadas herdam o bg corrente (bce, como terminal real)
@@ -247,7 +251,7 @@ class Term:
             self.cy = min(self.cy, rows - 1)
 
     def _blank_cell_raw(self):
-        return [" ", DEF_FG, DEF_BG, 0]
+        return _BLANK_CELL
 
     def scroll_up(self):
         self.scrolled += 1

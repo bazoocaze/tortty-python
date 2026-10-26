@@ -22,7 +22,7 @@ quando um widget do rodapé muda de altura (o observer do `pi-blackhole` escreve
 "Observational memory…" no meio da conversa); (b) `CSI 2J` + reimpressão; (c)
 resize/reflow entrando no meio do turno.
 
-Os 19 itens anteriores (P1–P20) estão concluídos. Histórico, bugs e quirks:
+Os 20 itens anteriores (P1–P21) estão concluídos. Histórico, bugs e quirks:
 [HISTORY.md](HISTORY.md). Status e por onde retomar:
 [../TASK-bzmux.md](../TASK-bzmux.md).
 

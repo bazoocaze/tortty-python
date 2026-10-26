@@ -185,6 +185,12 @@ def wrap_and_control():
     # a quebra pendente continua valendo quando vem texto, não controle
     t.feed("0123456789X")
     assert (t.cx, t.cy) == (1, 2), (t.cx, t.cy)
+    # P21: célula em branco é compartilhada entre linhas — escrever substitui
+    # a célula, nunca muta in-place (mutação pintaria a tela inteira)
+    t = Term(cols=4, rows=2)
+    assert t.grid[0][0] is t.grid[1][1]
+    t.feed("x")
+    assert t.grid[0][0][0] == "x" and t.grid[1][1][0] == " "
 
 
 # -- reflow e histórico (P2/P3) ----------------------------------------

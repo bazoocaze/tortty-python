@@ -16,7 +16,7 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
   tempo, desenho ~52%. Sem parse (PYTERM_NOPARSE=1) o mesmo fogo corre a
   14 MB/s, quase o kitty: o gargalo é o parser em Python puro, não o IO do pty.
   Depois do P20 (fast path de escape) o parse ficou 5,8x mais rápido: com parse
-  e sem desenho (PYTERM_NODRAW=1) são 4,8 MB/s / 85 fps, contra 1,0 / 17,2
+  e sem desenho (PYTERM_NODRAW=1) são 4,9 MB/s / 86 fps, contra 1,0 / 17,2
   antes — o que sobra de limite é o desenho.
 - **Interação não sofre**: tecla custa microssegundos; o limite só aparece em
   volume (cat de log grande, seq 100000, scroll de saída massiva).

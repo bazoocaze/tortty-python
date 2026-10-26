@@ -30,8 +30,9 @@ do kitty, 34x, com desenho em 52% e parse em 48%.
 O P20 (fast path de escape no parser) mexeu nessa decomposição: sem parse
 (`PYTERM_NOPARSE=1`) o mesmo fogo faz 14 MB/s, quase o kitty — o gargalo era o
 parser em Python, não o IO. Com o fast path, parse e sem desenho
-(`PYTERM_NODRAW=1`) foi de 1,0 para **4,8 MB/s / 85 fps** (5,8x no micro). O
-número com desenho (0,5 MB/s) fica pendente de re-medição: nesta sessão o
+(`PYTERM_NODRAW=1`) foi de 1,0 para **4,9 MB/s / 86 fps**; o P21 (linha em
+branco compartilhada no scroll) cortou a rolagem de 38,4 para 10,9 µs/linha.
+O número com desenho (0,5 MB/s) fica pendente de re-medição: nesta sessão o
 desenho mede 47–102 ms/frame contra os 22,7 registrados (anomalia aberta no
 DOOM-FIRE.md), e com ele o parse já é só 11% do tempo.
 

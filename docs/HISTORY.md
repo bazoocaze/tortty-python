@@ -688,6 +688,33 @@ MB/s** (4,9x), parse de 4,17 para 0,72 ms por leitura. Com desenho ligado deu
 frame contra 22,7 registrados, ver DOOM-FIRE.md) e vira 87% do tempo — o número
 completo só vale depois de re-medir o desenho.
 
+### P21 — Linha em branco compartilhada no scroll — **feito**
+
+Motivo: o `scroll_up` custa 13,7 µs por linha. A hipótese inicial era o
+`pop(0)` do `scrollback` com teto de 1000 — **errada**: medido com scrollback de
+0, 500 e 1000 linhas, o custo foi 13,64 / 13,81 / 13,69 µs, ou seja o deslocamento
+da lista não aparece. O caro era criar a linha em branco: `_blank_row()` alocava
+70 listas de célula, 11,5 dos 13,7 µs. `deque` no `scrollback` não renderia nada
+e ainda quebraria as fatias do reflow.
+
+Fix: uma célula em branco `_BLANK_CELL` de módulo, compartilhada —
+`_blank_row()` vira `[_BLANK_CELL] * cols` e `_blank_cell_raw()` devolve a mesma
+lista. Só é seguro porque **nada muta célula in-place**: escrita sempre substitui
+(`row[x] = [ch, fg, bg, fl]`), `erase_*` cria célula com o bg corrente
+(`blank_cell()`, que continua alocando) e reflow/resize só leem e substituem.
+Limpou de passagem uma expressão morta em `_blank_row`
+(`self.bg if False else DEF_BG`).
+
+Verificação: check em `wrap_and_control` (duas células em branco são o mesmo
+objeto e escrever numa não muda a outra — mutação in-place pintaria a tela
+inteira), diferencial contra o parser anterior nos 14 casos (0 divergências) e
+`./run-tests.sh` (17 checks).
+
+Ganho: scroll 13,7 → 3,27 µs/linha (4,2x); rolagem de 20000 linhas 38,4 →
+10,9 µs/linha (3,5x, o caso `cat` de log grande); no doom-fire 85,0 → 86,6 fps,
+porque ali o parse já era pequeno e a rolagem é 21 linhas por frame. O gargalo
+de vazão segue sendo o desenho.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 Todos foram achados com medição, não por leitura — vale registrar o método.
 
@@ -857,6 +884,12 @@ Todos foram achados com medição, não por leitura — vale registrar o método
 - **Custo de desenho depende de runs, não de células**: 1360 células com 37
   cores por linha custam ~13 ms; o mesmo número de células com uma cor custa
   ~1 ms. Medir desenho com tela uniforme subestima o pior caso por 10x.
+- **Célula em branco é compartilhada (P21)**: `_blank_row()` é
+  `[_BLANK_CELL] * cols`, e a mesma lista de célula aparece em toda a grade. É
+  por isso que escrever tem que **substituir** a célula (`row[x] = [ch, fg, bg,
+  fl]`), nunca fazer `row[x][2] = ...`: mutação in-place em uma célula em branco
+  pinta a tela inteira. `blank_cell()` (com bg corrente, para `erase_*`) segue
+  alocando uma célula nova de propósito.
 - **fps de carga depende da grade**: a vazão em MB/s fica parada (0,6) e o fps
   cai quando a célula cresce; comparar fps entre grades diferentes não diz nada.
 
