@@ -25,6 +25,8 @@ from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, BG_DEFAULT, FG_DEFAULT,
 from .term import Term
 
 _PROF = bool(os.environ.get("PYTERM_PROF"))   # mede o custo de draw e de pty
+_NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem desenho
+_NOPARSE = bool(os.environ.get("PYTERM_NOPARSE"))  # sonda: só lê o pty e descarta
 
 
 def _tick(prof, name, t0):
@@ -138,6 +140,8 @@ class TermView(Gtk.DrawingArea):
         self.exit_code = None
         self._draw_pending = False
         self._prof = {}
+        self._prof_bytes = 0     # bytes lidos do master (casam com o que o filho escreveu)
+        self._prof_eagain = 0    # BlockingIOError: watch disparou sem byte disponível
         self.pty_watch = 0
         self._closing = False
         self._hungup = False
@@ -192,6 +196,8 @@ class TermView(Gtk.DrawingArea):
         ainda congelava, porque o redraw do GDK tem prioridade MENOR que o
         watch do pty. Agora o desenho é coalescido e ritmado.
         """
+        if _NODRAW:            # sonda de medição: mede só o caminho pty -> grade
+            return
         if self._draw_pending:
             return
         self._draw_pending = True
@@ -215,6 +221,8 @@ class TermView(Gtk.DrawingArea):
         try:
             data = os.read(fd, 65536)
         except BlockingIOError:
+            if _PROF:
+                self._prof_eagain += 1   # watch disparou sem byte: mede o giro
             return True
         except OSError:
             # EIO = todo mundo fechou o lado escravo (o shell saiu). Se o
@@ -231,6 +239,10 @@ class TermView(Gtk.DrawingArea):
         if os.environ.get("PYTERM_RAWLOG"):
             with open(os.environ["PYTERM_RAWLOG"], "ab") as f:
                 f.write(data)
+        if _PROF:
+            self._prof_bytes += len(data)   # tem que casar com o que o filho escreveu
+        if _NOPARSE:           # sonda: mede só read do pty, sem decode/parse/grade
+            return True
         # enquanto o usuário lê o histórico, guarda como a tela visível estava:
         # nem todo output muda o que está na tela (o `pi` manda um
         # "cursor pra coluna 1 + esconde cursor" a cada segundo, para sempre)
@@ -314,6 +326,8 @@ class TermView(Gtk.DrawingArea):
         if _PROF and self._prof:
             parts = [f"{k} {n}x {t*1000/n:.2f}ms/call ({t*1000:.0f}ms)"
                      for k, (n, t) in self._prof.items() if n]
+            parts.append(f"bytes {self._prof_bytes/1e6:.2f}MB"
+                         f" eagain {self._prof_eagain}")
             print("prof:", " | ".join(parts), file=sys.stderr)
         self._closing = True
         if self.pty_watch:

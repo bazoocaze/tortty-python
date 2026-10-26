@@ -126,7 +126,11 @@ experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
   rola mais de meia tela é gravado com jump/top/bottom/alt-screen e os bytes
   crus (sonda do P19). Com PYTERM_DIAG=1 no primeiro draw ele
   imprime avanço da fonte, célula da grade, resolução e colunas: é o par que
-  tem que bater (bug 13 do HISTORY — grade a 130 dpi e desenho a 96).
+  tem que bater (bug 13 do HISTORY — grade a 130 dpi e desenho a 96). As duas
+  sondas de custo isolam as etapas: PYTERM_NODRAW=1 desliga o desenho (sobra
+  pty -> grade, 1,0 MB/s no doom-fire) e PYTERM_NOPARSE=1 lê o pty e descarta
+  (14 MB/s, o teto de IO); com PYTERM_PROF=1 o resumo ainda traz bytes lidos e
+  eagain. Escada e números em docs/DOOM-FIRE.md.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
 - Medição não é teste: os números do README.md vêm de execução real e não

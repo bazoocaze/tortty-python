@@ -56,9 +56,11 @@ O fps depende da grade (célula maior = menos frames por segundo com a mesma
 vazão); **MB/s é o número que compara**. A grade do kitty sai 68×19, não 68×20 —
 arredondamento de célula dele, e a diferença de bytes/frame é essa.
 
-O 0,5 MB/s fica *abaixo* do 0,7–1,9 MiB/s de "parse + grade" do README, e a
-diferença é exatamente o desenho: o número do README mede um despejo de texto
-uniforme, este mede uma tela que troca de cor em toda célula.
+O 0,5 MB/s fica *abaixo* do 0,7–1,9 MiB/s de "parse + grade" do README, e boa
+parte da diferença é o desenho: com o desenho desligado (seção abaixo) o mesmo
+fogo dá 1,0 MB/s, dentro daquela faixa. O número do README mede um despejo de
+texto uniforme (escape curto, poucos runs); este mede uma tela que troca de cor
+em toda célula, que é o pior caso também do parse.
 
 ### Onde o tempo vai
 
@@ -71,6 +73,61 @@ O desenho custa caro pelo número de *runs* de cor, não de células: 37 tons po
 linha fazem quase toda célula ser um run próprio, e o custo por célula sai
 ~11 µs — contra ~1 µs do caso uniforme que o README mede (~2 ms / 1920 células).
 Medir desenho com tela de uma cor subestima o pior caso em 10x.
+
+### A escada: IO, parse e desenho (2026-10-26)
+
+Duas sondas isolam as etapas: `PYTERM_NODRAW=1` desliga o desenho
+(`request_draw` vira no-op) e `PYTERM_NOPARSE=1` lê o pty e descarta os bytes
+(sem decode, sem parse, sem grade). Mesma carga, 300 frames:
+
+| etapa ligada | fps | MB/s | onde o tempo vai |
+|---|---|---|---|
+| geração pura, fora do terminal (80×24) | 256,5 | 18,5 | é o teto do gerador |
+| só read do pty (NOPARSE+NODRAW) | 249 / 242 | 14,0 / 13,6 | pty 0,06 ms/leitura: 138 ms em 1,2 s = 11% |
+| read + parse → grade (NODRAW) | 17,2 | 1,0 | pty 4,17 ms/leitura: 17,1 s de 17,4 s = 99% |
+| + desenho (normal) | 8,2 | 0,5 | parse 48% + desenho 52% |
+
+Leitura da escada (cada linha é o custo da etapa que entrou):
+
+- **O read do pty é quase grátis**: sem parse o bzmux faz 249 fps contra 256 do
+gerador puro — acompanha o filho, perdendo ~3%. 89% do tempo o app está
+*esperando* o doomfire escrever, não trabalhando.
+- **O parse custa 14x** (249 → 17,2 fps, 0,06 → 4,17 ms por leitura): é o único
+bloco grande do caminho de input. Com 38 bytes de escape por célula, ~39 µs de
+parse por célula.
+- **O desenho custa 2x** (17,2 → 8,2): é a segunda metade, não a primeira. A
+imagem "parse barato, desenho caro" era artefato de dividir 55 KB por 4,2 ms.
+- O 1,0 MB/s de "parse + grade" citado no README (despejo uniforme, 0,7–1,9)
+cai no mesmo lugar: o teto do parse no pior caso é ~1,0 MB/s, porque o pty
+entrega ~4 KB por read (4101 reads para 16,8 MB), não 64 KB.
+
+**Por que o número vale (buffering do pty)** — o teste mede o mínimo entre o que
+o filho produz e o que o emulador consome, e isso foi verificado, não suposto:
+
+- O master é **não-bloqueante** (`os.set_blocking(fd, False)` no spawn);
+`os.read` levanta `BlockingIOError` em vez de travar a UI. O `PYTERM_PROF=1`
+agora conta `eagain` e `bytes`.
+- **Bytes lidos == bytes escritos**: 16,82 MB lidos contra 16,8 MB escritos nos
+dois modos (só-read e com parse). Não sobra byte no buffer do kernel.
+- **`eagain 0`** em todas as rodadas, inclusive 5 s de pty ocioso (`sleep 5`),
+quando `on_pty` não é chamado nenhuma vez: o watch é level-triggered e só
+dispara com dado. Não há giro nem exceção por segundo.
+- O buffer do pty (kernel, dezenas de KB) é transitório e é o que dá
+**backpressure**: com o parser lento o filho espera, então o 1,0 MB/s é a taxa
+do emulador, não a do buffer. Read médio de ~4 KB não é acúmulo: é o watch
+disparando assim que chega qualquer coisa.
+
+**Anomalia em aberto**: nesta sessão o desenho não reproduziu os 22,7 ms/frame
+da tabela de cima — deu 47,7 ms em rodadas de 60 frames (47,70 e 47,71,
+repetível ao centésimo) e 97,8 ms na de 300. O ambiente era o mesmo
+(`PYTERM_DIAG`: avanço 14,0, célula 14×28, res 130, 70 colunas) e a máquina
+estava ociosa (load 1,8 em 16 núcleos). Ou a linha de base do desenho mudou por
+fator externo (compositor/Xorg), ou o custo cresce com a duração da rodada; nos
+dois casos, **re-medir o desenho antes de comparar qualquer mudança nele**.
+
+    PYTERM_NOPARSE=1 PYTERM_NODRAW=1 PYTERM_PROF=1 ./run.sh --cmd 'python3 \
+        tools/doomfire.py --fps 0 --frames 300 --stats-to /tmp/df.txt'
+    # prof: draw 1x 3.4ms/call | pty 2134x 0.06ms/call (137ms)
 
 ### A primeira medição era inválida
 
@@ -91,6 +148,10 @@ de chamadas de `on_pty` (parse) e `on_draw` (desenho), impressos no stderr
     # prof: draw 821x 22.67ms/call (18610ms) | pty 4102x 4.22ms/call (17314ms)
 
 Sem a variável o código não faz nada (só o `if not _PROF` na entrada).
+`PYTERM_NODRAW=1` é a sonda que isola o parse: `request_draw` retorna sem
+agendar draw, sobrando pty → grade (a escada da seção "A escada: IO, parse e
+desenho" acima é essa sonda). `PYTERM_NOPARSE=1` vai um degrau abaixo: lê o pty e
+descarta os bytes, sem decode nem grade — mede o teto de IO.
 `PYTERM_DIAG=1` é outra sonda, de geometria e não de tempo: no primeiro draw
 imprime avanço da fonte, célula da grade, resolução e colunas — os dois têm que
 casar, senão o texto não cai nas células (bug 13 do HISTORY).
