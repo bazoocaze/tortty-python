@@ -15,8 +15,9 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
   kitty na mesma carga (doom-fire, 70x21). Não é bug: é a medida. Parse ~48% do
   tempo, desenho ~52%. Sem parse (PYTERM_NOPARSE=1) o mesmo fogo corre a
   14 MB/s, quase o kitty: o gargalo é o parser em Python puro, não o IO do pty.
-  Com parse e sem desenho (PYTERM_NODRAW=1) são 1,0 MB/s / 17,2 fps — o
-  desenho corta essa metade pela metade outra vez.
+  Depois do P20 (fast path de escape) o parse ficou 5,8x mais rápido: com parse
+  e sem desenho (PYTERM_NODRAW=1) são 4,8 MB/s / 85 fps, contra 1,0 / 17,2
+  antes — o que sobra de limite é o desenho.
 - **Interação não sofre**: tecla custa microssegundos; o limite só aparece em
   volume (cat de log grande, seq 100000, scroll de saída massiva).
 - **Um core por sessão ativa**: sob despejo contínuo o bzmux satura um core. O

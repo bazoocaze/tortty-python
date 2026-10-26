@@ -654,8 +654,41 @@ Verificação: check no `kitty_keyboard` (com flags=7, `a` no press e `""` no
 release) e ao vivo no `pi` — digitar `abcabc` e ler a linha de entrada: sai
 `abcabc`, não `aabbcc…`.
 
-## Bugs encontrados e corrigidos (histórico útil)
+### P20 — Fast path de escape no parser — **feito**
 
+Motivo medido no doom-fire (70×21, 2 SGR truecolor por célula): 35 µs/célula de
+parse, e **91% disso era o fechamento do CSI** (`csi += ch`, `split`/`strip`/
+`int`, listas `parts`+`nums`, `sgr` com `flatten`), contra 0,97 de `put` e 0,11
+de decode UTF-8. O gargalo não era iterar caracteres: era o custo fixo de
+fechar e interpretar cada escape (~1 µs por byte de escape).
+
+Fix: em `Term.feed`, quando o estado é `ground`, consumir o prefixo que o
+caminho rápido entende — texto imprimível em bloco (um `slice` na linha) e
+`CSI 38;2;r;g;b m`/`48;2;...m` resolvido por `dict[escape] -> cor` — e devolver
+o resto ao parser de sempre, que ficou **intacto** como fallback. Cache com teto
+de 1024 escapes; qualquer escape fora do padrão (`38;5;N`, subparâmetros `:`,
+intermediários, `\x1b[H` entre outros) cai no parser lento, que é dono de todos
+os estados.
+
+`feed` passou de `for ch in text` para índice (`while`) para poder pular o
+texto e os escapes já resolvidos; `ord(ch)` saiu do caminho quente do ground e
+do `csi` (comparação de string no lugar).
+
+Verificação: teste diferencial contra o parser do commit anterior (14 entradas:
+frame do doom-fire, SGR 4-bit/256/truecolor, subparâmetro `:`, `?2026h`,
+`\x1b(0`/`\x1b(B`, tab/backspace/rewrite, linha de 300 chars, `ED`/`EL`, RGB
+fora de 0–255, OSC de título, inverse) comparando grade, cursor, fg/bg, flags,
+wrap pendente, estado, título e scrollback — **0 divergências**. Mais
+`./run-tests.sh` (17 checks).
+
+Ganho: micro 32,0 → 5,49 µs/célula no frame do doom-fire (5,8x) e 0,99 → 0,21
+em texto puro (4,7x); no app com `PYTERM_NODRAW=1`, **17,2 → 85 fps e 1,0 → 4,8
+MB/s** (4,9x), parse de 4,17 para 0,72 ms por leitura. Com desenho ligado deu
+10,4 fps / 0,6 MB/s, mas ali o desenho está anômalo nesta sessão (101,8 ms por
+frame contra 22,7 registrados, ver DOOM-FIRE.md) e vira 87% do tempo — o número
+completo só vale depois de re-medir o desenho.
+
+## Bugs encontrados e corrigidos (histórico útil)
 Todos foram achados com medição, não por leitura — vale registrar o método.
 
 1. **Métrica de célula errada (texto derrapando).** A largura da célula vinha

@@ -69,7 +69,8 @@ que deixa os checks rodarem sem display e sem GTK (keys fica de fora: usa as
 constantes de keyval do Gdk). Cada aba tem o seu Term; a janela só orquestra,
 sem estado de sessão.
 
-Dentro das duas maiores: term.py tem feed (máquina de estados), put/chars,
+Dentro das duas maiores: term.py tem feed (máquina de estados, com fast path de
+texto e SGR truecolor em ground e o parser lento como fallback), put/chars,
 csi_dispatch/sgr/set_mode e child_out (respostas ao filho, drenadas pelo host);
 view.py tem spawn/on_pty (io_add_watch no master), on_resize (size-allocate →
 Term.resize + TIOCSWINSZ + SIGWINCH), on_draw, on_key, mouse/seleção e

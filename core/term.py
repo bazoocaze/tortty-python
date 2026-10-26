@@ -7,6 +7,28 @@ abrir janela (e sem display). Quem desenha é `window.BzmuxWindow`.
 from .graphics import Graphics
 from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, rgb, DEC_SPECIAL,
                       PALETTE256, FG_DEFAULT, BG_DEFAULT)
+import re
+
+# Fast path do parser (P20): fim do texto imprimível e cache de escape -> cor.
+_CTRL = re.compile(r"[\x00-\x1f\x7f]")
+_ESC_CACHE = {}
+_ESC_MAX = 1024
+
+
+def _parse_truecolor(key):
+    """`\x1b[38;2;r;g;bm`/`48;2;...` -> (True se fg, cor) ou False."""
+    if not (key.startswith("\x1b[38;2;") or key.startswith("\x1b[48;2;")):
+        return False
+    p = key[2:-1].split(";")
+    if len(p) != 5 or p[1] != "2":
+        return False
+    try:
+        r, g, b = int(p[2]), int(p[3]), int(p[4])
+    except ValueError:
+        return False
+    if not (0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255):
+        return False
+    return (p[0] == "38", rgb(r, g, b))
 
 
 class Term:
@@ -570,19 +592,78 @@ class Term:
         # resto: ignorado silenciosamente (experimento mínimo)
 
     # -- parser -------------------------------------------------------
+    def _sgr_fast(self, text, i):
+        """`CSI 38;2;r;g;b m` aplicado direto; devolve o índice seguinte ou None."""
+        end = text.find("m", i + 2)
+        if end < 0 or end - i > 24:
+            return None
+        key = text[i:end + 1]
+        v = _ESC_CACHE.get(key)
+        if v is None:
+            v = _parse_truecolor(key)
+            if len(_ESC_CACHE) > _ESC_MAX:
+                _ESC_CACHE.clear()
+            _ESC_CACHE[key] = v
+        if v is False:
+            return None
+        is_fg, color = v
+        if is_fg:
+            self.fg = color
+        else:
+            self.bg = color
+        return end + 1
+
+    def _put_run(self, run):
+        """Trecho imprimível de uma vez, com a mesma quebra mole do put."""
+        fg, bg, fl = self.fg, self.bg, self.flags
+        i, n = 0, len(run)
+        while i < n:
+            if self.wrap_pending:
+                self.row_wrapped[self.cy] = True
+                self.cx = 0
+                self.newline()
+                self.wrap_pending = False
+            cx = self.cx
+            avail = self.cols - cx
+            k = n - i
+            row = self.grid[self.cy]
+            if k >= avail:                 # enche até a última coluna: quebra mole
+                row[cx:] = [[c, fg, bg, fl] for c in run[i:i + avail]]
+                self.cx = self.cols - 1
+                self.wrap_pending = True
+                i += avail
+            else:
+                row[cx:cx + k] = [[c, fg, bg, fl] for c in run[i:]]
+                self.cx = cx + k
+                i = n
+
     def feed(self, text):
-        for ch in text:
-            o = ord(ch)
+        i, n = 0, len(text)
+        while i < n:
+            ch = text[i]
             st = self.state
             if st == "ground":
                 if ch == "\x1b":
+                    # P20: escape truecolor resolve por cache; o resto cai no
+                    # parser de sempre (que continua dono de todos os estados)
+                    j = self._sgr_fast(text, i)
+                    if j is not None:
+                        i = j
+                        continue
                     self.state = "esc"
                 elif ch in "\x07":
                     pass  # BEL
-                elif o < 0x20 or o == 0x7f:
+                elif ch < " " or ch == "\x7f":
                     if ch in "\n\r\b\t":
                         self.put(ch)
                     # resto dos C0 ignorado
+                elif not self.charset_dec:
+                    # P20: texto imprimível de uma vez (slice na linha)
+                    m = _CTRL.search(text, i)
+                    j = m.start() if m else n
+                    self._put_run(text[i:j])
+                    i = j
+                    continue
                 else:
                     self.put(ch)
             elif st == "esc":
@@ -618,7 +699,7 @@ class Term:
                 # `CSI * x` (DECSACE, que o icat manda) terminava no `*` e o
                 # `x` caía no ground — imprimia um "x" solto na tela.
                 if (ch.isdigit() or ch in ";?: " or ch in "<=>" or
-                        0x20 <= o <= 0x2f):
+                        " " <= ch <= "/"):
                     self.csi += ch
                 else:
                     body = self.csi
@@ -676,6 +757,7 @@ class Term:
             elif st == "charset":
                 self.charset_dec = (ch == "0")
                 self.state = "ground"
+            i += 1
 
     def _apc_done(self):
         body, self.apc = self.apc, ""

@@ -225,7 +225,8 @@ Medido nesta máquina (2026-10-25, depois do bug 13):
 
 A carga do doom-fire (tela toda trocando de cor, pior caso do parser) tem
 detalhe, protocolo e armadilhas em [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md).
-Desligando o desenho (`PYTERM_NODRAW=1`) são **17,2 fps / 1,0 MB/s**; desligando
+Depois do P20 (fast path de escape no parser), desligando o desenho
+(`PYTERM_NODRAW=1`) são **85 fps / 4,8 MB/s** (eram 17,2 / 1,0); desligando
 também o parse (`PYTERM_NOPARSE=1`) o mesmo fogo corre a **14 MB/s**, quase os
 15,8 do kitty — o custo está no parser, não no IO do pty.
 

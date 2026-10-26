@@ -84,8 +84,10 @@ Duas sondas isolam as etapas: `PYTERM_NODRAW=1` desliga o desenho
 |---|---|---|---|
 | geração pura, fora do terminal (80×24) | 256,5 | 18,5 | é o teto do gerador |
 | só read do pty (NOPARSE+NODRAW) | 249 / 242 | 14,0 / 13,6 | pty 0,06 ms/leitura: 138 ms em 1,2 s = 11% |
-| read + parse → grade (NODRAW) | 17,2 | 1,0 | pty 4,17 ms/leitura: 17,1 s de 17,4 s = 99% |
-| + desenho (normal) | 8,2 | 0,5 | parse 48% + desenho 52% |
+| read + parse → grade (NODRAW), **antes do P20** | 17,2 | 1,0 | pty 4,17 ms/leitura: 17,1 s de 17,4 s = 99% |
+| read + parse → grade (NODRAW), **depois do P20** | **85,0 / 84,6** | **4,8 / 4,7** | pty 0,72 ms/leitura: 3,0 s de 3,5 s = 85% |
+| + desenho (normal), antes do P20 | 8,2 | 0,5 | parse 48% + desenho 52% |
+| + desenho (normal), depois do P20 | 10,4 | 0,6 | parse 11% + desenho 71% (draw anômalo, ver abaixo) |
 
 Leitura da escada (cada linha é o custo da etapa que entrou):
 
@@ -144,40 +146,36 @@ fechar e interpretar cada CSI**.
 
 | opção | como | µs/célula | ganho |
 |---|---|---|---|
-| atual | char a char, `csi` string, `split`+`int`, `sgr` | 35,0 | — |
+| atual (antes do P20) | char a char, `csi` string, `split`+`int`, `sgr` | 35,0 | — |
 | B | `find("\x1b")` + split manual, runs de texto por slice | 10,05 | 3,5x |
 | A | regex `\x1b\[(3\|4)8;2;r;g;bm` + runs por slice | 6,83 | 5,1x |
-| **C** | `find` + fim por `find("m")` + **cache de escape→cor** | **3,81** | **9,2x** |
+| **C (feita no P20)** | `find` + fim por `find("m")` + **cache de escape→cor** | **5,49 medido no app** | **5,8x** |
 
 Os protótipos medem só o caminho feliz (wrap simples, sem reflow/charset/outros
-CSI), então o ganho real é menor — mas a ordem de grandeza é essa. Por que C
-ganha: `regex.search` custa ~1,1 µs por escape e `int()`+`groups()` ~2,2; no
-doomfire só há 37 tons, então `dict[escape] → (r,g,b)` (~0,05 µs) mata os dois.
-Decomposto: search 2,25 + groups/int 4,42 ≈ 6,7 dos 6,83 de A; alocar a célula
-custa 0,41.
+CSI). A opção C foi implementada no P20 e o número medido no projeto é 5,49
+µs/célula no mesmo frame (32,0 → 5,49 = 5,8x; texto puro 0,99 → 0,21 = 4,7x),
+com o parser lento mantido como fallback de tudo que não é texto ou SGR
+truecolor. Por que C ganha: `regex.search` custa ~1,1 µs por escape e
+`int()`+`groups()` ~2,2; no doomfire só há 37 tons, então `dict[escape] →
+(r,g,b)` (~0,05 µs) mata os dois.
 
 Ordem de ataque, do que rende mais:
 
-1. **Fast path do SGR/CUP** (opção C): no estado ground, achar o próximo ESC com
-`find`, o fim do CSI com `find("m")`/`find` do final, e resolver o escape por
-**cache dict** (`bytes → (fg,bg)` ou o efeito já aplicado). Só cai no parser
-completo quando o escape não está no cache. Corta 32 dos 35 µs.
-2. **Texto por runs, não por char**: entre escapes, `str.find`/slice e
-`row[cx:cx+k] = [[c, fg, bg, fl] for c in run]`. Reduz `put` de 0,97 e o laço
-de 0,15; no despejo uniforme (caso do README, 0,7–1,9 MiB/s) isso é o que
-importa mais que o SGR.
+1. ~~**Fast path do SGR/CUP** (opção C)~~ — feito no P20, 5,8x.
+2. **Texto por runs, não por char** — feito junto no P20 (0,99 → 0,21 µs/célula
+no despejo uniforme). O que resta é o mesmo só para despejo de texto puro com
+outros C0 no meio.
 3. **`csi_dispatch` em uma passada**: sem `parts`+`nums`, sem `strip()` quando
-não há intermediário, `params` direto no `sgr` quando não houver tupla. Ganho
-pequeno (~1 µs/escape) e barato de fazer.
+não há intermediário, `params` direto no `sgr` quando não houver tupla. Agora
+isso só afeta escape fora do padrão (cache miss). Ganho pequeno e barato.
 4. **`deque` no `scrollback`**: `pop(0)`/`append` com teto de 1000 é O(1000) por
-linha; 14 µs/linha cai para ~2. Relevante só sob rolagem, e mexe no reflow
-(indexação por posição).
-5. **Não ajuda**: decode UTF-8 (0,11), `put` isolado (0,97), cache de layout do
-Pango (é do desenho).
+linha; 14 µs/linha pode cair para ~2. Relevante só sob rolagem, e mexe no
+reflow (indexação por posição). É o maior custo que sobrou no parse.
+5. **Não ajuda**: decode UTF-8 (0,11), `put` isolado (0,97).
 
 Ressalva de prioridade: com o desenho em 22,7–98 ms/frame, otimizar o parse só
-aparece na vazão quando o desenho também cair — hoje os dois são da mesma ordem
-(ver escada acima).
+aparece na vazão quando o desenho também cair — depois do P20 o desenho é 71–87%
+do tempo (ver escada e a anomalia abaixo).
 
 **Anomalia em aberto**: nesta sessão o desenho não reproduziu os 22,7 ms/frame
 da tabela de cima — deu 47,7 ms em rodadas de 60 frames (47,70 e 47,71,

@@ -1,5 +1,7 @@
 # bzmux — backlog (pendente)
 
+# bzmux — backlog (pendente)
+
 P19 — Interagindo com o `pi`, a cada algumas etapas do turno a tela reescreve
 várias telas de uma vez. **Investigação aberta** (2026-10-25).
 
@@ -20,7 +22,7 @@ quando um widget do rodapé muda de altura (o observer do `pi-blackhole` escreve
 "Observational memory…" no meio da conversa); (b) `CSI 2J` + reimpressão; (c)
 resize/reflow entrando no meio do turno.
 
-Os 18 itens anteriores (P1–P18) estão concluídos. Histórico, bugs e quirks:
+Os 19 itens anteriores (P1–P20) estão concluídos. Histórico, bugs e quirks:
 [HISTORY.md](HISTORY.md). Status e por onde retomar:
 [../TASK-bzmux.md](../TASK-bzmux.md).
 
