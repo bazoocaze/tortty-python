@@ -179,6 +179,26 @@ Ressalva de prioridade: com o desenho em 22,7–98 ms/frame, otimizar o parse s�
 aparece na vazão quando o desenho também cair — depois do P20 o desenho é 71–87%
 do tempo (ver escada e a anomalia abaixo).
 
+### Carga real: `dmesg` (2026-10-26)
+
+O caso que motivou o P20 na prática. `Term` alimentado com o `dmesg` do sistema
+(1319 linhas), 100×40, sem GTK:
+
+| payload | antes | depois | ganho |
+|---|---|---|---|
+| `dmesg` sem cor (99,7 KB, 0 escapes) | 168,3 ms | 45,7 ms | 3,7x |
+| `dmesg --color=always` (122,9 KB, 5172 escapes) | 187,8 ms | 94,8 ms | 2,0x |
+
+Por leitura de ~4 KB: 7,01 → 1,90 ms (sem cor). Como o parse roda no thread do
+GTK, é isso que congela a UI ao despejar o log; a “pausa rápida” percebida era
+~168 ms antes e ~46 ms depois.
+
+Com cor o ganho é só 2x porque os SGR do `dmesg` (`1`, `4`, `31`, `0`) **não são
+truecolor** e não entram no fast path — caem no parser lento. Candidato a P22:
+cachear os **parâmetros** do CSI (`escape → lista de ints`), que é independente
+de estado (0 reseta, 1 liga bold), e aplicar o efeito por cima; mataria o
+`split`+`int` (2,66 µs por escape) de todos os escapes, não só dos truecolor.
+
 **Anomalia em aberto**: nesta sessão o desenho não reproduziu os 22,7 ms/frame
 da tabela de cima — deu 47,7 ms em rodadas de 60 frames (47,70 e 47,71,
 repetível ao centésimo) e 97,8 ms na de 300. O ambiente era o mesmo

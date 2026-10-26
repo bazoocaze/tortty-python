@@ -688,6 +688,15 @@ MB/s** (4,9x), parse de 4,17 para 0,72 ms por leitura. Com desenho ligado deu
 frame contra 22,7 registrados, ver DOOM-FIRE.md) e vira 87% do tempo — o número
 completo só vale depois de re-medir o desenho.
 
+Carga real (2026-10-26), `dmesg` do sistema (1319 linhas), alimentado no `Term`
+sem GTK: sem cor (99,7 KB, 0 escapes) **168,3 → 45,7 ms** (3,7x, 7,01 → 1,90 ms
+por leitura de ~4 KB); com `--color=always` (122,9 KB, 5172 escapes) **187,8 →
+94,8 ms** (2,0x). É a pausa que se percebia ao digitar `dmesg`: o parse roda no
+thread do GTK, então cada leitura congela a UI — ~24–30 leituras de 4 KB por
+despejo. Com cor o ganho é menor porque os SGR do `dmesg` (`1`, `4`, `31`, `0`)
+não são truecolor e caem no parser lento; cachear os **parâmetros** do CSI
+(escape → lista de ints, efeito aplicado depois) é o próximo candidato.
+
 ### P21 — Linha em branco compartilhada no scroll — **feito**
 
 Motivo: o `scroll_up` custa 13,7 µs por linha. A hipótese inicial era o
