@@ -16,6 +16,7 @@ class Term:
         self.cols, self.rows = cols, rows
         self.grid = [self._blank_row() for _ in range(rows)]
         self.alt_grid = None          # None = buffer principal
+        self.scrolled = 0             # linhas que saíram pelo topo (diagnóstico)
         self.scrollback = []
         # reflow (P3): row_wrapped[i] = "esta linha continua na de baixo"
         # (quebra mole, não '\n'). É o que permite re-quebrar no resize em vez
@@ -227,6 +228,7 @@ class Term:
         return [" ", DEF_FG, DEF_BG, 0]
 
     def scroll_up(self):
+        self.scrolled += 1
         # rolagem de tela cheia: a linha que sai pelo topo vai pro histórico,
         # então a imagem que estava nela continua existindo (com linha
         # negativa) e reaparece quando a visão sobe no scrollback

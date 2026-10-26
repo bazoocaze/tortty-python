@@ -234,6 +234,7 @@ class TermView(Gtk.DrawingArea):
         # enquanto o usuário lê o histórico, guarda como a tela visível estava:
         # nem todo output muda o que está na tela (o `pi` manda um
         # "cursor pra coluna 1 + esconde cursor" a cada segundo, para sempre)
+        scrolled_before = self.term.scrolled
         seen = seen_sb = None
         if self.view_off:
             seen = self._view_signature()
@@ -255,6 +256,14 @@ class TermView(Gtk.DrawingArea):
         # não está mais lendo o histórico); output invisível não arranca o
         # usuário de onde ele está — senão qualquer tique de 1 Hz do app joga a
         # visão pro rodapé e torna o histórico inutilizável
+        jump = self.term.scrolled - scrolled_before
+        log = os.environ.get("PYTERM_SCROLLLOG")
+        if log and jump > max(2, self.term.rows // 2):
+            with open(log, "a") as f:
+                f.write("jump=%d rows=%d top=%d bottom=%d alt=%s bytes=%d t=%.3f\n  %r\n"
+                        % (jump, self.term.rows, self.term.top, self.term.bottom,
+                           self.term.alt_grid is not None, len(data), time.time(),
+                           data[:600]))
         if self.view_off and self._view_signature() != seen:
             self.view_off = 0
         elif self.view_off:
