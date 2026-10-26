@@ -20,10 +20,12 @@ Nada pela metade: árvore limpa, tudo commitado.
 
 ## Fila
 
-Vazia: P1–P18 concluídos (o P9/P10, o último par, saiu com o desenho por Pango —
-custo medido no [`docs/HISTORY.md`](docs/HISTORY.md) e a linha de base nova no
-[`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md): bzmux 0,5 MB/s contra 15,8 MB/s do
-kitty, 34x, com desenho em 52% e parse em 48%).
+P19 aberto: dentro do `pi`, a cada algumas etapas do turno a tela reescreve
+várias telas de uma vez (investigação e sonda em
+[`docs/BACKLOG.md`](docs/BACKLOG.md)). P1–P18 concluídos — o último par (P9/P10,
+desenho por Pango) com custo no [`docs/HISTORY.md`](docs/HISTORY.md) e a linha de
+base no [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md): bzmux 0,5 MB/s contra 15,8 MB/s
+do kitty, 34x, com desenho em 52% e parse em 48%.
 
 O que não é item de backlog, e sim limite registrado — caractere largo sem
 `wcwidth`, protocolo de teclado do kitty parcial, sequência não interpretada,

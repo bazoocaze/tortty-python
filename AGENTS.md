@@ -122,7 +122,9 @@ experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
   MB/s na saída, então dá para comparar dois terminais na mesma grade. Por que,
   resultados e protocolo: docs/DOOM-FIRE.md. Com PYTERM_PROF=1 no ambiente o
   app imprime, ao fechar a sessão, o custo de parse (on_pty) e de desenho
-  (on_draw) — é o que decompõe a vazão. Com PYTERM_DIAG=1 no primeiro draw ele
+  (on_draw) — é o que decompõe a vazão. Com PYTERM_SCROLLLOG=ARQ um chunk que
+  rola mais de meia tela é gravado com jump/top/bottom/alt-screen e os bytes
+  crus (sonda do P19). Com PYTERM_DIAG=1 no primeiro draw ele
   imprime avanço da fonte, célula da grade, resolução e colunas: é o par que
   tem que bater (bug 13 do HISTORY — grade a 130 dpi e desenho a 96).
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
