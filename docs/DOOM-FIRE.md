@@ -117,6 +117,68 @@ dispara com dado. Não há giro nem exceção por segundo.
 do emulador, não a do buffer. Read médio de ~4 KB não é acúmulo: é o watch
 disparando assim que chega qualquer coisa.
 
+### Decomposição do parse (por que 35 µs/célula)
+
+Frame real do doomfire (70×21, 34 B/célula: 2 SGR truecolor de 19 B + `▀`),
+alimentado direto no `Term` sem GTK, melhor de 300 rodadas — mesma ordem da
+medição de ponta (38,8 µs/célula):
+
+| etapa | onde | µs/célula |
+|---|---|---|
+| `decoder.decode` UTF-8 incremental | view.py:242 | 0,11 |
+| `for ch in text` + máquina de estados (ground) | term.py `feed` | 0,15 |
+| `put`: `grid[cy][cx] = [ch, fg, bg, flags]`, autowrap, charset | term.py `put` | 0,97 |
+| acumular CSI char a char (`self.csi += ch`) | term.py (estado csi) | ~2,9 por escape de 19 B |
+| fechar o CSI: strip de intermediário, prefixo `?<>=`, `split(';')`, `strip()`, `int()` por token, listas `parts` + `nums` | term.py `feed` | ~5 por escape (`split`+`int` = 2,66) |
+| `sgr`: `flatten` de subparâmetros (`isinstance`), loop, setar fg/bg/flags | term.py `sgr` | ~8 por escape |
+| `newline`/`scroll_up`: `pop(0)`+`append`+`blank_row`+`sb_wrapped` | term.py | 14 µs/linha (0,2 por célula) |
+| **total** | | **35,0** |
+
+Leitura: **SGR truecolor é 91% do parse** (32 de 35). `put` e o laço de
+caracteres somam 1,1; decode UTF-8 0,11 (0,3%). Escape não é grátis mesmo sem
+cor: `CSI 10;10 H` de 8 B custa 8 µs, ou ~1 µs por byte de escape contra ~15 ns
+por byte de texto puro. O gargalo não é iterar caracteres, é **o custo fixo de
+fechar e interpretar cada CSI**.
+
+### Opções de otimização (prototipadas, µs/célula no mesmo frame)
+
+| opção | como | µs/célula | ganho |
+|---|---|---|---|
+| atual | char a char, `csi` string, `split`+`int`, `sgr` | 35,0 | — |
+| B | `find("\x1b")` + split manual, runs de texto por slice | 10,05 | 3,5x |
+| A | regex `\x1b\[(3\|4)8;2;r;g;bm` + runs por slice | 6,83 | 5,1x |
+| **C** | `find` + fim por `find("m")` + **cache de escape→cor** | **3,81** | **9,2x** |
+
+Os protótipos medem só o caminho feliz (wrap simples, sem reflow/charset/outros
+CSI), então o ganho real é menor — mas a ordem de grandeza é essa. Por que C
+ganha: `regex.search` custa ~1,1 µs por escape e `int()`+`groups()` ~2,2; no
+doomfire só há 37 tons, então `dict[escape] → (r,g,b)` (~0,05 µs) mata os dois.
+Decomposto: search 2,25 + groups/int 4,42 ≈ 6,7 dos 6,83 de A; alocar a célula
+custa 0,41.
+
+Ordem de ataque, do que rende mais:
+
+1. **Fast path do SGR/CUP** (opção C): no estado ground, achar o próximo ESC com
+`find`, o fim do CSI com `find("m")`/`find` do final, e resolver o escape por
+**cache dict** (`bytes → (fg,bg)` ou o efeito já aplicado). Só cai no parser
+completo quando o escape não está no cache. Corta 32 dos 35 µs.
+2. **Texto por runs, não por char**: entre escapes, `str.find`/slice e
+`row[cx:cx+k] = [[c, fg, bg, fl] for c in run]`. Reduz `put` de 0,97 e o laço
+de 0,15; no despejo uniforme (caso do README, 0,7–1,9 MiB/s) isso é o que
+importa mais que o SGR.
+3. **`csi_dispatch` em uma passada**: sem `parts`+`nums`, sem `strip()` quando
+não há intermediário, `params` direto no `sgr` quando não houver tupla. Ganho
+pequeno (~1 µs/escape) e barato de fazer.
+4. **`deque` no `scrollback`**: `pop(0)`/`append` com teto de 1000 é O(1000) por
+linha; 14 µs/linha cai para ~2. Relevante só sob rolagem, e mexe no reflow
+(indexação por posição).
+5. **Não ajuda**: decode UTF-8 (0,11), `put` isolado (0,97), cache de layout do
+Pango (é do desenho).
+
+Ressalva de prioridade: com o desenho em 22,7–98 ms/frame, otimizar o parse só
+aparece na vazão quando o desenho também cair — hoje os dois são da mesma ordem
+(ver escada acima).
+
 **Anomalia em aberto**: nesta sessão o desenho não reproduziu os 22,7 ms/frame
 da tabela de cima — deu 47,7 ms em rodadas de 60 frames (47,70 e 47,71,
 repetível ao centésimo) e 97,8 ms na de 300. O ambiente era o mesmo
