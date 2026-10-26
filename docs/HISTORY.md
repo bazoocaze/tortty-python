@@ -694,8 +694,8 @@ por leitura de ~4 KB); com `--color=always` (122,9 KB, 5172 escapes) **187,8 →
 94,8 ms** (2,0x). É a pausa que se percebia ao digitar `dmesg`: o parse roda no
 thread do GTK, então cada leitura congela a UI — ~24–30 leituras de 4 KB por
 despejo. Com cor o ganho é menor porque os SGR do `dmesg` (`1`, `4`, `31`, `0`)
-não são truecolor e caem no parser lento; cachear os **parâmetros** do CSI
-(escape → lista de ints, efeito aplicado depois) é o próximo candidato.
+não são truecolor e caem no parser lento; o cache de parâmetros virou o P22
+(abaixo).
 
 ### P21 — Linha em branco compartilhada no scroll — **feito**
 
@@ -723,6 +723,38 @@ Ganho: scroll 13,7 → 3,27 µs/linha (4,2x); rolagem de 20000 linhas 38,4 →
 10,9 µs/linha (3,5x, o caso `cat` de log grande); no doom-fire 85,0 → 86,6 fps,
 porque ali o parse já era pequeno e a rolagem é 21 linhas por frame. O gargalo
 de vazão segue sendo o desenho.
+
+### P22 — Cache de parâmetros de CSI — **feito**
+
+Motivo: o P20 só acelerou o SGR truecolor. Log com cor (o `dmesg` do sistema:
+5172 escapes de `1`/`4`/`31`/`0`) ganhava 2,0x e não 3,7x, porque esses escapes
+caíam no parser lento inteiro (`csi += ch`, `split`/`strip`/`int`, listas
+`parts`+`nums`) — e ainda pagavam o `find`/`slice` do `_sgr_fast` antes de cair
+lá.
+
+Fix: `_csi_parse(body, final) -> (nums, prefixo)` e cache módulo-level
+`(corpo, final) -> resultado`, teto de 1024. O `_csi_fast` casa o CSI inteiro no
+buffer com `\x1b\[([0-9;:?]*)([\x40-\x7e])` e aplica pelo cache; o parser lento
+continua dono da gramática e recebe o que o regex não casa (CSI partido entre
+dois feeds, intermediário `0x20-0x2f`, dígito Unicode).
+
+Consequências: `csi_dispatch` passa a receber **tupla** (imutável — seguro para
+cache), então `params == [6]` virou `params == (6,)`; e `sgr` só aloca a lista
+`flat` quando existe subparâmetro com `:` (antes alocava em todo SGR).
+
+Tentativa descartada, com número: prefix check no `_sgr_fast` (para não fazer
+`find`/`slice` em escape não-truecolor) com indexação de char cortava 5% no
+`dmesg` com cor e custava **18% no doom-fire** (5,46 → 6,47 µs/célula); com
+`startswith` empatava. Revertido — truecolor é o caminho que importa no
+benchmark.
+
+Verificação: diferencial contra o parser anterior nos 14 casos (0 divergências)
+e `./run-tests.sh` (17 checks).
+
+Ganho: `dmesg` sem cor 164,1 → 42,6 ms (3,8x); com `--color=always` 188,5 →
+78,6 ms (**2,4x**, contra 2,0x antes do P22). No doom-fire nada muda (5,46
+µs/célula) — lá o truecolor já era fast path. App com `PYTERM_NODRAW=1`: 86,5
+fps / 4,9 MB/s.
 
 ## Bugs encontrados e corrigidos (histórico útil)
 Todos foram achados com medição, não por leitura — vale registrar o método.

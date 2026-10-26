@@ -19,6 +19,39 @@ _ESC_MAX = 1024
 # lista servir de linha em branco inteira.
 _BLANK_CELL = [" ", DEF_FG, DEF_BG, 0]
 
+# Cache de parâmetros de CSI (P22): (corpo do CSI, final) -> (nums, prefixo).
+# Independente do estado do terminal — só o parse dos números é cacheado.
+_CSI_CACHE = {}
+_CSI_MAX = 1024
+# CSI curto inteiro no buffer: corpo sem intermediários, final em 0x40-0x7e.
+# Tudo que não casar aqui (chunk partido, intermediário, dígito Unicode) cai
+# no parser lento, que continua sendo o dono da gramática.
+_CSI_RE = re.compile(r"\x1b\[([0-9;:?]*)([\x40-\x7e])")
+
+
+def _csi_parse(body, final):
+    """Corpo do CSI (sem ESC[ e sem final) -> (nums, prefixo privado)."""
+    while body and " " <= body[-1] <= "/":
+        body = body[:-1]               # intermediários: não usamos nenhum
+    prefix = ""
+    while body and body[0] in "?<=>":
+        prefix += body[0]
+        body = body[1:]
+    parts = []
+    for tok in body.split(";") if body else []:
+        tok = tok.strip()
+        if ":" in tok and final == "m":
+            # subparâmetro: guarda a posição (o vazio conta)
+            parts.append(tuple(int(v) if v else None for v in tok.split(":")))
+        elif tok == "" or tok.startswith((" ", "<", "=", ">")):
+            parts.append(None if tok == "" else 0)
+        else:
+            try:
+                parts.append(int(tok))
+            except ValueError:
+                parts.append(None)
+    return tuple(p if p is not None else 0 for p in parts), prefix
+
 
 def _parse_truecolor(key):
     """`\x1b[38;2;r;g;bm`/`48;2;...` -> (True se fg, cor) ou False."""
@@ -376,13 +409,17 @@ class Term:
 
     def sgr(self, params):
         # subparâmetros com ':' (38:2::r:g:b) chegam como tupla: acha a forma
-        # canônica com ';' antes de interpretar
-        flat = []
+        # canônica com ';' antes de interpretar (só aloca `flat` se houver)
+        flat = params
         for p in params:
             if isinstance(p, tuple):
-                flat.extend(self._sgr_subparams(p))
-            else:
-                flat.append(p)
+                flat = []
+                for q in params:
+                    if isinstance(q, tuple):
+                        flat.extend(self._sgr_subparams(q))
+                    else:
+                        flat.append(q)
+                break
         it = iter(flat)
         for p in it:
             if p == 0:
@@ -590,7 +627,7 @@ class Term:
                 self.child_out += f"\x1b[6;{ch};{cw}t".encode()
             elif params[0] == 18:
                 self.child_out += f"\x1b[8;{self.rows};{self.cols}t".encode()
-        elif final == "n" and params == [6]:
+        elif final == "n" and params == (6,):
             # DSR: informa posição do cursor
             self.child_out += f"\x1b[{self.cy + 1};{self.cx + 1}R".encode()
         # resto: ignorado silenciosamente (experimento mínimo)
@@ -641,6 +678,21 @@ class Term:
                 self.cx = cx + k
                 i = n
 
+    def _csi_fast(self, text, i):
+        """CSI completo no buffer, resolvido pelo cache de parâmetros."""
+        m = _CSI_RE.match(text, i)
+        if m is None:
+            return None
+        key = (m.group(1), m.group(2))
+        parsed = _CSI_CACHE.get(key)
+        if parsed is None:
+            parsed = _csi_parse(key[0], key[1])
+            if len(_CSI_CACHE) > _CSI_MAX:
+                _CSI_CACHE.clear()
+            _CSI_CACHE[key] = parsed
+        self.csi_dispatch(key[1], parsed[0], parsed[1])
+        return m.end()
+
     def feed(self, text):
         i, n = 0, len(text)
         while i < n:
@@ -648,9 +700,11 @@ class Term:
             st = self.state
             if st == "ground":
                 if ch == "\x1b":
-                    # P20: escape truecolor resolve por cache; o resto cai no
-                    # parser de sempre (que continua dono de todos os estados)
+                    # P20/P22: SGR truecolor aplica direto; qualquer outro CSI
+                    # curto resolve pelo cache; o resto cai no parser de sempre
                     j = self._sgr_fast(text, i)
+                    if j is None:
+                        j = self._csi_fast(text, i)
                     if j is not None:
                         i = j
                         continue
@@ -706,32 +760,14 @@ class Term:
                         " " <= ch <= "/"):
                     self.csi += ch
                 else:
-                    body = self.csi
-                    # separa os intermediários do fim (não usamos nenhum)
-                    while body and 0x20 <= ord(body[-1]) <= 0x2f:
-                        body = body[:-1]
-                    # prefixo privado: ?, <, =, > (o > e o < são do protocolo
-                    # de teclado do kitty, o ? dos modos DEC)
-                    prefix = ""
-                    while body and body[0] in "?<=>":
-                        prefix += body[0]
-                        body = body[1:]
-                    parts = []
-                    for tok in body.split(";") if body else []:
-                        tok = tok.strip()
-                        if ":" in tok and ch == "m":
-                            # subparâmetro: guarda a posição (o vazio conta)
-                            parts.append(tuple(
-                                int(v) if v else None for v in tok.split(":")))
-                        elif tok == "" or tok.startswith((" ", "<", "=", ">")):
-                            parts.append(None if tok == "" else 0)
-                        else:
-                            try:
-                                parts.append(int(tok))
-                            except ValueError:
-                                parts.append(None)
-                    nums = [p if p is not None else 0 for p in parts]
-                    self.csi_dispatch(ch, nums, prefix)
+                    key = (self.csi, ch)
+                    parsed = _CSI_CACHE.get(key)
+                    if parsed is None:
+                        parsed = _csi_parse(self.csi, ch)
+                        if len(_CSI_CACHE) > _CSI_MAX:
+                            _CSI_CACHE.clear()
+                        _CSI_CACHE[key] = parsed
+                    self.csi_dispatch(ch, parsed[0], parsed[1])
                     self.state = "ground"
             elif st == "osc":
                 if ch == "\x07":

@@ -184,20 +184,19 @@ do tempo (ver escada e a anomalia abaixo).
 O caso que motivou o P20 na prática. `Term` alimentado com o `dmesg` do sistema
 (1319 linhas), 100×40, sem GTK:
 
-| payload | antes | depois | ganho |
+| payload | antigo | P20+P21 | com P22 |
 |---|---|---|---|
-| `dmesg` sem cor (99,7 KB, 0 escapes) | 168,3 ms | 45,7 ms | 3,7x |
-| `dmesg --color=always` (122,9 KB, 5172 escapes) | 187,8 ms | 94,8 ms | 2,0x |
+| `dmesg` sem cor (99,7 KB, 0 escapes) | 164,1 ms | 45,3 ms | 42,6 ms |
+| `dmesg --color=always` (122,9 KB, 5172 escapes) | 188,5 ms | 82,2 ms | 78,6 ms |
 
 Por leitura de ~4 KB: 7,01 → 1,90 ms (sem cor). Como o parse roda no thread do
 GTK, é isso que congela a UI ao despejar o log; a “pausa rápida” percebida era
-~168 ms antes e ~46 ms depois.
+~165 ms antes e ~43 ms depois.
 
-Com cor o ganho é só 2x porque os SGR do `dmesg` (`1`, `4`, `31`, `0`) **não são
-truecolor** e não entram no fast path — caem no parser lento. Candidato a P22:
-cachear os **parâmetros** do CSI (`escape → lista de ints`), que é independente
-de estado (0 reseta, 1 liga bold), e aplicar o efeito por cima; mataria o
-`split`+`int` (2,66 µs por escape) de todos os escapes, não só dos truecolor.
+O P22 (cache de parâmetros de CSI) é o que faz o caso com cor passar de 2,0x
+para 2,4x: os SGR do `dmesg` (`1`, `4`, `31`, `0`) não são truecolor e só
+ficaram baratos quando o CSI inteiro passou a ser resolvido pelo cache, em vez
+de cair no parser lento. Ver HISTORY.md (P22).
 
 **Anomalia em aberto**: nesta sessão o desenho não reproduziu os 22,7 ms/frame
 da tabela de cima — deu 47,7 ms em rodadas de 60 frames (47,70 e 47,71,
