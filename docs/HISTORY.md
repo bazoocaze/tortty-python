@@ -874,16 +874,28 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     ou seja pintava `off` linhas — a maioria fora da tela, mas o Pango e o
     `fill` eram cobrados do mesmo jeito. Com scrollback de 1000 linhas e
     `off=1000`, 1000 linhas desenhadas em vez de 21 (~48x as células).
-    Medido no app com `PYTERM_PROF`: `draw 10,52 ms/chamada` com a visão no topo
-    contra `3,42 ms` no vivo. Fix: quando `off >= rows`, fatiar direto o
+    Medido no app com `PYTERM_PROF` (as duas versões no mesmo estado de carga,
+    3 corridas cada): `draw 10,72 / 10,97 / 10,99 ms/chamada` com a visão no
+    topo, contra `1,67 / 1,63 / 1,65` depois do fix — 6,6x. Referência do vivo
+    (`off=0`, 443 draws): `1,41 ms`, então o topo do histórico deixou de custar
+    7,7x o vivo e passou a custar ~1,2x (o resíduo é o fatiamento O(off) de
+    `visible_rows`, alguns µs). Fix: quando `off >= rows`, fatiar direto o
     scrollback (`sb[len(sb)-off : len(sb)-off+rows]`), senão o caminho antigo
-    (que é correto). Depois: `1,78 ms/chamada` no mesmo scroll (5,9x), e
-    `visible_rows` sempre devolve exatamente `rows` linhas. Check de regressão no
-    `history()` (0, 1, rows, rows+1, scrollback inteiro). Armadilha: o bug só
-    aparece com `off > rows` — testar rolagem de 1 linha não pega.
+    (que é correto). `visible_rows` sempre devolve exatamente `rows` linhas.
+    Check de regressão no `history()` (0, 1, rows, rows+1, scrollback inteiro).
+    Armadilha: o bug só aparece com `off > rows` — testar rolagem de 1 linha não
+    pega. A primeira leitura foi feita com o notebook na bateria (10,52 → 1,78,
+    5,9x); a de cima, na tomada. O sentido do ganho não mudou.
 
 ## Quirks registrados (não redescobrir)
 
+- **Medição de desenho depende da energia e do aquecimento da primeira
+  chamada.** O mesmo scroll de histórico deu `10,52 ms/draw` na bateria e
+  `10,89` na tomada (praticamente igual), mas o vivo medido com só 3 draws deu
+  `3,42 ms` contra `1,41 ms` com 443 draws: as primeiras chamadas pagam setup
+  (layout/fonte/contexto) e envenenam a média. Medir `draw` sempre com centenas
+  de chamadas e/ou comparar as duas versões na mesma tomada de energia — de
+  preferência por razão (`x/y`), não por valor absoluto.
 - **`pkill -f bzmux.py` mata o próprio shell** de quem chama (o padrão casa com
   a linha de comando) e já deixou janelas órfãs. Usar `./debug.sh --kill`, que
   confere o PID file contra `/proc/<pid>/cmdline` antes de matar.
