@@ -39,16 +39,22 @@ contamina o número):
 
 | | fps | MB/s de escapes | bytes/frame |
 |---|---|---|---|
-| bzmux | 10,4 | 0,6 | ~56 KB |
+| bzmux | 59,3–63,9 | 3,3–3,6 | ~56 KB |
 | kitty | 275,9 | 15,8 | ~57 KB |
 
-O bzmux fica com **98% de um core**: ~96 ms por frame de 1470 células. O kitty
-faz o mesmo em ~3,6 ms. A distância é de **26x**.
+O bzmux fica com **98% de um core**: ~17 ms por frame de 1470 células. O kitty
+faz o mesmo em ~3,6 ms. A distância é de **~4,6x**.
 
-Re-medido em 2026-10-26 na tomada (400 frames, 70×21, `PYTERM_DIAG` conferindo
-avanço 14,0 / célula 14×28 / res 130 / 70 colunas): 10,4 fps / 0,6 MB/s. Na
-bateria, com 1200 frames, tinha dado 8,2 / 0,5 — a energia explica ~25% do
-frame, não a ordem de grandeza. A decomposição abaixo mostra onde o resto está.
+Re-medido em 2026-10-27 na tomada e com governor **`schedutil`** (400 frames,
+70×21, `PYTERM_DIAG`: avanço 14,0 / célula 14×28 / res 130 / 70 colunas), 4
+tiros: 59,3 / 59,5 / 63,9 fps e 3,3 / 3,4 / 3,6 MB/s.
+
+**O governor decide o número.** A tabela antiga (8,2 / 0,5) e a primeira
+remedição (10,4 / 0,6) foram com **`powersave`**: a CPU ficava em ~1,4 GHz e
+não subia, e o mesmo código mede 3–5x menos. Prova independente: o gerador
+isolado, que não toca no terminal, fez 256 fps com `powersave` e **744 fps com
+`schedutil`**. Medir e comparar sempre com o mesmo governor, e registrar qual.
+Os quadros abaixo marcam qual governor estava ativo.
 
 Este número é o **depois do P9** (desenho por Pango), da fonte em pontos e do
 bug 13: o desenho subiu de 12,8 para 22,7 ms por frame e a vazão caiu de 0,6
@@ -61,30 +67,32 @@ O fps depende da grade (célula maior = menos frames por segundo com a mesma
 vazão); **MB/s é o número que compara**. A grade do kitty sai 68×19, não 68×20 —
 arredondamento de célula dele, e a diferença de bytes/frame é essa.
 
-O 0,5 MB/s fica *abaixo* do 0,7–1,9 MiB/s de "parse + grade" do README, e boa
-parte da diferença é o desenho: com o desenho desligado (seção abaixo) o mesmo
-fogo dá 1,0 MB/s, dentro daquela faixa. O número do README mede um despejo de
+O 3,4 MB/s fica *acima* do 0,7–1,9 MiB/s de "parse + grade" do README, e o
+motivo é o desenho ligado: com ele desligado (seção abaixo) o mesmo fogo dá
+8,5 MB/s. O número do README mede um despejo de texto uniforme. O número do README mede um despejo de
 texto uniforme (escape curto, poucos runs); este mede uma tela que troca de cor
 em toda célula, que é o pior caso também do parse.
 
 ### Onde o tempo vai
 
-`PYTERM_PROF=1` (ver abaixo) decompõe, 36,5 s de fogo a 70×21 (300 frames):
-**parse 48%** (4,2 ms por leitura, 4102 leituras) e **desenho 52%** (22,7 ms por
-frame, ~22 draws/s). Desenho roda ~22x/s mas só 8,2 frames/s completos chegam à
-tela: o parse não acompanha.
+`PYTERM_PROF=1` (ver abaixo) decomposição de referência, medida com `schedutil`
+(400 frames, 6,97 s): **desenho 49%** (22,1 ms por draw, 154 draws) e **parse
+25%** (0,32 ms por leitura, 5495 leituras); o resto é o gerador. Com
+`powersave`, a mesma decomposição dava parse 48% / desenho 52% a 8,2 fps —
+números antigos, outra bancada. O desenho é coalescido a ~22 draws/s (o teto é
+um a cada 16 ms) para ~60 frames/s de conteúdo: desenhar menos vezes é o que
+deixa o parse respirar.
 
 O desenho custa caro pelo número de *runs* de cor, não de células: 37 tons por
-linha fazem quase toda célula ser um run próprio. O custo por célula medido em
-2026-10-26 é **71 µs** (105 ms/frame de 1470 células), contra ~1 µs do caso
-uniforme que o README mede (~1,4 ms / 1470 células — medido na mesma sessão com
-o desenho do `seq`). Medir desenho com tela de uma cor subestima o pior caso em
-**~70x**, e o número antigo de 22,7 ms/frame (15 µs/célula) não se reproduz.
+linha fazem quase toda célula ser um run próprio. Com `schedutil` o custo é
+**~15 µs/célula** (22 ms/frame de 1470 células), contra ~1 µs do caso uniforme
+(~1,45 ms / 1470 células, desenho de `seq`, 445 draws). Medir desenho com tela
+de uma cor subestima o pior caso em **~15x**.
 
-Decomposição do mesmo frame por `PYTERM_PROF` (400 frames, 38,8 s): **draw
-267x 105,10 ms = 28,1 s (72%)**, pty 5342x 0,76 ms = 4,1 s (10%) — o resto é o
-gerador esperando. Ou seja, com o parser já rápido (P20–P22), o desenho virou
-o gargalo quase absoluto: 22 draws/s para 10,4 frames/s.
+Decomposição do mesmo frame por `PYTERM_PROF` (400 frames, 6,97 s, schedutil):
+**draw 154x 22,12 ms = 3,4 s (49%)**, pty 5495x 0,32 ms = 1,8 s (25%) — o resto
+é o gerador. Ou seja, com o parser rápido (P20–P22) o desenho passou a ser a
+maior fatia: 22 draws/s enquanto o fogo inteiro roda a ~60 frames/s.
 
 ### A escada: IO, parse e desenho (2026-10-26)
 
@@ -94,27 +102,32 @@ Duas sondas isolam as etapas: `PYTERM_NODRAW=1` desliga o desenho
 
 | etapa ligada | fps | MB/s | onde o tempo vai |
 |---|---|---|---|
-| geração pura, fora do terminal (80×24) | 256,5 | 18,5 | é o teto do gerador |
-| só read do pty (NOPARSE+NODRAW) | 249 / 242 | 14,0 / 13,6 | pty 0,06 ms/leitura: 138 ms em 1,2 s = 11% |
-| read + parse → grade (NODRAW), **antes do P20** | 17,2 | 1,0 | pty 4,17 ms/leitura: 17,1 s de 17,4 s = 99% |
-| read + parse → grade (NODRAW), **depois do P20** | **88,9 / 86,0** | **5,0 / 4,8** | pty 0,72 ms/leitura: 2,9 s de 3,5 s = 85% |
-| + desenho (normal), antes do P20 | 8,2 | 0,5 | parse 48% + desenho 52% |
-| + desenho (normal), hoje na tomada | 10,4 | 0,6 | desenho 72% + parse 10% (400 f) |
-| + desenho (normal), depois do P20 | 10,4 | 0,6 | parse 11% + desenho 71% (draw anômalo, ver abaixo) |
+| geração pura, fora do terminal (80×24) | **742** | **54** | é o teto do gerador (schedutil) |
+| só read do pty (NOPARSE+NODRAW) | **448 / 582** | **25 / 33** | o IO não é o limite (schedutil) |
+| read + parse → grade (NODRAW), antes do P20 | 17,2 | 1,0 | powersave; pty 4,17 ms/leitura = 99% |
+| read + parse → grade (NODRAW), depois do P20 | **156 / 147** | **8,8 / 8,3** | schedutil; pty 0,72 ms/leitura (powersave: 86,6 / 4,9) |
+| + desenho (normal), antes do P20 | 8,2 | 0,5 | powersave; parse 48% + desenho 52% |
+| + desenho (normal), hoje | **59,3–63,9** | **3,3–3,6** | schedutil; desenho 49% + parse 25% |
+
+Uma linha por etapa. As duas primeiras e as duas últimas são de 2026-10-27 com
+`schedutil`; as do P20 em diante tinham sido medidas com `powersave` (a coluna
+de fps antiga aparece entre parênteses onde existe). **Números de bancadas
+diferentes não se comparam**: com `powersave` o mesmo NOPARSE dava 14 MB/s, e
+com `schedutil` dá 25–33.
 
 Leitura da escada (cada linha é o custo da etapa que entrou):
 
-- **O read do pty é quase grátis**: sem parse o bzmux faz 249 fps contra 256 do
-gerador puro — acompanha o filho, perdendo ~3%. 89% do tempo o app está
-*esperando* o doomfire escrever, não trabalhando.
-- **O parse custa 14x** (249 → 17,2 fps, 0,06 → 4,17 ms por leitura): é o único
-bloco grande do caminho de input. Com 38 bytes de escape por célula, ~39 µs de
-parse por célula.
-- **O desenho custa 2x** (17,2 → 8,2): é a segunda metade, não a primeira. A
-imagem "parse barato, desenho caro" era artefato de dividir 55 KB por 4,2 ms.
-- O 1,0 MB/s de "parse + grade" citado no README (despejo uniforme, 0,7–1,9)
-cai no mesmo lugar: o teto do parse no pior caso é ~1,0 MB/s, porque o pty
-entrega ~4 KB por read (4101 reads para 16,8 MB), não 64 KB.
+- **O read do pty é quase grátis** (schedutil): sem parse o bzmux faz 448–582
+fps contra 742 do gerador puro — o IO custa uns 25–40% do tempo do gerador e
+não é o limite.
+- **O parse custa ~3,5x** (582 → 156 fps) e, no pior caso, entrega 8,5 MB/s.
+Com 38 bytes de escape por célula, é o bloco mais caro do caminho de input
+depois do desenho — mas já foi 14x antes do P20.
+- **O desenho custa ~2,5x** (156 → 60 fps): com o parser rápido, virou a maior
+fatia (49% do tempo no prof).
+- O "0,7–1,9 MiB/s de parse + grade" do README é de outra bancada (powersave e
+despejo uniforme): não serve de teto. O teto medido hoje, com esta carga, é
+8,5 MB/s.
 
 **Por que o número vale (buffering do pty)** — o teste mede o mínimo entre o que
 o filho produz e o que o emulador consome, e isso foi verificado, não suposto:
@@ -211,18 +224,21 @@ para 2,4x: os SGR do `dmesg` (`1`, `4`, `31`, `0`) não são truecolor e só
 ficaram baratos quando o CSI inteiro passou a ser resolvido pelo cache, em vez
 de cair no parser lento. Ver HISTORY.md (P22).
 
-**Anomalia em aberto**: o desenho não reproduz os 22,7 ms/frame registrados
-acima. Medições: 47,7 ms em rodadas de 60 frames (47,70 e 47,71, repetível ao
-centésimo), 97,8 ms na de 300, e **105,1 ms na de 400 na tomada** (2026-10-26,
-`PYTERM_DIAG` idêntico: avanço 14,0, célula 14×28, res 130, 70 colunas; máquina
-ociosa). Três explicações testadas e descartadas: **energia** (bateria dava
-10,52 ms no scroll e a tomada 10,89 — mesma coisa); **duração da rodada** (60,
-300 e 400 frames só reforçam o mesmo patamar alto); **o bug 15 do histórico**
-(`visible_rows` com `off > rows`, que não afeta `off=0` nem alt-screen). Sobra
-um fator externo (compositor/Xorg) ou acúmulo por draw no Pango/cairo — o cache
-de layouts tem teto de 800 e o texto do fogo é quase todo o mesmo `▀`, então
-não é o cache crescendo. **Re-medir o desenho antes de comparar qualquer
-mudança nele**, e sempre na tomada.
+**Anomalia resolvida (2026-10-27): era o governor.** Ela existia porque o
+desenho não reproduzia os 22,7 ms/frame: dava 47,7 ms em 60 frames, 97,8 em
+300 e 105,1 em 400 na tomada — sempre com `PYTERM_DIAG` idêntico (avanço 14,0,
+célula 14×28, res 130, 70 colunas). Nada no código explicava, e trocar
+`powersave` → `schedutil` devolveu **22,12 / 21,70 / 20,97 / 22,18 ms** em
+quatro tiros seguidos, com a vazão indo de 10,4 para 59–64 fps. O
+`powersave` prendia a CPU em ~1,4 GHz sob carga sostenida; o gerador isolado
+caiu de 744 para 256 fps na mesma troca, o que fecha a conta. Uma nuance
+medida: o desenho de **texto uniforme** não muda com o governor (1,41 ms com
+`powersave`, 1,45 ms com `schedutil`, 443–445 draws) — o que desaba é o
+caminho caro, de ~2000 runs de cor por frame. Lição para qualquer medição
+futura: **registrar o governor**, comparar só dentro do mesmo governor,
+desconfiar de desenho fora da faixa de ~20–22 ms/frame nesta carga, e incluir
+um tiro do gerador isolado como controle. (Também não era a energia: bateria e
+tomada com `powersave` deram 10,52 e 10,89 ms no scroll, dentro do ruído.)
 
     PYTERM_NOPARSE=1 PYTERM_NODRAW=1 PYTERM_PROF=1 ./run.sh --cmd 'python3 \
         tools/doomfire.py --fps 0 --frames 300 --stats-to /tmp/df.txt'

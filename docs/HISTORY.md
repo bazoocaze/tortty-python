@@ -889,13 +889,20 @@ Todos foram achados com medição, não por leitura — vale registrar o método
 
 ## Quirks registrados (não redescobrir)
 
-- **Medição de desenho depende da energia e do aquecimento da primeira
-  chamada.** O mesmo scroll de histórico deu `10,52 ms/draw` na bateria e
-  `10,89` na tomada (praticamente igual), mas o vivo medido com só 3 draws deu
-  `3,42 ms` contra `1,41 ms` com 443 draws: as primeiras chamadas pagam setup
-  (layout/fonte/contexto) e envenenam a média. Medir `draw` sempre com centenas
-  de chamadas e/ou comparar as duas versões na mesma tomada de energia — de
-  preferência por razão (`x/y`), não por valor absoluto.
+- **Vazão medida depende do governor da CPU, e muito.** O mesmo doom-fire deu
+  0,5 MB/s com `powersave` e 3,4 MB/s com `schedutil` (~6x); o gerador isolado,
+  que nem toca no terminal, foi de 256 para 744 fps na mesma troca — é o
+  `powersave` prendendo a CPU em ~1,4 GHz sob carga sostenida (o desenho de
+  texto uniforme, leve, ficou em 1,41/1,45 ms nos dois governores — o efeito é
+  do caminho com ~2000 runs de cor, não do trivial). Isso ficou horas disfarçado de
+  "anomalia do desenho" (105 ms/frame contra os 22,7 registrados, com
+  `PYTERM_DIAG` idêntico e bateria/tomada dando o mesmo), e a pista que
+  resolveu foi medir uma etapa que não depende do app. Regras: registrar o
+  governor junto com o número, comparar só dentro do mesmo governor, e sempre
+  incluir um tiro do gerador isolado como controle.
+- **As primeiras chamadas de `_on_draw` custam mais**: 3 draws deram
+  3,42 ms/chamada e 443 deram 1,41 ms na mesma carga (setup de layout/fonte/
+  contexto). Medir `draw` com centenas de chamadas, ou comparar por razão.
 - **`pkill -f bzmux.py` mata o próprio shell** de quem chama (o padrão casa com
   a linha de comando) e já deixou janelas órfãs. Usar `./debug.sh --kill`, que
   confere o PID file contra `/proc/<pid>/cmdline` antes de matar.
