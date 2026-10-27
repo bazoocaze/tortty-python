@@ -213,6 +213,11 @@ def history():
     one_back = [_row_text(r).rstrip() for r in t.visible_rows(1)]
     assert live == ["d", "e", ""]
     assert one_back == ["c", "d", "e"]
+    # fundo do histórico: a janela nunca passa de `rows` linhas (regressão:
+    # off > rows devolvia off linhas e o desenho ficava mais lento ao subir)
+    for off in (0, 1, t.rows, t.rows + 1, len(t.scrollback)):
+        assert len(t.visible_rows(off)) == t.rows, off
+    assert [_row_text(r).rstrip() for r in t.visible_rows(99)] == ["a", "b", "c"]
 
 
 # -- mouse, seleção e colagem (P1/P7) ----------------------------------

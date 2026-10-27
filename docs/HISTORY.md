@@ -865,6 +865,23 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     verdade continua trazendo pro vivo. Armadilha do teste: `tools/xtest.py`
     mexe no ponteiro real da sessão — não sair rodando à toa num display em uso.
 
+15. **Rolar o histórico ficava mais lento quanto mais para cima.** Sintoma
+    relatado no uso: wheel para cima ficava progressivamente pesado. Causa em
+    `Term.visible_rows(off)`: `scrollback[-off:] + grid[:rows - off]` — com
+    `off > rows` o segundo termo é `grid[:negativo]`, que devolve a grade
+    **inteira** (ou vazia, quando o corte cai antes do começo), então o total
+    saía `off + len(grid)` em vez de `rows`. O `_on_draw` percorre `len(rows)`,
+    ou seja pintava `off` linhas — a maioria fora da tela, mas o Pango e o
+    `fill` eram cobrados do mesmo jeito. Com scrollback de 1000 linhas e
+    `off=1000`, 1000 linhas desenhadas em vez de 21 (~48x as células).
+    Medido no app com `PYTERM_PROF`: `draw 10,52 ms/chamada` com a visão no topo
+    contra `3,42 ms` no vivo. Fix: quando `off >= rows`, fatiar direto o
+    scrollback (`sb[len(sb)-off : len(sb)-off+rows]`), senão o caminho antigo
+    (que é correto). Depois: `1,78 ms/chamada` no mesmo scroll (5,9x), e
+    `visible_rows` sempre devolve exatamente `rows` linhas. Check de regressão no
+    `history()` (0, 1, rows, rows+1, scrollback inteiro). Armadilha: o bug só
+    aparece com `off > rows` — testar rolagem de 1 linha não pega.
+
 ## Quirks registrados (não redescobrir)
 
 - **`pkill -f bzmux.py` mata o próprio shell** de quem chama (o padrão casa com

@@ -873,7 +873,15 @@ class Term:
         off = max(0, min(off, len(self.scrollback)))
         if not off:
             return self.grid
-        return self.scrollback[-off:] + self.grid[:self.rows - off]
+        sb = self.scrollback
+        if off >= self.rows:
+            # janela inteira dentro do histórico: sempre `rows` linhas (antes
+            # `grid[:rows-off]` com off > rows devolvia a lista inteira do
+            # scrollback, e o draw pintava off linhas — rolar para cima ficava
+            # linearmente mais lento)
+            lo = len(sb) - off
+            return sb[lo:lo + self.rows]
+        return sb[-off:] + self.grid[:self.rows - off]
 
     # -- texto (cópia) ------------------------------------------------
     def paste_payload(self, text):
