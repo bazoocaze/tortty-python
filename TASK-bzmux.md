@@ -22,7 +22,12 @@ Nada pela metade: árvore limpa, tudo commitado.
 
 P19 aberto: dentro do `pi`, a cada algumas etapas do turno a tela reescreve
 várias telas de uma vez (investigação e sonda em
-[`docs/BACKLOG.md`](docs/BACKLOG.md)). P1–P20 concluídos — o último par (P9/P10,
+[`docs/BACKLOG.md`](docs/BACKLOG.md)).
+
+P23 aberto (pedido de 2026-10-27): atalhos de workspace com Super — `Super+1`…`9`
+troca, `Super+N` cria, `Super+Q` encerra a workspace corrente com todas as abas.
+Os comportamentos já existem em `Ctrl+Shift`; o item é somar o modificador e
+testar se o WM (GNOME) não engole `Super+dígito`. Detalhe no BACKLOG. P1–P20 concluídos — o último par (P9/P10,
 desenho por Pango) com custo no [`docs/HISTORY.md`](docs/HISTORY.md) e a linha de
 base e o número único em [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md) (o desenho é
 hoje a maior fatia do tempo).
