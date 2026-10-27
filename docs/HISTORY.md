@@ -757,6 +757,33 @@ Ganho: `dmesg` sem cor 164,1 → 42,6 ms (3,8x); com `--color=always` 188,5 →
 µs/célula) — lá o truecolor já era fast path. App com `PYTERM_NODRAW=1`: 86,5
 fps / 4,9 MB/s.
 
+### P23 — Atalhos de workspace com `Super` (2026-10-27)
+
+Pedido: `Super+1`…`9` troca de workspace, `Super+N` cria e `Super+Q` encerra a
+workspace corrente (com todas as abas dela). Os três comportamentos já existiam
+em `Ctrl+Shift`, então foi alias, não lógica nova: `handle_shortcut` passou a
+ler `SUPER_MASK` e um ramo `super and not ctrl and not alt` reusa
+`new_workspace` / `close_workspace` / `select_workspace_index`. O dígito
+continua vindo de `_digit_of(ev)` (traduz o keycode cru, então funciona em
+ABNT2), e o `Ctrl+Shift+*` fica intacto.
+
+**Bug que apareceu no teste:** `select_workspace_index` devolve `False` quando
+o índice não existe, e o `return` repassava esse `False` — a tecla caía no
+encoder e ia para o filho. Como `Super+2` chega como texto puro (`2`, sem
+`Ctrl`), o dígito era **digitado no shell** (cursor 10,2 → 11,2 no dump). Fix:
+consumir a tecla (`return True`) quando o keycode é dígito de workspace, mesmo
+que não haja workspace naquele índice. O mesmo valia para `Ctrl+Shift+9` com
+nove workspaces (vazava um `CSI` para o app).
+
+Verificação (manual, com display — `Gdk` fica fora dos checks por design):
+`xtest.py key super+n` cria o segundo workspace; `super+1`/`super+2` alternam
+(dump com o ws corrente e a contagem de abas); `super+q` fecha o ws com 3 abas
+de uma vez e os filhos morrem (contagem de `bash --norc` cai); a lateral
+desaparece com um workspace só; `ctrl+shift+n` continua criando. O WM daqui não
+tem grab em `Super+1`…`9`/`N`/`Q` (o `xtest` injeta no servidor e passaria pelo
+grab), mas fica a nota no README: se o dash do GNOME capturar, use a variante
+`Ctrl+Shift`.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 Todos foram achados com medição, não por leitura — vale registrar o método.
 

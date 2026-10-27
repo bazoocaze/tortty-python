@@ -423,6 +423,7 @@ class BzmuxWindow(Gtk.Window):
         ctrl = bool(ev.state & Gdk.ModifierType.CONTROL_MASK)
         shift = bool(ev.state & Gdk.ModifierType.SHIFT_MASK)
         alt = bool(ev.state & Gdk.ModifierType.MOD1_MASK)
+        sup = bool(ev.state & Gdk.ModifierType.SUPER_MASK)
         kv = ev.keyval
         ws = self.current
         if ctrl and shift:
@@ -443,7 +444,21 @@ class BzmuxWindow(Gtk.Window):
                 return True
             n = _digit_of(ev)           # Ctrl+Shift+1..9 (0 = o 10º)
             if n is not None:
-                return self.select_workspace_index(9 if n == 0 else n - 1)
+                self.select_workspace_index(9 if n == 0 else n - 1)
+                return True            # consome mesmo sem workspace no índice
+        if sup and not ctrl and not alt:
+            # alias de workspace pelo Super (o WM pode engolir Super+dígito)
+            if kv in (Gdk.KEY_n, Gdk.KEY_N):
+                self.new_workspace()
+                return True
+            if kv in (Gdk.KEY_q, Gdk.KEY_Q):
+                if ws is not None:
+                    self.close_workspace(ws)
+                return True
+            n = _digit_of(ev)           # Super+1..9 (0 = o 10º)
+            if n is not None:
+                self.select_workspace_index(9 if n == 0 else n - 1)
+                return True            # senão o dígito vaza pro filho
         if alt:
             n = _digit_of(ev)           # Alt+1..9 (0 = a 10ª aba)
             if n is not None and ws is not None:

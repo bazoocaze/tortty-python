@@ -174,9 +174,12 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   herda o cwd da atual via `/proc/<pid>/cwd`, e cada aba tem o seu `Term`,
   histórico, seleção e pty (o `P8` virou por aba: a última fecha a janela).
 - **Workspaces** (tipo cmux): cada um com o seu conjunto de abas, numa lateral
-  à esquerda que só aparece com 2+ workspaces. `Ctrl+Shift+N` cria,
-  `Ctrl+Shift+1`…`9` seleciona, `Ctrl+Shift+Q` fecha (ou clique do meio no
-  cartão); **duplo clique** no cartão renomeia (padrão "workspace N"). O cartão
+  à esquerda que só aparece com 2+ workspaces. `Ctrl+Shift+N`/`Super+N` cria,
+  `Ctrl+Shift+1`…`9`/`Super+1`…`9` seleciona, `Ctrl+Shift+Q`/`Super+Q` fecha a
+  workspace corrente com todas as abas (ou clique do meio no cartão); **duplo
+  clique** no cartão renomeia (padrão "workspace N"). `Super+q` na última
+  workspace encerra o programa. Se o seu WM usar `Super+dígito` (no GNOME o
+  dash usa), use a variante `Ctrl+Shift`. O cartão
   mostra `1  <nome>` e, embaixo, a aba ativa e a contagem. Fechar a última aba
   fecha o workspace; fechar o último workspace fecha o programa.
 - **Fecha quando o shell termina**: `GLib.child_watch_add` reapa o filho (sem
