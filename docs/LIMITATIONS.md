@@ -11,14 +11,11 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 
 ## Desempenho (o custo do experimento)
 
-- **Vazão ~4,6x menor que um terminal nativo**: 3,3–3,6 MB/s contra 15,8 MB/s
-  do kitty na mesma carga (doom-fire, 70x21, `schedutil`, 2026-10-27). Não é
-  bug: é a medida. Com o parser rápido (P20–P22) o desenho é ~49% do tempo e o
-  parse ~25%. Sem parse (PYTERM_NOPARSE=1) o mesmo fogo corre a 25–33 MB/s,
-  mais que o kitty: o IO do pty não é o gargalo. Com parse e sem desenho
-  (PYTERM_NODRAW=1) são 8,5 MB/s / ~150 fps, contra 1,0 / 17,2 antes do P20 — o
-  que sobra de limite é o desenho, e ele é o próximo alvo. (Com governor
-  `powersave` todos esses números caem 2–5x; o limite relativo é o mesmo.)
+- **Vazão de poucos MB/s, contra 15,8 do kitty na mesma carga** — ordem de
+  grandeza de 5x, não de 100x. Não é bug: é a medida, e o número (com data,
+  governor e a escada que o decompõe) está em
+  [`DOOM-FIRE.md`](DOOM-FIRE.md). O que sobra de limite é o **desenho**; o IO do
+  pty e o parser, depois do P20–P22, não são o gargalo.
 - **Interação não sofre**: tecla custa microssegundos; o limite só aparece em
   volume (cat de log grande, seq 100000, scroll de saída massiva).
 - **Um core por sessão ativa**: sob despejo contínuo o bzmux satura um core. O

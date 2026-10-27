@@ -684,9 +684,10 @@ wrap pendente, estado, título e scrollback — **0 divergências**. Mais
 Ganho: micro 32,0 → 5,49 µs/célula no frame do doom-fire (5,8x) e 0,99 → 0,21
 em texto puro (4,7x); no app com `PYTERM_NODRAW=1`, **17,2 → 85 fps e 1,0 → 4,8
 MB/s** (4,9x), parse de 4,17 para 0,72 ms por leitura. Com desenho ligado deu
-10,4 fps / 0,6 MB/s, mas ali o desenho está anômalo nesta sessão (101,8 ms por
-frame contra 22,7 registrados, ver DOOM-FIRE.md) e vira 87% do tempo — o número
-completo só vale depois de re-medir o desenho.
+10,4 fps / 0,6 MB/s, mas ali o desenho estava anômalo (101,8 ms por frame
+contra 22,7 registrados) e vira 87% do tempo. **Fechado depois:** era o governor
+`powersave` da CPU, não o código — ver o quirk do governor. O número com
+desenho está em DOOM-FIRE.md.
 
 Carga real (2026-10-26), `dmesg` do sistema (1319 linhas), alimentado no `Term`
 sem GTK: sem cor (99,7 KB, 0 escapes) **168,3 → 45,7 ms** (3,7x, 7,01 → 1,90 ms
@@ -886,6 +887,18 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     Armadilha: o bug só aparece com `off > rows` — testar rolagem de 1 linha não
     pega. A primeira leitura foi feita com o notebook na bateria (10,52 → 1,78,
     5,9x); a de cima, na tomada. O sentido do ganho não mudou.
+
+## Nota de documentação: número só em um lugar
+
+Até 2026-10-27 os números de vazão viviam repetidos em README, LIMITATIONS,
+TASK e AGENTS, e a regra do AGENTS.md mandava atualizar todos juntos. Na prática
+eles divergiram em toda re-medição (três rodadas de "0,5 → 0,6 → 3,4 MB/s" e
+cópias esquecidas em 0,5). A regra mudou: **o valor mora só em DOOM-FIRE.md**
+(data + governor); os outros docs citam o fato e linkam. O README mantém a linha
+do doom-fire na tabela comparativa (manchete) e o HISTORY registra o número do
+dia em que fechou um item, como registro datado — não como leitura corrente.
+Duas linhas obsoletas do README (parse+grade "0,7–1,9 MiB/s" e "desenho 1,2 ms")
+saíram junto: eram de bancada antiga e agora contradiziam o DOOM-FIRE.
 
 ## Quirks registrados (não redescobrir)
 

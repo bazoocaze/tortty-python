@@ -19,9 +19,10 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
   fila). Antes de implementar algo "óbvio", checar aqui: pode ser decisão.
 - docs/HISTORY.md — backlog concluído (P1–P18), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
-- docs/DOOM-FIRE.md — a carga de medição: por que ela existe, como rodar, o
-  número (bzmux 3,4 MB/s contra 15,8 MB/s do kitty, ~4,6x, com `schedutil`) e o protocolo de
-  comparação.
+- docs/DOOM-FIRE.md — a carga de medição e **o único lugar com número de
+  vazão/desenho/parse**: por que ela existe, como rodar, o número (com data e
+  governor) e o protocolo de comparação. Os demais docs citam o fato e linkam;
+  não repetem valor.
 - README.md — visão para humano: como rodar, ferramentas, ambiente, o que
   funciona, limites, medição, licença.
 
@@ -31,10 +32,14 @@ como foi verificado. Bug corrigido fora de item de backlog entra na lista
 numerada de bugs do HISTORY.md (e o quirk, se for armadilha de ambiente).
 Decisão de NÃO fazer algo vai para docs/LIMITATIONS.md, não para o backlog; se o
 limite deixar de existir, sai de lá e vira item concluído no HISTORY.md.
-Medição nova (ou número que mudou por causa de outra mudança) começa em
-docs/DOOM-FIRE.md, que é a fonte da verdade com a data; os mesmos números
-repetidos em README.md, docs/LIMITATIONS.md e TASK-bzmux.md têm que ser
-atualizados juntos na mesma passada, senão divergem.
+**Número de medição mora em um só lugar: docs/DOOM-FIRE.md** (com data e
+governor da CPU). Os outros docs citam o fato em uma frase e linkam — não
+repetem valor. Repetir número em cinco arquivos só produz divergência: cada
+re-medição virava uma caçada para achar as cópias. Exceções: o README.md mantém
+a linha do doom-fire na tabela comparativa (é a manchete para humano, um par de
+números), o HISTORY.md registra o número do dia em que fechou um item (registro
+datado, nunca leitura corrente) e o AGENTS.md pode citar valor de exemplo ao
+explicar uma sonda.
 
 ## Arquitetura
 
@@ -129,13 +134,13 @@ experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
   imprime avanço da fonte, célula da grade, resolução e colunas: é o par que
   tem que bater (bug 13 do HISTORY — grade a 130 dpi e desenho a 96). As duas
   sondas de custo isolam as etapas: PYTERM_NODRAW=1 desliga o desenho (sobra
-  pty -> grade, 1,0 MB/s no doom-fire) e PYTERM_NOPARSE=1 lê o pty e descarta
-  (14 MB/s, o teto de IO); com PYTERM_PROF=1 o resumo ainda traz bytes lidos e
-  eagain. Escada e números em docs/DOOM-FIRE.md.
+  pty -> grade) e PYTERM_NOPARSE=1 lê o pty e descarta (isola o IO); com
+  PYTERM_PROF=1 o resumo ainda traz bytes lidos e eagain. A escada com os
+  números fica em docs/DOOM-FIRE.md.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
-- Medição não é teste: os números do README.md vêm de execução real e não
-  viram benchmark automatizado sem necessidade.
+- Medição não é teste: os números vêm de execução real e não viram benchmark
+  automatizado sem necessidade.
 
 ## Scripts e ferramentas
 

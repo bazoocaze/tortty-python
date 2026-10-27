@@ -213,28 +213,25 @@ está sendo medido é o caminho quente.
 
 ## O que a medição realmente mostra (corrigido)
 
-Medido nesta máquina (2026-10-25, depois do bug 13):
+Medido nesta máquina (2026-10-25, depois do bug 13; a linha do doom-fire é
+mais recente e tem data/governor em `docs/DOOM-FIRE.md`):
 
 | cenário | bzmux (Python) | núcleo nativo (referência) |
 |---|---|---|
 | **uma tecla** (eco de 1 char) | **0,4 µs por caractere** | ~1 ms de ponta a ponta (dominado por desenho) |
-| parse + grade, despejo contínuo | **0,7–1,9 MiB/s** | 300–800 MiB/s (`rio-vt`, `alacritty_terminal`, `vt100`) |
 | `seq 1 100000` (575 KiB) | **~0,8 s** | milissegundos |
-| desenho de 1 frame (1470 células, texto uniforme) | ~1,2 ms | ~1 ms (T2→T3 do `lat-battery`) |
 | doom-fire, tela cheia trocando de cor (`tools/doomfire.py`) | **59–64 fps / 3,3–3,6 MB/s** | 276 fps / 15,8 MB/s (kitty) |
 
-A carga do doom-fire (tela toda trocando de cor, pior caso do parser) tem
-detalhe, protocolo e armadilhas em [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md).
-Depois do P20 (fast path de escape no parser), desligando o desenho
-(`PYTERM_NODRAW=1`) são **~150 fps / 8,5 MB/s** (eram 17,2 / 1,0); desligando
-também o parse (`PYTERM_NOPARSE=1`) o mesmo fogo corre a **25–33 MB/s**, mais
-que os 15,8 do kitty — o custo está no parser e no desenho, não no IO do pty.
-Números medidos com governor `schedutil`: com `powersave` tudo cai 2–5x.
+A carga do doom-fire (tela toda trocando de cor, pior caso do parser) é a única
+com número próprio aqui: **todos os detalhes, a escada de IO/parse/desenho, o
+protocolo e as armadilhas ficam em [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md)**,
+que é a fonte da verdade (com data e governor). Resumo de uma linha: o IO do pty
+não é o gargalo, o desenho é — e com governor `powersave` tudo cai 2–5x.
 
 Conclusão honesta: **na interação o bzmux é imperceptível** — digitar, andar
 no `mc`, abrir `vim` custa microssegundos por tecla, porque a carga por evento
-é minúscula. A diferença de 100–400× só aparece em **volume**: `cat` de log
-grande, `seq 100000`, scroll de saída massiva — aí são centenas de ms contra
+é minúscula. A diferença grande só aparece em **volume**: `cat` de log grande,
+`seq 100000`, scroll de saída massiva — aí são centenas de ms contra
 milissegundos.
 
 Ou seja: Python não impede um terminal *usável*; impede um terminal que não
