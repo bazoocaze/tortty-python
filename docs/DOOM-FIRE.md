@@ -39,11 +39,16 @@ contamina o número):
 
 | | fps | MB/s de escapes | bytes/frame |
 |---|---|---|---|
-| bzmux | 8,2 | 0,5 | ~55 KB |
+| bzmux | 10,4 | 0,6 | ~56 KB |
 | kitty | 275,9 | 15,8 | ~57 KB |
 
-O bzmux fica com **98% de um core**: ~122 ms por frame de 1470 células. O kitty
-faz o mesmo em ~3,6 ms. A distância é de **34x**.
+O bzmux fica com **98% de um core**: ~96 ms por frame de 1470 células. O kitty
+faz o mesmo em ~3,6 ms. A distância é de **26x**.
+
+Re-medido em 2026-10-26 na tomada (400 frames, 70×21, `PYTERM_DIAG` conferindo
+avanço 14,0 / célula 14×28 / res 130 / 70 colunas): 10,4 fps / 0,6 MB/s. Na
+bateria, com 1200 frames, tinha dado 8,2 / 0,5 — a energia explica ~25% do
+frame, não a ordem de grandeza. A decomposição abaixo mostra onde o resto está.
 
 Este número é o **depois do P9** (desenho por Pango), da fonte em pontos e do
 bug 13: o desenho subiu de 12,8 para 22,7 ms por frame e a vazão caiu de 0,6
@@ -70,9 +75,16 @@ frame, ~22 draws/s). Desenho roda ~22x/s mas só 8,2 frames/s completos chegam �
 tela: o parse não acompanha.
 
 O desenho custa caro pelo número de *runs* de cor, não de células: 37 tons por
-linha fazem quase toda célula ser um run próprio, e o custo por célula sai
-~11 µs — contra ~1 µs do caso uniforme que o README mede (~2 ms / 1920 células).
-Medir desenho com tela de uma cor subestima o pior caso em 10x.
+linha fazem quase toda célula ser um run próprio. O custo por célula medido em
+2026-10-26 é **71 µs** (105 ms/frame de 1470 células), contra ~1 µs do caso
+uniforme que o README mede (~1,4 ms / 1470 células — medido na mesma sessão com
+o desenho do `seq`). Medir desenho com tela de uma cor subestima o pior caso em
+**~70x**, e o número antigo de 22,7 ms/frame (15 µs/célula) não se reproduz.
+
+Decomposição do mesmo frame por `PYTERM_PROF` (400 frames, 38,8 s): **draw
+267x 105,10 ms = 28,1 s (72%)**, pty 5342x 0,76 ms = 4,1 s (10%) — o resto é o
+gerador esperando. Ou seja, com o parser já rápido (P20–P22), o desenho virou
+o gargalo quase absoluto: 22 draws/s para 10,4 frames/s.
 
 ### A escada: IO, parse e desenho (2026-10-26)
 
@@ -85,8 +97,9 @@ Duas sondas isolam as etapas: `PYTERM_NODRAW=1` desliga o desenho
 | geração pura, fora do terminal (80×24) | 256,5 | 18,5 | é o teto do gerador |
 | só read do pty (NOPARSE+NODRAW) | 249 / 242 | 14,0 / 13,6 | pty 0,06 ms/leitura: 138 ms em 1,2 s = 11% |
 | read + parse → grade (NODRAW), **antes do P20** | 17,2 | 1,0 | pty 4,17 ms/leitura: 17,1 s de 17,4 s = 99% |
-| read + parse → grade (NODRAW), **depois do P20** | **86,6 / 86,0** | **4,9 / 4,8** | pty 0,72 ms/leitura: 2,9 s de 3,5 s = 85% |
+| read + parse → grade (NODRAW), **depois do P20** | **88,9 / 86,0** | **5,0 / 4,8** | pty 0,72 ms/leitura: 2,9 s de 3,5 s = 85% |
 | + desenho (normal), antes do P20 | 8,2 | 0,5 | parse 48% + desenho 52% |
+| + desenho (normal), hoje na tomada | 10,4 | 0,6 | desenho 72% + parse 10% (400 f) |
 | + desenho (normal), depois do P20 | 10,4 | 0,6 | parse 11% + desenho 71% (draw anômalo, ver abaixo) |
 
 Leitura da escada (cada linha é o custo da etapa que entrou):
@@ -198,13 +211,18 @@ para 2,4x: os SGR do `dmesg` (`1`, `4`, `31`, `0`) não são truecolor e só
 ficaram baratos quando o CSI inteiro passou a ser resolvido pelo cache, em vez
 de cair no parser lento. Ver HISTORY.md (P22).
 
-**Anomalia em aberto**: nesta sessão o desenho não reproduziu os 22,7 ms/frame
-da tabela de cima — deu 47,7 ms em rodadas de 60 frames (47,70 e 47,71,
-repetível ao centésimo) e 97,8 ms na de 300. O ambiente era o mesmo
-(`PYTERM_DIAG`: avanço 14,0, célula 14×28, res 130, 70 colunas) e a máquina
-estava ociosa (load 1,8 em 16 núcleos). Ou a linha de base do desenho mudou por
-fator externo (compositor/Xorg), ou o custo cresce com a duração da rodada; nos
-dois casos, **re-medir o desenho antes de comparar qualquer mudança nele**.
+**Anomalia em aberto**: o desenho não reproduz os 22,7 ms/frame registrados
+acima. Medições: 47,7 ms em rodadas de 60 frames (47,70 e 47,71, repetível ao
+centésimo), 97,8 ms na de 300, e **105,1 ms na de 400 na tomada** (2026-10-26,
+`PYTERM_DIAG` idêntico: avanço 14,0, célula 14×28, res 130, 70 colunas; máquina
+ociosa). Três explicações testadas e descartadas: **energia** (bateria dava
+10,52 ms no scroll e a tomada 10,89 — mesma coisa); **duração da rodada** (60,
+300 e 400 frames só reforçam o mesmo patamar alto); **o bug 15 do histórico**
+(`visible_rows` com `off > rows`, que não afeta `off=0` nem alt-screen). Sobra
+um fator externo (compositor/Xorg) ou acúmulo por draw no Pango/cairo — o cache
+de layouts tem teto de 800 e o texto do fogo é quase todo o mesmo `▀`, então
+não é o cache crescendo. **Re-medir o desenho antes de comparar qualquer
+mudança nele**, e sempre na tomada.
 
     PYTERM_NOPARSE=1 PYTERM_NODRAW=1 PYTERM_PROF=1 ./run.sh --cmd 'python3 \
         tools/doomfire.py --fps 0 --frames 300 --stats-to /tmp/df.txt'

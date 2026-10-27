@@ -221,12 +221,12 @@ Medido nesta máquina (2026-10-25, depois do bug 13):
 | parse + grade, despejo contínuo | **0,7–1,9 MiB/s** | 300–800 MiB/s (`rio-vt`, `alacritty_terminal`, `vt100`) |
 | `seq 1 100000` (575 KiB) | **~0,8 s** | milissegundos |
 | desenho de 1 frame (1470 células, texto uniforme) | ~1,2 ms | ~1 ms (T2→T3 do `lat-battery`) |
-| doom-fire, tela cheia trocando de cor (`tools/doomfire.py`) | **8,2 fps / 0,5 MB/s** | 276 fps / 15,8 MB/s (kitty) |
+| doom-fire, tela cheia trocando de cor (`tools/doomfire.py`) | **10,4 fps / 0,6 MB/s** | 276 fps / 15,8 MB/s (kitty) |
 
 A carga do doom-fire (tela toda trocando de cor, pior caso do parser) tem
 detalhe, protocolo e armadilhas em [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md).
 Depois do P20 (fast path de escape no parser), desligando o desenho
-(`PYTERM_NODRAW=1`) são **86 fps / 4,9 MB/s** (eram 17,2 / 1,0); desligando
+(`PYTERM_NODRAW=1`) são **89 fps / 5,0 MB/s** (eram 17,2 / 1,0); desligando
 também o parse (`PYTERM_NOPARSE=1`) o mesmo fogo corre a **14 MB/s**, quase os
 15,8 do kitty — o custo está no parser, não no IO do pty.
 
