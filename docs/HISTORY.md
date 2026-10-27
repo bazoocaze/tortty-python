@@ -940,6 +940,14 @@ saíram junto: eram de bancada antiga e agora contradiziam o DOOM-FIRE.
   resolveu foi medir uma etapa que não depende do app. Regras: registrar o
   governor junto com o número, comparar só dentro do mesmo governor, e sempre
   incluir um tiro do gerador isolado como controle.
+- **`cProfile` não enxerga `gi.FunctionInfo`**: `PangoCairo.show_layout`
+  chamado 20.000 vezes num teste isolado não aparece no perfil, e o tempo cai no
+  `self` do chamador (já fez `_on_draw` medir 46% de "self" sem nenhuma chamada
+  de Pango). Métodos de objeto cairo (`fill`, `rectangle`, `move_to`) aparecem;
+  funções de módulo do gi, não. O `cProfile` também infla quem faz muitas
+  chamadas Python (`join`: 21% no perfil contra 12% no relógio) e derrubou o
+  doom-fire de 59,8 para 5,6 fps. Para proporção, medir com `perf_counter` por
+  seção; o perfil serve para descobrir *quais* chamadas existem.
 - **As primeiras chamadas de `_on_draw` custam mais**: 3 draws deram
   3,42 ms/chamada e 443 deram 1,41 ms na mesma carga (setup de layout/fonte/
   contexto). Medir `draw` com centenas de chamadas, ou comparar por razão.

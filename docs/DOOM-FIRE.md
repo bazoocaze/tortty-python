@@ -94,6 +94,43 @@ Decomposição do mesmo frame por `PYTERM_PROF` (400 frames, 6,97 s, schedutil):
 é o gerador. Ou seja, com o parser rápido (P20–P22) o desenho passou a ser a
 maior fatia: 22 draws/s enquanto o fogo inteiro roda a ~60 frames/s.
 
+### Decomposição do desenho (2026-10-27)
+
+O desenho é a maior fatia hoje. Medido no `_on_draw` com instrumentação
+temporária por seção (`perf_counter` em volta de cada trecho do laço, `print` a
+cada 40 draws; não ficou no código), doom-fire 500 frames a 70×21, 59,8 fps /
+3,4 MB/s na mesma rodada:
+
+| etapa do `_on_draw` | µs/run | ms/draw | % |
+|---|---|---|---|
+| agrupar run (`while j` comparando fg/bg/flags/seleção) | 1,78 | 2,2 | 9,6% |
+| cor + fundo (2× `cell_rgb`, 2× `set_source_rgb`, `rectangle`, `fill`) | 6,85 | 8,6 | 37,0% |
+| texto (`"".join` do run + `dict.get` do cache de layout) | 2,25 | 2,6 | 12,2% |
+| `cr.move_to` + `PangoCairo.show_layout` | **7,65** | **9,6** | **41,3%** |
+| **total** | 18,5 | **23,3** | 15,8 µs/célula |
+
+São **1255 runs por draw para 1470 células** (1,17 célula/run): o fogo troca a
+cor de quase toda célula, então agrupar não tem o que juntar. O custo é por
+*run*, não por célula — o laço Python de agrupamento é só 9,6%.
+
+Conclusão de onde atacar: (1) **Pango, 41%** — o layout já vem do cache
+`(texto, negrito)`, então o custo é o próprio `show_layout` emitindo ~1 glifo
+por run; medir `cr.show_glyphs`/`cr.show_text` contra ele antes de mexer;
+(2) **estado de cairo, 37%** — 4 chamadas de contexto por run; dá para cortar a
+conversão de cor (cachear a tupla float na paleta e evitar as 6 divisões por run
+no chamador), mas o par `rectangle`+`fill` por célula é intrínseco à cor por
+célula.
+
+**Armadilha de método**: o `cProfile` não enxerga `gi.FunctionInfo` —
+`PangoCairo.show_layout` chamado 20.000 vezes num teste isolado **não aparece**
+no perfil, e o tempo cai no `self` do chamador (foi o que fez `_on_draw` medir
+46% de "self" e nenhuma chamada de Pango). Métodos de objeto cairo
+(`fill`/`rectangle`/`move_to`) aparecem; funções de módulo do gi, não. Além
+disso o `cProfile` infla proporcionalmente quem faz muitas chamadas Python:
+`join` apareceu com 21% ali e 12% na medição real, e o app caiu de 59,8 para 5,6
+fps. Use o `cProfile` para descobrir *quais* chamadas existem e `perf_counter`
+por seção para a proporção.
+
 ### A escada: IO, parse e desenho (2026-10-26)
 
 Duas sondas isolam as etapas: `PYTERM_NODRAW=1` desliga o desenho

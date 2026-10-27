@@ -1,6 +1,6 @@
 # TASK-bzmux — status
 
-Status (2026-10-25): experimento funcional. Roda shell, `mc` e `vim`; tem mouse
+Status (2026-10-27): experimento funcional. Roda shell, `mc` e `vim`; tem mouse
 com seleção/cópia, histórico com wheel, reflow, truecolor, protocolos de teclado
 e de imagens do kitty, bracketed paste, abas e workspaces. O que funciona, os
 limites de propósito e o resultado da medição estão no `README.md`; não é
@@ -17,6 +17,15 @@ mão com `tools/xtest.py`.
 ```
 
 Nada pela metade: árvore limpa, tudo commitado.
+
+**Próximo alvo: o desenho.** Com o parser resolvido (P20–P22), o `_on_draw` é a
+maior fatia do tempo: 41% Pango (`show_layout`, ~1 glifo por run) e 37% estado
+de cairo (4 chamadas por run), com 1255 runs por draw no doom-fire. A
+decomposição por etapa e o método estão em
+[`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md) (seção "Decomposição do desenho"); o
+primeiro passo é medir `cr.show_glyphs`/`cr.show_text` contra o `show_layout`
+antes de mexer no código. O P19 (telas reescritas dentro do `pi`) segue aberto e
+independente.
 
 ## Fila
 
