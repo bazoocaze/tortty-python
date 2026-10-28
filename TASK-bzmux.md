@@ -22,7 +22,7 @@ Nada pela metade: árvore limpa, tudo commitado.
 maior fatia do tempo: 41% Pango (`show_layout`, ~1 glifo por run) e 37% estado
 de cairo (4 chamadas por run), com 1255 runs por draw no doom-fire. A
 decomposição por etapa e o método estão em
-[`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md) (seção "Decomposição do desenho"); o
+[`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) (seção "Decomposição do desenho"); o
 primeiro passo é medir `cr.show_glyphs`/`cr.show_text` contra o `show_layout`
 antes de mexer no código. O P19 (telas reescritas dentro do `pi`) segue aberto e
 independente.
@@ -35,7 +35,7 @@ várias telas de uma vez (investigação e sonda em
 
 P1–P23 concluídos — o último par (P9/P10,
 desenho por Pango) com custo no [`docs/HISTORY.md`](docs/HISTORY.md) e a linha de
-base e o número único em [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md) (o desenho é
+base e o número único em [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) (o desenho é
 hoje a maior fatia do tempo).
 
 O P20 (fast path de escape no parser) mexeu nessa decomposição: sem parse
@@ -46,7 +46,7 @@ o P22 (cache de parâmetros de CSI) levou o `dmesg` com cor de 2,0x para 2,4x
 (165 → 43 ms sem cor, 189 → 79 ms com cor).
 A "anomalia de desenho" que apareceu antes era o governor **`powersave`**, não
 energia nem código (com `schedutil` o gerador isolado triplicou de fps). Próximo
-alvo natural é o desenho — ver [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md).
+alvo natural é o desenho — ver [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
 O que não é item de backlog, e sim limite registrado — caractere largo sem
 `wcwidth`, protocolo de teclado do kitty parcial, sequência não interpretada,

@@ -290,7 +290,7 @@ Medido com o doom-fire (P16), 68×20, `PYTERM_PROF=1`:
 
 Estes três números foram medidos com o desenho ainda a 96 dpi (bug 13): servem
 para comparar um com o outro, não com a linha de base de hoje (22,7 ms/frame,
-8,2 fps em [DOOM-FIRE.md](DOOM-FIRE.md)).
+8,2 fps em [BENCHMARKS.md](BENCHMARKS.md)).
 
 Ou seja: shaping + fallback custam **~20% do frame** com cache, **2,4x** sem.
 O parse não mudou (4,3 ms por leitura), como esperado — a migração é só desenho.
@@ -599,7 +599,7 @@ terminais um de cada vez:
 Essa é a medição da época do P16, com o desenho do cairo. Depois vieram o P9
 (Pango), a fonte em pontos (13 pt → grade 70×21) e o bug 13 (que só então passou
 a desenhar na resolução da tela); o número vivo está no
-[DOOM-FIRE.md](DOOM-FIRE.md).
+[BENCHMARKS.md](BENCHMARKS.md).
 
 O `PYTERM_PROF=1` decompõe o tempo no bzmux: **parse 61%** (4,3 ms por leitura)
 e **desenho 37%** (12,8 ms por frame de 1360 células, ~29 draws/s). O desenho custa caro aqui não pelo número de células, e
@@ -687,7 +687,7 @@ MB/s** (4,9x), parse de 4,17 para 0,72 ms por leitura. Com desenho ligado deu
 10,4 fps / 0,6 MB/s, mas ali o desenho estava anômalo (101,8 ms por frame
 contra 22,7 registrados) e vira 87% do tempo. **Fechado depois:** era o governor
 `powersave` da CPU, não o código — ver o quirk do governor. O número com
-desenho está em DOOM-FIRE.md.
+desenho está em BENCHMARKS.md.
 
 Carga real (2026-10-26), `dmesg` do sistema (1319 linhas), alimentado no `Term`
 sem GTK: sem cor (99,7 KB, 0 escapes) **168,3 → 45,7 ms** (3,7x, 7,01 → 1,90 ms
@@ -920,12 +920,12 @@ Todos foram achados com medição, não por leitura — vale registrar o método
 Até 2026-10-27 os números de vazão viviam repetidos em README, LIMITATIONS,
 TASK e AGENTS, e a regra do AGENTS.md mandava atualizar todos juntos. Na prática
 eles divergiram em toda re-medição (três rodadas de "0,5 → 0,6 → 3,4 MB/s" e
-cópias esquecidas em 0,5). A regra mudou: **o valor mora só em DOOM-FIRE.md**
+cópias esquecidas em 0,5). A regra mudou: **o valor mora só em BENCHMARKS.md**
 (data + governor); os outros docs citam o fato e linkam. O README mantém a linha
 do doom-fire na tabela comparativa (manchete) e o HISTORY registra o número do
 dia em que fechou um item, como registro datado — não como leitura corrente.
 Duas linhas obsoletas do README (parse+grade "0,7–1,9 MiB/s" e "desenho 1,2 ms")
-saíram junto: eram de bancada antiga e agora contradiziam o DOOM-FIRE.
+saíram junto: eram de bancada antiga e agora contradiziam o BENCHMARKS.
 
 ## Quirks registrados (não redescobrir)
 

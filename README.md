@@ -217,7 +217,7 @@ está sendo medido é o caminho quente.
 ## O que a medição realmente mostra (corrigido)
 
 Medido nesta máquina (2026-10-25, depois do bug 13; a linha do doom-fire é
-mais recente e tem data/governor em `docs/DOOM-FIRE.md`):
+mais recente e tem data/governor em `docs/BENCHMARKS.md`):
 
 | cenário | bzmux (Python) | núcleo nativo (referência) |
 |---|---|---|
@@ -227,7 +227,7 @@ mais recente e tem data/governor em `docs/DOOM-FIRE.md`):
 
 A carga do doom-fire (tela toda trocando de cor, pior caso do parser) é a única
 com número próprio aqui: **todos os detalhes, a escada de IO/parse/desenho, o
-protocolo e as armadilhas ficam em [`docs/DOOM-FIRE.md`](docs/DOOM-FIRE.md)**,
+protocolo e as armadilhas ficam em [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md)**,
 que é a fonte da verdade (com data e governor). Resumo de uma linha: o IO do pty
 não é o gargalo, o desenho é — e com governor `powersave` tudo cai 2–5x.
 

@@ -19,10 +19,10 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
   fila). Antes de implementar algo "óbvio", checar aqui: pode ser decisão.
 - docs/HISTORY.md — backlog concluído (P1–P18), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
-- docs/DOOM-FIRE.md — a carga de medição e **o único lugar com número de
-  vazão/desenho/parse**: por que ela existe, como rodar, o número (com data e
-  governor) e o protocolo de comparação. Os demais docs citam o fato e linkam;
-  não repetem valor.
+- docs/BENCHMARKS.md — benchmarks e medição e **o único lugar com número de
+  vazão/desenho/parse**: a carga doom-fire (manchete), o `dmesg` real, a escada
+  e as decomposições, o protocolo de comparação e as armadilhas (inclui o
+  governor). Os demais docs citam o fato e linkam; não repetem valor.
 - README.md — visão para humano: como rodar, ferramentas, ambiente, o que
   funciona, limites, medição, licença.
 
@@ -32,7 +32,7 @@ como foi verificado. Bug corrigido fora de item de backlog entra na lista
 numerada de bugs do HISTORY.md (e o quirk, se for armadilha de ambiente).
 Decisão de NÃO fazer algo vai para docs/LIMITATIONS.md, não para o backlog; se o
 limite deixar de existir, sai de lá e vira item concluído no HISTORY.md.
-**Número de medição mora em um só lugar: docs/DOOM-FIRE.md** (com data e
+**Número de medição mora em um só lugar: docs/BENCHMARKS.md** (com data e
 governor da CPU). Os outros docs citam o fato em uma frase e linkam — não
 repetem valor. Repetir número em cinco arquivos só produz divergência: cada
 re-medição virava uma caçada para achar as cópias. Exceções: o README.md mantém
@@ -126,7 +126,7 @@ experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
   truecolor (fg e bg por célula, pior caso), sem dependência de X.
   python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to ARQ imprime fps e
   MB/s na saída, então dá para comparar dois terminais na mesma grade. Por que,
-  resultados e protocolo: docs/DOOM-FIRE.md. Com PYTERM_PROF=1 no ambiente o
+  resultados e protocolo: docs/BENCHMARKS.md. Com PYTERM_PROF=1 no ambiente o
   app imprime, ao fechar a sessão, o custo de parse (on_pty) e de desenho
   (on_draw) — é o que decompõe a vazão. Com PYTERM_SCROLLLOG=ARQ um chunk que
   rola mais de meia tela é gravado com jump/top/bottom/alt-screen e os bytes
@@ -136,7 +136,7 @@ experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
   sondas de custo isolam as etapas: PYTERM_NODRAW=1 desliga o desenho (sobra
   pty -> grade) e PYTERM_NOPARSE=1 lê o pty e descarta (isola o IO); com
   PYTERM_PROF=1 o resumo ainda traz bytes lidos e eagain. A escada com os
-  números fica em docs/DOOM-FIRE.md.
+  números fica em docs/BENCHMARKS.md.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
 - Medição não é teste: os números vêm de execução real e não viram benchmark

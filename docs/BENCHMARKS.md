@@ -1,9 +1,18 @@
-# Doom fire — carga de medição
+# Benchmarks e medição
 
-Ferramenta: `tools/doomfire.py`. Item de backlog: P16 (concluído, ver
-[HISTORY.md](HISTORY.md)).
+Este é o **único doc com número de vazão/desenho/parse** (com data e governor;
+os outros citam o fato e linkam). Dentro dele:
 
-## Por que
+- **Carga principal: doom-fire** (`tools/doomfire.py`, item P16) — o pior caso
+  sintético, tela inteira trocando de cor por célula. É o número da manchete.
+- **Carga real: `dmesg`** — despejo de log com e sem cor.
+- **Escada e decomposições** — IO, parse e desenho separados, com as sondas e o
+  perfil (o que custa dentro de cada etapa).
+- **Protocolo** para comparar dois terminais e as armadilhas de medição.
+
+## A carga principal: doom-fire
+
+### Por que
 
 O caminho quente do bzmux é parser → grade de células → agrupamento por cor →
 desenho no cairo. Para medir vazão não serve `seq 1 100000` (uma cor só) nem
@@ -16,7 +25,7 @@ isso, e é sintético — não depende de app real nem de rede. Desenhado em
 meio-bloco (`▀`, dois pixels por célula) com fg e bg truecolor **por célula**,
 sem agrupar nada: cada célula custa dois escapes de 16 a 19 bytes.
 
-## Como rodar
+### Como rodar
 
     python3 tools/doomfire.py                      # 30 fps até Ctrl+C
     python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to /tmp/x.txt
@@ -31,7 +40,7 @@ sem agrupar nada: cada célula custa dois escapes de 16 a 19 bytes.
 e o arquivo evita depender de ler a tela. Grade = tamanho do terminal
 (`cols × lines`, buffer de `cols × 2·lines` pixels); o tool não redimensiona.
 
-## O número
+### O número
 
 Uma execução, grade padrão (janela de 980x640, fonte de 13 pontos → 70×21,
 1470 células), `--fps 0`, **um terminal de cada vez** (rodar os dois juntos
@@ -73,7 +82,7 @@ motivo é o desenho ligado: com ele desligado (seção abaixo) o mesmo fogo dá
 texto uniforme (escape curto, poucos runs); este mede uma tela que troca de cor
 em toda célula, que é o pior caso também do parse.
 
-### Onde o tempo vai
+#### Onde o tempo vai
 
 `PYTERM_PROF=1` (ver abaixo) decomposição de referência, medida com `schedutil`
 (400 frames, 6,97 s): **desenho 49%** (22,1 ms por draw, 154 draws) e **parse
@@ -94,7 +103,7 @@ Decomposição do mesmo frame por `PYTERM_PROF` (400 frames, 6,97 s, schedutil):
 é o gerador. Ou seja, com o parser rápido (P20–P22) o desenho passou a ser a
 maior fatia: 22 draws/s enquanto o fogo inteiro roda a ~60 frames/s.
 
-### Decomposição do desenho (2026-10-27)
+## Decomposição do desenho (2026-10-27)
 
 O desenho é a maior fatia hoje. Medido no `_on_draw` com instrumentação
 temporária por seção (`perf_counter` em volta de cada trecho do laço, `print` a
@@ -131,7 +140,7 @@ disso o `cProfile` infla proporcionalmente quem faz muitas chamadas Python:
 fps. Use o `cProfile` para descobrir *quais* chamadas existem e `perf_counter`
 por seção para a proporção.
 
-### A escada: IO, parse e desenho (2026-10-26)
+## A escada: IO, parse e desenho (2026-10-26)
 
 Duas sondas isolam as etapas: `PYTERM_NODRAW=1` desliga o desenho
 (`request_draw` vira no-op) e `PYTERM_NOPARSE=1` lê o pty e descarta os bytes
@@ -182,7 +191,7 @@ dispara com dado. Não há giro nem exceção por segundo.
 do emulador, não a do buffer. Read médio de ~4 KB não é acúmulo: é o watch
 disparando assim que chega qualquer coisa.
 
-### Decomposição do parse (por que 35 µs/célula)
+## Decomposição do parse (por que 35 µs/célula)
 
 Frame real do doomfire (70×21, 34 B/célula: 2 SGR truecolor de 19 B + `▀`),
 alimentado direto no `Term` sem GTK, melhor de 300 rodadas — mesma ordem da
@@ -205,7 +214,7 @@ cor: `CSI 10;10 H` de 8 B custa 8 µs, ou ~1 µs por byte de escape contra ~15 n
 por byte de texto puro. O gargalo não é iterar caracteres, é **o custo fixo de
 fechar e interpretar cada CSI**.
 
-### Opções de otimização (prototipadas, µs/célula no mesmo frame)
+## Opções de otimização (prototipadas, µs/célula no mesmo frame)
 
 | opção | como | µs/célula | ganho |
 |---|---|---|---|
@@ -242,7 +251,7 @@ Ressalva de prioridade: com o desenho em 22,7–98 ms/frame, otimizar o parse s�
 aparece na vazão quando o desenho também cair — depois do P20 o desenho é 71–87%
 do tempo (ver escada e a anomalia abaixo).
 
-### Carga real: `dmesg` (2026-10-26)
+## Carga real: `dmesg` (2026-10-26)
 
 O caso que motivou o P20 na prática. `Term` alimentado com o `dmesg` do sistema
 (1319 linhas), 100×40, sem GTK:
@@ -281,7 +290,7 @@ tomada com `powersave` deram 10,52 e 10,89 ms no scroll, dentro do ruído.)
         tools/doomfire.py --fps 0 --frames 300 --stats-to /tmp/df.txt'
     # prof: draw 1x 3.4ms/call | pty 2134x 0.06ms/call (137ms)
 
-### A primeira medição era inválida
+## A primeira medição era inválida
 
 Deu 24,6 fps / 1,0 MB/s e **estava errada**: a tela estava congelada por um bug
 de prioridade do GLib (bug 12 do HISTORY), então aquilo media só parse. Vale

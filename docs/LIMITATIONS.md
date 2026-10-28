@@ -7,14 +7,14 @@ daqui e vira item lá.
 
 Cada linha diz o limite, a razão e a consequência prática. Formato pensado para
 consulta por grep, não para leitura corrida. Visão geral do projeto:
-[../README.md](../README.md). Números de medição: [DOOM-FIRE.md](DOOM-FIRE.md).
+[../README.md](../README.md). Números de medição: [BENCHMARKS.md](BENCHMARKS.md).
 
 ## Desempenho (o custo do experimento)
 
 - **Vazão de poucos MB/s, contra 15,8 do kitty na mesma carga** — ordem de
   grandeza de 5x, não de 100x. Não é bug: é a medida, e o número (com data,
   governor e a escada que o decompõe) está em
-  [`DOOM-FIRE.md`](DOOM-FIRE.md). O que sobra de limite é o **desenho**; o IO do
+  [`BENCHMARKS.md`](BENCHMARKS.md). O que sobra de limite é o **desenho**; o IO do
   pty e o parser, depois do P20–P22, não são o gargalo.
 - **Interação não sofre**: tecla custa microssegundos; o limite só aparece em
   volume (cat de log grande, seq 100000, scroll de saída massiva).
