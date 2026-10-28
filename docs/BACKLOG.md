@@ -40,8 +40,8 @@ de memória (21 linhas ≈ 2,6 MB) e invalidação no resize/DPI. Ganho não
 mensurável pela carga atual — precisaria de uma segunda carga (scroll de log),
 o que é decisão à parte.
 
-P28 — Seleção com o mouse: clique de 1 char e âncora no scroll. **Na fila**
-(2026-10-27). Dois sintomas, mesma raiz: a seleção vive em coordenadas da
+P28 — Seleção com o mouse: clique de 1 char e âncora no scroll. **Na fila**;
+scroll decidido: **desfazer a seleção ao rolar** (opção B, 2026-10-27). Dois sintomas, mesma raiz: a seleção vive em coordenadas da
 **tela** (`y` de `visible_rows()`), não do conteúdo.
 
 1. **Clique sem arrastar seleciona 1 caractere.** `on_button_press` faz
@@ -60,20 +60,18 @@ P28 — Seleção com o mouse: clique de 1 char e âncora no scroll. **Na fila**
    ao vivo antes da seleção — hoje não dá para selecionar histórico com o
    mouse.
 
-Opções para o scroll (decidir antes de mexer):
+Opções para o scroll — **(B) escolhida** (2026-10-27):
 
-- **(A) ancorar a seleção no conteúdo**: guardar a linha **absoluta**
-  (`len(scrollback) - view_off + y`) em vez do `y` da tela; o destaque anda
-  junto com o texto ao rolar (e sai da tela se sair). Mais correto e é o que
-  xterm/kitty fazem. Custo médio: conversão no press/motion e no draw, e uma
-  âncora estável — o índice absoluto muda quando o `scrollback` cresce com a
-  seleção viva (contar a partir do fim, ou guardar a referência da linha, ou
-  ajustar as duas pontas quando `len(scrollback)` muda). Reflow/resize também
-  invalidam; a saída barata é limpar a seleção nesses casos.
-- **(B) desfazer a seleção ao rolar**: `scroll_view()` limpa `sel_start/
-  sel_end` quando `view_off` muda. Três linhas, comportamento previsível, e
-  resolve o "copia o texto errado" por construção. Perde a seleção ao rolar
-  (aceitável para um experimento).
+- **(A) ancorar a seleção no conteúdo** — **descartada**: guardar a linha
+  absoluta (`len(scrollback) - view_off + y`) em vez do `y` da tela, com o
+  destaque andando junto com o texto ao rolar (é o que xterm/kitty fazem). Custo
+  médio e uma âncora que o experimento não tem onde guardar: o índice absoluto
+  muda quando o `scrollback` cresce com a seleção viva, e reflow/resize
+  invalidam tudo. Não se paga aqui.
+- **(B) desfazer a seleção ao rolar** — **escolhida**: `scroll_view()` limpa
+  `sel_start`/`sel_end` quando `view_off` muda. Três linhas, comportamento
+  previsível, e resolve o "copia o texto errado" por construção. Perde a
+  seleção ao rolar, o que é aceitável para um experimento.
 
 Para o clique, independente do scroll: só criar seleção quando houver
 arrasto (`on_motion` com botão pressionado) e não copiar no release se
@@ -82,9 +80,8 @@ duplo clique for desejado, é item à parte (palavra), não precisa entrar aqui.
 
 Verificação (manual, com display): `tools/xtest.py` — `click` numa célula e
 conferir no dump (`kill -USR1`) que não sobrou reverso e que o PRIMARY não
-mudou (`xclip -o -selection primary`); `drag` e depois `wheel` — com (A) o
-destaque acompanha o texto, com (B) some; `copy` depois do wheel não pode
-devolver texto de outra linha. `core/checks.py` cobre `selection_text` puro,
+mudou (`xclip -o -selection primary`); `drag` e depois `wheel` — o destaque tem
+de sumir; `copy` depois do wheel não pode devolver texto de outra linha. `core/checks.py` cobre `selection_text` puro,
 mas não o estado da view (precisa de Gtk).
 
 Os 25 itens anteriores (P1–P25) estão concluídos. Histórico, bugs e quirks:
