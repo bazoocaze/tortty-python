@@ -1,4 +1,4 @@
-# bzmux — terminal mínimo em Python (experimento)
+# bzmux — terminal em Python puro
 
 > Repositório `pybzmux`; o projeto se chama **bzmux**. Nasceu como `pyterm`
 > dentro do experimento `kitty` e virou repo próprio em 2026-10-25 — por isso
@@ -7,10 +7,12 @@
 > núcleo C do kitty como `libkittycore.a` — ficou **naquele** repositório: aqui
 > não há C, não há compilação e nada do bzmux é compartilhado com ela.
 
-Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**,
-para sentir na pele o custo do caminho quente em Python comparado ao núcleo C
-do `gtkterm`. Não é produto: é a resposta empírica à pergunta "daria pra fazer
-tudo em Python?". O estado, a retomada e a fila ficam em
+Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**.
+Nasceu como experimento para sentir na pele o custo do caminho quente em Python
+comparado ao núcleo C do `gtkterm`; hoje é uma aplicação real, usada no dia a
+dia, e a medição continua sendo a régua. Não é produto distribuído: sem
+empacotamento, release nem suporte — o que não é feito está em
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). O estado, a retomada e a fila ficam em
 [`TASK-bzmux.md`](TASK-bzmux.md); o backlog pendente em
 [`docs/BACKLOG.md`](docs/BACKLOG.md); o que já foi feito, os bugs corrigidos e
 as armadilhas de teste em [`docs/HISTORY.md`](docs/HISTORY.md).

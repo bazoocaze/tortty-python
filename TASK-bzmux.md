@@ -1,10 +1,10 @@
 # TASK-bzmux — status
 
-Status (2026-10-27): experimento funcional. Roda shell, `mc` e `vim`; tem mouse
-com seleção/cópia, histórico com wheel, reflow, truecolor, protocolos de teclado
-e de imagens do kitty, bracketed paste, abas e workspaces. O que funciona, os
-limites de propósito e o resultado da medição estão no `README.md`; não é
-produto nem caminho de produção.
+Status (2026-10-27): aplicação real, em uso diário. Roda shell, `mc` e `vim`;
+tem mouse com seleção/cópia, histórico com wheel, reflow, truecolor, protocolos
+de teclado e de imagens do kitty, bracketed paste, abas e workspaces. O que
+funciona, os limites de propósito e o resultado da medição estão no `README.md`;
+não é produto distribuído: sem empacotamento, release nem suporte.
 
 Verificado nesta data: `./run-tests.sh` (bateria sem display) e a interação à
 mão com `tools/xtest.py`.

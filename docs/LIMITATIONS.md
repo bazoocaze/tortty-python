@@ -2,14 +2,14 @@
 
 O que o bzmux **não** faz, e por quê. Separado do backlog (que é fila de
 trabalho, em [BACKLOG.md](BACKLOG.md)): aqui só entra o que é decisão
-ou consequência aceita do experimento. Se algo desta lista virar tarefa, sai
+ou consequência aceita do escopo. Se algo desta lista virar tarefa, sai
 daqui e vira item lá.
 
 Cada linha diz o limite, a razão e a consequência prática. Formato pensado para
 consulta por grep, não para leitura corrida. Visão geral do projeto:
 [../README.md](../README.md). Números de medição: [BENCHMARKS.md](BENCHMARKS.md).
 
-## Desempenho (o custo do experimento)
+## Desempenho (o custo do caminho em Python)
 
 - **Vazão de poucos MB/s, contra ~6x mais do kitty na mesma carga** — não é bug,
   é a medida, e o par (com data, governor, frequência e a escada que o decompõe)
@@ -123,9 +123,9 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 
 ## Escopo (decisão, não falta)
 
-- **Não é produto**: é experimento para medir o custo do caminho quente em
-  Python. Não tem empacotamento, instalador, versionamento semântico nem
-  caminho de produção.
+- **Não é produto distribuído**: nasceu como experimento para medir o custo do
+  caminho quente em Python e virou aplicação real de uso diário, mas não tem
+  empacotamento, instalador, versionamento semântico nem caminho de produção.
 - **Não vai para Wayland puro sem X11**: o `keys.py` usa keyval do Gdk (funciona
   em Wayland), mas o teste manual (`tools/xtest.py`, `tools/pixel.py`) é X11.
 - **Um usuário, uma máquina**: nada de multiplexação de sessão, servidor, ou

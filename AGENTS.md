@@ -1,11 +1,13 @@
 # bzmux
 
 Terminal em Python puro: pty + parser VT + grade + desenho com cairo + Pango.
-Experimento funcional que existe para medir o custo do caminho quente em Python
-(não é produto). Roda shell, mc e vim; tem mouse com seleção/cópia, histórico
-com wheel, reflow, truecolor, protocolo de teclado e de imagens do kitty,
-bracketed paste, abas e workspaces. Este arquivo é convenção; o conteúdo
-muda de lugar conforme o tipo (ver Documentação).
+Nasceu como experimento para medir o custo do caminho quente em Python e virou
+aplicação real de uso diário: shell, mc e vim; mouse com seleção/cópia,
+histórico com wheel, reflow, truecolor, protocolo de teclado e de imagens do
+kitty, bracketed paste, abas e workspaces. A medição continua sendo a régua
+(docs/BENCHMARKS.md); o que não é feito e por quê: docs/LIMITATIONS.md.
+Este arquivo é convenção; o conteúdo muda de lugar conforme o tipo (ver
+Documentação).
 
 ## Documentação
 
