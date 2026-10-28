@@ -24,9 +24,10 @@ estado de cairo (2 `set_source_rgb`) e fundo (`rectangle`+`fill`) — 4 chamadas
 por run, com ~1323 runs por draw no doom-fire. A
 decomposição por etapa e o método estão em
 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) (seção "Decomposição do desenho"); o
-primeiro passo é medir `cr.show_glyphs`/`cr.show_text` contra o `show_layout`
-antes de mexer no código. O P19 (telas reescritas dentro do `pi`) segue aberto e
-independente.
+primeiro passo já foi dado: `show_glyph_item` custa 17% menos e dá pixels
+idênticos (P25), `cr.show_glyphs` custa 69% menos mas sai do Pango (P26), e
+cor/estado em float vale ~7% com risco zero (P24). O P19 (telas reescritas
+dentro do `pi`) segue aberto e independente.
 
 ## Fila
 

@@ -20,6 +20,46 @@ quando um widget do rodapé muda de altura (o observer do `pi-blackhole` escreve
 "Observational memory…" no meio da conversa); (b) `CSI 2J` + reimpressão; (c)
 resize/reflow entrando no meio do turno.
 
+P24 — Desenho: cortar o custo por run sem perder fidelidade. **Na fila**
+(2026-10-27). Medido no micro-bench (mesma fonte, sem display) e na
+decomposição do `_on_draw` em [BENCHMARKS.md](BENCHMARKS.md):
+
+- **cor em float na paleta** (evita 6 divisões + list comprehension por run):
+  0,99 → ~0,5 µs/run, ~7% do desenho. Trivial, risco zero.
+- **`set_source` com `SolidPattern` cacheado** em vez de `set_source_rgb`:
+  0,135 → 0,109 µs (-1%). Combina com o anterior.
+- **pular `set_source_rgb` quando a cor é a mesma do run anterior**: zero no
+  doom-fire, grande em app monocromático.
+- **chave do cache de layout sem tupla** (dois dicts, plain/bold): 0,09 → 0,03
+  µs; ruído, só junto de outra mudança.
+
+P25 — Desenho: `show_glyph_item` (ou `show_layout_line`) no lugar de
+`show_layout`. **Na fila**. O layout já vem do cache; sobrava o `show_layout`
+(40% do desenho). Medi: `show_glyph_item` com o GlyphItem cacheado custa
+2,03 µs contra 2,43 (-17%) e **os pixels saem idênticos** (diff 0 byte a byte em
+4 textos, inclusive acento). Exige cachear (GlyphItem, baseline) por
+(texto, negrito) e invalidar quando a fonte/DPI muda.
+
+P26 — Desenho: `cr.show_glyphs` com glifos pré-computados. **Experimento, não
+compromisso.** É o único caminho que ataca de verdade o custo de emissão:
+2,43 → 0,76 µs (-69%, ~24% do desenho). O preço é sair do Pango: sem fallback
+de fonte, sem attrs de negrito e sem a resolução do widget (o app usa 130 dpi).
+Medido: 440–958 bytes diferentes de 56.000 numa célula ~0,8% dos bytes) e
+`dy` ótimo igual ao do Pango. A via fiel (extrair os glifos *do* Pango e chamar
+`show_glyphs`) **não existe no pygobject**: `GlyphString.glyphs` estoura "Stack
+overflow protection" e volta `[]`. Se for tentar, o desenho precisa escolher por
+run (ASCII sem `.notdef` → cairo; senão Pango) e a validação é comparação de
+pixels, não o fps.
+
+P27 — Desenho: redesenho parcial (dirty-rect) e cache de linha em surface.
+**Ideia estrutural, sem número.** No doom-fire não ganha nada (a tela muda
+inteira), mas em uso real (vim parado, rolagem de log, shell) a maior parte da
+grade não muda entre draws: uma linha cacheada vira 1 blit (1,15 µs) em vez de
+~63 runs (~0,4 ms). Exige marcar dirty no `put`/scroll/resize (barato) e cuidar
+de memória (21 linhas ≈ 2,6 MB) e invalidação no resize/DPI. Ganho não
+mensurável pela carga atual — precisaria de uma segunda carga (scroll de log),
+o que é decisão à parte.
+
 Os 22 itens anteriores (P1–P23) estão concluídos. Histórico, bugs e quirks:
 [HISTORY.md](HISTORY.md). Status e por onde retomar:
 [../TASK-bzmux.md](../TASK-bzmux.md).
