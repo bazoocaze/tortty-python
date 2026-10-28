@@ -139,8 +139,8 @@ experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
   números fica em docs/BENCHMARKS.md.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
-- Medição não é teste: os números vêm de execução real e não viram benchmark
-  automatizado sem necessidade.
+- Medição não é teste: os números vêm de execução real. O `bench.sh` só roda o
+  protocolo e imprime o resultado; nenhum valor é guardado no código.
 
 ## Scripts e ferramentas
 
@@ -162,6 +162,13 @@ App:
   matando só o processo que ele mesmo subiu: use isto em vez de
   pkill -f bzmux.py, que casa com a linha de comando de quem chama e mata o
   shell errado.
+- ./bench.sh — roda a escada do doom-fire (full, `NODRAW`,
+  `NOPARSE+NODRAW` e o gerador isolado), espera cada etapa terminar e imprime
+  fps, MB/s, bytes/frame, custo de `draw`/`pty` e a frequência da CPU por
+  etapa. Com o padrão (300 frames) leva ~10 s; `--frames 1200` é o protocolo de
+  referência. Precisa de display e não guarda número: os valores ficam em
+  docs/BENCHMARKS.md. Fecha cada app com SIGTERM (o handler faz dump e imprime
+  o prof).
 - ./run-tests.sh — selftest (sem dependências) e depois pytest; argumentos
   extras vão para o pytest (-k, -x). --selftest-only pula o pytest. Sai != 0 se
   algo falhar. Não precisa de display.

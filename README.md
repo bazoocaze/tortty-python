@@ -24,7 +24,12 @@ as armadilhas de teste em [`docs/HISTORY.md`](docs/HISTORY.md).
 uv run pytest -q              # só a parte pytest
 python3 bzmux.py --selftest   # os mesmos checks, sem depender de pytest
 python3 bzmux.py --help       # opções, sem abrir janela
+./bench.sh                    # mede a vazão (doom-fire), ~10 s
 ```
+
+O `./bench.sh` imprime fps, MB/s, custo de desenho/parse e a frequência da CPU
+por etapa; a leitura dos números e o protocolo estão em
+[`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
 ## Durante o desenvolvimento
 

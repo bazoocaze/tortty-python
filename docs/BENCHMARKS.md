@@ -27,8 +27,16 @@ sem agrupar nada: cada célula custa dois escapes de 16 a 19 bytes.
 
 ### Como rodar
 
+    ./bench.sh                       # a escada inteira, 300 frames (~10 s)
+    ./bench.sh --frames 1200         # o protocolo de referência, 4 etapas
     python3 tools/doomfire.py                      # 30 fps até Ctrl+C
     python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to /tmp/x.txt
+
+O `bench.sh` abre e fecha a janela uma vez por etapa (full, `NODRAW`,
+`NOPARSE+NODRAW` e o gerador isolado), espera o doomfire terminar e imprime
+fps, MB/s, bytes/frame, `draw ms/call`, `pty ms/call` e **a frequência da CPU
+(média/pico)** de cada etapa. Precisa de display; com outro bzmux desenhando
+junto, avisa. Ele não guarda número nenhum — os de referência são os daqui.
 
 | opção | efeito |
 |---|---|
@@ -42,28 +50,36 @@ e o arquivo evita depender de ler a tela. Grade = tamanho do terminal
 
 ### O número
 
-Uma execução, grade padrão (janela de 980x640, fonte de 13 pontos → 70×21,
-1470 células), `--fps 0`, **um terminal de cada vez** (rodar os dois juntos
-contamina o número):
+Grade padrão (janela de 980x640, fonte de 13 pontos → 70×21, 1470 células),
+`--fps 0`, **um terminal de cada vez**:
 
 | | fps | MB/s de escapes | bytes/frame |
 |---|---|---|---|
-| bzmux | 59,3–63,9 | 3,3–3,6 | ~56 KB |
+| bzmux, turbo (~4,3 GHz) | 111,5 | 6,4 | ~57 KB |
+| bzmux, CPU baixa (~1,5 GHz) | 59,3–63,9 | 3,3–3,6 | ~56 KB |
 | kitty | 275,9 | 15,8 | ~57 KB |
 
-O bzmux fica com **98% de um core**: ~17 ms por frame de 1470 células. O kitty
-faz o mesmo em ~3,6 ms. A distância é de **~4,6x**.
+A distância para o kitty é de **~2,5x com turbo** e **~4,6x com a CPU baixa**. Os
+dois números do bzmux são o mesmo código na mesma máquina, medidos em 2026-10-27
+com `schedutil` e 400–1200 frames; o que muda é a **frequência efetiva**: o
+`draw` custa 7,9 ms com o turbo em 4,3 GHz e 22 ms com a CPU em ~1,5 GHz, e a
+vazão acompanha (~3x).
 
-Re-medido em 2026-10-27 na tomada e com governor **`schedutil`** (400 frames,
-70×21, `PYTERM_DIAG`: avanço 14,0 / célula 14×28 / res 130 / 70 colunas), 4
-tiros: 59,3 / 59,5 / 63,9 fps e 3,3 / 3,4 / 3,6 MB/s.
+Por isso o número não existe sem a condição: **registre governor e frequência**
+(o `bench.sh` imprime `GHz méd/pico` por etapa). As medições mais antigas desta
+máquina foram todas com `powersave` (~1,4 GHz, 3–5x menos que `schedutil`) —
+prova independente: o gerador isolado, que não toca no terminal, fez 256 fps com
+`powersave` e 762 fps com `schedutil`.
 
-**O governor decide o número.** A tabela antiga (8,2 / 0,5) e a primeira
-remedição (10,4 / 0,6) foram com **`powersave`**: a CPU ficava em ~1,4 GHz e
-não subia, e o mesmo código mede 3–5x menos. Prova independente: o gerador
-isolado, que não toca no terminal, fez 256 fps com `powersave` e **744 fps com
-`schedutil`**. Medir e comparar sempre com o mesmo governor, e registrar qual.
-Os quadros abaixo marcam qual governor estava ativo.
+O fps depende da grade (célula maior = menos frames por segundo com a mesma
+vazão); **MB/s é o número que compara**. A grade do kitty sai 68×19, não 68×20 —
+arredondamento de célula dele, e a diferença de bytes/frame é essa.
+
+O 6,4 MB/s fica *acima* do 0,7–1,9 MiB/s de "parse + grade" do README, e o
+motivo é o desenho ligado: com ele desligado (seção abaixo) o mesmo fogo dá
+10,7 MB/s. O número do README mede um despejo de texto uniforme (escape curto,
+poucos runs); este mede uma tela que troca de cor em toda célula, que é o pior
+caso também do parse.
 
 Este número é o **depois do P9** (desenho por Pango), da fonte em pontos e do
 bug 13: o desenho subiu de 12,8 para 22,7 ms por frame e a vazão caiu de 0,6
@@ -72,36 +88,23 @@ de glifo — até o bug 13 o texto era desenhado a 96 dpi (glifo de 10×22 px) c
 a grade a 130 dpi, ou seja os números anteriores a 2026-10-25 mediam **menos
 pixels pintados** por célula. Compare fps daqui pra frente, não com os de trás.
 
-O fps depende da grade (célula maior = menos frames por segundo com a mesma
-vazão); **MB/s é o número que compara**. A grade do kitty sai 68×19, não 68×20 —
-arredondamento de célula dele, e a diferença de bytes/frame é essa.
-
-O 3,4 MB/s fica *acima* do 0,7–1,9 MiB/s de "parse + grade" do README, e o
-motivo é o desenho ligado: com ele desligado (seção abaixo) o mesmo fogo dá
-8,5 MB/s. O número do README mede um despejo de texto uniforme. O número do README mede um despejo de
-texto uniforme (escape curto, poucos runs); este mede uma tela que troca de cor
-em toda célula, que é o pior caso também do parse.
-
 #### Onde o tempo vai
 
-`PYTERM_PROF=1` (ver abaixo) decomposição de referência, medida com `schedutil`
-(400 frames, 6,97 s): **desenho 49%** (22,1 ms por draw, 154 draws) e **parse
-25%** (0,32 ms por leitura, 5495 leituras); o resto é o gerador. Com
-`powersave`, a mesma decomposição dava parse 48% / desenho 52% a 8,2 fps —
-números antigos, outra bancada. O desenho é coalescido a ~22 draws/s (o teto é
-um a cada 16 ms) para ~60 frames/s de conteúdo: desenhar menos vezes é o que
-deixa o parse respirar.
+`PYTERM_PROF=1` (ver abaixo), 1200 frames a 70×21, 111,5 fps / 6,4 MB/s:
+**parse 43%** (`pty` 0,28 ms por leitura, 16.387 leituras = 4,6 s de 10,5 s) e
+**desenho 33%** (`draw` 7,9 ms por draw, 446 draws = 3,5 s); o resto é o gerador
+esperando. Com a CPU baixa a ordem se inverte (desenho 49%, parse 25%), porque o
+desenho é mais sensível à frequência que o parse.
+
+Desenho roda ~40x/s mas o fogo inteiro roda a ~110 frames/s: o desenho é
+coalescido a ~22–40 draws/s (o teto é um a cada 16 ms) e desenhar menos vezes é
+o que deixa o parse respirar.
 
 O desenho custa caro pelo número de *runs* de cor, não de células: 37 tons por
-linha fazem quase toda célula ser um run próprio. Com `schedutil` o custo é
-**~15 µs/célula** (22 ms/frame de 1470 células), contra ~1 µs do caso uniforme
+linha fazem quase toda célula ser um run próprio. Com turbo o custo é **~5 µs
+por célula** (7,9 ms/frame de 1470 células), contra ~1 µs do caso uniforme
 (~1,45 ms / 1470 células, desenho de `seq`, 445 draws). Medir desenho com tela
-de uma cor subestima o pior caso em **~15x**.
-
-Decomposição do mesmo frame por `PYTERM_PROF` (400 frames, 6,97 s, schedutil):
-**draw 154x 22,12 ms = 3,4 s (49%)**, pty 5495x 0,32 ms = 1,8 s (25%) — o resto
-é o gerador. Ou seja, com o parser rápido (P20–P22) o desenho passou a ser a
-maior fatia: 22 draws/s enquanto o fogo inteiro roda a ~60 frames/s.
+de uma cor subestima o pior caso em **~5x** (era 15x com a CPU baixa).
 
 ## Decomposição do desenho (2026-10-27)
 
@@ -148,18 +151,18 @@ Duas sondas isolam as etapas: `PYTERM_NODRAW=1` desliga o desenho
 
 | etapa ligada | fps | MB/s | onde o tempo vai |
 |---|---|---|---|
-| geração pura, fora do terminal (80×24) | **742** | **54** | é o teto do gerador (schedutil) |
-| só read do pty (NOPARSE+NODRAW) | **448 / 582** | **25 / 33** | o IO não é o limite (schedutil) |
+| geração pura, fora do terminal (80×24) | **763** | **56** | é o teto do gerador (schedutil) |
+| só read do pty (NOPARSE+NODRAW) | **713** | **41** | o IO não é o limite (turbo) |
 | read + parse → grade (NODRAW), antes do P20 | 17,2 | 1,0 | powersave; pty 4,17 ms/leitura = 99% |
-| read + parse → grade (NODRAW), depois do P20 | **156 / 147** | **8,8 / 8,3** | schedutil; pty 0,72 ms/leitura (powersave: 86,6 / 4,9) |
+| read + parse → grade (NODRAW), depois do P20 | **187** | **10,7** | turbo; pty 0,27 ms/leitura (CPU baixa: 156 / 8,8) |
 | + desenho (normal), antes do P20 | 8,2 | 0,5 | powersave; parse 48% + desenho 52% |
-| + desenho (normal), hoje | **59,3–63,9** | **3,3–3,6** | schedutil; desenho 49% + parse 25% |
+| + desenho (normal), hoje | **111,5** | **6,4** | turbo; parse 43% + desenho 33% (CPU baixa: 60 / 3,4) |
 
-Uma linha por etapa. As duas primeiras e as duas últimas são de 2026-10-27 com
-`schedutil`; as do P20 em diante tinham sido medidas com `powersave` (a coluna
-de fps antiga aparece entre parênteses onde existe). **Números de bancadas
-diferentes não se comparam**: com `powersave` o mesmo NOPARSE dava 14 MB/s, e
-com `schedutil` dá 25–33.
+Uma linha por etapa, `./bench.sh --frames 1200`. As linhas de `schedutil` são de
+2026-10-27; as do P20 tinham sido medidas com `powersave` (a coluna de fps
+antiga aparece entre parênteses onde existe). **Números de bancadas diferentes
+não se comparam**: o mesmo NOPARSE deu 14 MB/s com `powersave`, 25–33 com
+`schedutil` em CPU baixa e 41 com turbo.
 
 Leitura da escada (cada linha é o custo da etapa que entrou):
 

@@ -342,6 +342,9 @@ class BzmuxWindow(Gtk.Window):
         # SIGUSR1 dumpar as abas na hora (depuração: "kill -USR1 <pid>")
         GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1,
                              self._on_dump_signal)
+        # SIGTERM fecha como o --quit-after: o dump e o prof saem no fim
+        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM,
+                             self._on_term_signal)
 
     # -- workspaces ----------------------------------------------------
     @property
@@ -513,6 +516,10 @@ class BzmuxWindow(Gtk.Window):
     def _on_dump_signal(self):
         self.dump()
         return True
+
+    def _on_term_signal(self):
+        self._on_quit_after()
+        return False
 
     def _on_quit_after(self):
         self.dump()
