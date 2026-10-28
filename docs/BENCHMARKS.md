@@ -111,30 +111,43 @@ de uma cor subestima o pior caso em **~5x** (era 15x com a CPU baixa).
 
 ## Decomposição do desenho (2026-10-27)
 
-O desenho é a maior fatia hoje. Medido no `_on_draw` com instrumentação
-temporária por seção (`perf_counter` em volta de cada trecho do laço, `print` a
-cada 40 draws; não ficou no código), doom-fire 500 frames a 70×21, 59,8 fps /
-3,4 MB/s na mesma rodada:
+O desenho é a maior fatia depois do parse. Medido no `_on_draw` com
+instrumentação temporária por seção (`perf_counter` em volta de cada trecho do
+laço; não ficou no código), doom-fire 600 frames a 70×21, grade travada com
+`PYTERM_GEOM`, turbo em 4,29 GHz, 100–102 fps / 5,8–5,9 MB/s na mesma rodada, 3
+tiros (variação < 5%):
 
 | etapa do `_on_draw` | µs/run | ms/draw | % |
 |---|---|---|---|
-| agrupar run (`while j` comparando fg/bg/flags/seleção) | 1,78 | 2,2 | 9,6% |
-| cor + fundo (2× `cell_rgb`, 2× `set_source_rgb`, `rectangle`, `fill`) | 6,85 | 8,6 | 37,0% |
-| texto (`"".join` do run + `dict.get` do cache de layout) | 2,25 | 2,6 | 12,2% |
-| `cr.move_to` + `PangoCairo.show_layout` | **7,65** | **9,6** | **41,3%** |
-| **total** | 18,5 | **23,3** | 15,8 µs/célula |
+| agrupar run (`while j` comparando fg/bg/flags/seleção) | 0,27 | 0,4 | 4% |
+| cor: 2× `cell_rgb` (lookup + 6 divisões) | 0,69 | 0,9 | 10% |
+| estado: 2× `cr.set_source_rgb` (fg e bg) | 0,99 | 1,3 | 14% |
+| fundo: `cr.rectangle` + `cr.fill` | 1,33 | 1,8 | 19% |
+| texto: `"".join` do run + `dict.get` do cache de layout | 1,00 | 1,3 | 14% |
+| `cr.move_to` + `PangoCairo.show_layout` | **2,83** | **3,7** | **40%** |
+| soma das seções | 7,11 | 9,4 | 6,3 µs/célula |
+| resto (métricas, `paint` do fundo, cursor, sub-célula) | — | ~0,6 | ~6% |
 
-São **1255 runs por draw para 1470 células** (1,17 célula/run): o fogo troca a
-cor de quase toda célula, então agrupar não tem o que juntar. O custo é por
-*run*, não por célula — o laço Python de agrupamento é só 9,6%.
+São **~1323 runs por draw para 1470 células** (1,13 célula/run): o fogo troca a
+cor de quase toda célula, então agrupar não tem o que juntar (o laço Python de
+agrupamento é só 4%). Quase todo run pinta fundo (`bgpaint` = 99,99% dos runs).
 
-Conclusão de onde atacar: (1) **Pango, 41%** — o layout já vem do cache
+A instrumentação custa caro aqui: 6 `perf_counter` por run inflam o draw de
+8,1 para ~9,5 ms (17%) e o fps cai de ~110 para ~100. Por isso o `ms/draw` acima
+é maior que o do `PYTERM_PROF` — compare **proporções** com a instrumentação,
+nunca o total.
+
+**A mesma decomposição com a CPU em ~1,5 GHz** (a primeira medição, 500 frames,
+59,8 fps) dava 18,5 µs/run e 23,3 ms/draw, com as mesmas proporções: `show_layout`
+41%, cor+fundo 37%, texto 12%, agrupamento 9,6%. Ou seja, o turbo reduz tudo por
+~2,6x e não muda a ordem de ataque.
+
+Conclusão de onde atacar: (1) **Pango, 40%** — o layout já vem do cache
 `(texto, negrito)`, então o custo é o próprio `show_layout` emitindo ~1 glifo
 por run; medir `cr.show_glyphs`/`cr.show_text` contra ele antes de mexer;
-(2) **estado de cairo, 37%** — 4 chamadas de contexto por run; dá para cortar a
-conversão de cor (cachear a tupla float na paleta e evitar as 6 divisões por run
-no chamador), mas o par `rectangle`+`fill` por célula é intrínseco à cor por
-célula.
+(2) **fundo + estado, 33%** — 4 chamadas de contexto por run; a conversão de cor
+dá para cachear (tupla float por índice da paleta, evita 12 divisões por run),
+mas o par `rectangle`+`fill` por célula é intrínseco à cor por célula.
 
 **Armadilha de método**: o `cProfile` não enxerga `gi.FunctionInfo` —
 `PangoCairo.show_layout` chamado 20.000 vezes num teste isolado **não aparece**

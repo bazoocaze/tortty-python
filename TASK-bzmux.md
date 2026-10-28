@@ -19,8 +19,9 @@ mão com `tools/xtest.py`.
 Nada pela metade: árvore limpa, tudo commitado.
 
 **Próximo alvo: o desenho.** Com o parser resolvido (P20–P22), o `_on_draw` é a
-maior fatia do tempo: 41% Pango (`show_layout`, ~1 glifo por run) e 37% estado
-de cairo (4 chamadas por run), com 1255 runs por draw no doom-fire. A
+maior fatia do tempo: 40% Pango (`show_layout`, ~1 glifo por run) e 33% entre
+estado de cairo (2 `set_source_rgb`) e fundo (`rectangle`+`fill`) — 4 chamadas
+por run, com ~1323 runs por draw no doom-fire. A
 decomposição por etapa e o método estão em
 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) (seção "Decomposição do desenho"); o
 primeiro passo é medir `cr.show_glyphs`/`cr.show_text` contra o `show_layout`
