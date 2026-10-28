@@ -39,8 +39,8 @@ base e o número único em [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) (o desenho
 hoje a maior fatia do tempo).
 
 O P20 (fast path de escape no parser) mexeu nessa decomposição: sem parse
-(`PYTERM_NOPARSE=1`) o mesmo fogo passa do kitty — o gargalo era o parser em
-Python, não o IO. Com o fast path, o parse+grade ficou ~5x mais rápido; o P21 (linha em
+(`PYTERM_NOPARSE=1`) o mesmo fogo chega perto do kitty (35 contra 40 MB/s) — o
+que separa os dois hoje é o parser em Python, mais o desenho, não o IO. Com o fast path, o parse+grade ficou ~5x mais rápido; o P21 (linha em
 branco compartilhada no scroll) cortou a rolagem de 38,4 para 10,9 µs/linha, e
 o P22 (cache de parâmetros de CSI) levou o `dmesg` com cor de 2,0x para 2,4x
 (165 → 43 ms sem cor, 189 → 79 ms com cor).

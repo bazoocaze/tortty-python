@@ -11,11 +11,10 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 
 ## Desempenho (o custo do experimento)
 
-- **Vazão de poucos MB/s, contra 15,8 do kitty na mesma carga** — ordem de
-  grandeza de 5x, não de 100x. Não é bug: é a medida, e o número (com data,
-  governor e a escada que o decompõe) está em
-  [`BENCHMARKS.md`](BENCHMARKS.md). O que sobra de limite é o **desenho**; o IO do
-  pty e o parser, depois do P20–P22, não são o gargalo.
+- **Vazão de poucos MB/s, contra ~6x mais do kitty na mesma carga** — não é bug,
+  é a medida, e o par (com data, governor, frequência e a escada que o decompõe)
+  está em [`BENCHMARKS.md`](BENCHMARKS.md). Depois do P20–P22 o IO do pty deixou
+  de ser gargalo; sobra o **parse em Python** e o **desenho**, nessa ordem.
 - **Interação não sofre**: tecla custa microssegundos; o limite só aparece em
   volume (cat de log grande, seq 100000, scroll de saída massiva).
 - **Um core por sessão ativa**: sob despejo contínuo o bzmux satura um core. O

@@ -130,10 +130,11 @@ experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
   app imprime, ao fechar a sessão, o custo de parse (on_pty) e de desenho
   (on_draw) — é o que decompõe a vazão. Com PYTERM_SCROLLLOG=ARQ um chunk que
   rola mais de meia tela é gravado com jump/top/bottom/alt-screen e os bytes
-  crus (sonda do P19). Com PYTERM_DIAG=1 no primeiro draw ele
-  imprime avanço da fonte, célula da grade, resolução e colunas: é o par que
-  tem que bater (bug 13 do HISTORY — grade a 130 dpi e desenho a 96). As duas
-  sondas de custo isolam as etapas: PYTERM_NODRAW=1 desliga o desenho (sobra
+  crus (sonda do P19). PYTERM_GEOM=980x640 trava o tamanho da janela (sem isso
+  o WM às vezes abre 80x24 e o número muda; é o que o protocolo de comparação
+  exige). Com PYTERM_DIAG=1 no primeiro draw ele imprime avanço da fonte, célula
+  da grade, resolução e colunas: é o par que tem que bater (bug 13 do HISTORY —
+  grade a 130 dpi e desenho a 96). As duas sondas de custo isolam as etapas: PYTERM_NODRAW=1 desliga o desenho (sobra
   pty -> grade) e PYTERM_NOPARSE=1 lê o pty e descarta (isola o IO); com
   PYTERM_PROF=1 o resumo ainda traz bytes lidos e eagain. A escada com os
   números fica em docs/BENCHMARKS.md.

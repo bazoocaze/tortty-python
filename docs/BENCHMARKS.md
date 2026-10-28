@@ -50,36 +50,39 @@ e o arquivo evita depender de ler a tela. Grade = tamanho do terminal
 
 ### O número
 
-Grade padrão (janela de 980x640, fonte de 13 pontos → 70×21, 1470 células),
-`--fps 0`, **um terminal de cada vez**:
+Grade 70×21 (1470 células, janela de 980x640 travada com `PYTERM_GEOM`,
+fonte de 13 pontos), `--fps 0 --frames 1200`, **um terminal de cada vez**, 3
+tiros de cada em 2026-10-27, `schedutil` com turbo em 4,29 GHz:
 
 | | fps | MB/s de escapes | bytes/frame |
 |---|---|---|---|
-| bzmux, turbo (~4,3 GHz) | 111,5 | 6,4 | ~57 KB |
-| bzmux, CPU baixa (~1,5 GHz) | 59,3–63,9 | 3,3–3,6 | ~56 KB |
-| kitty | 275,9 | 15,8 | ~57 KB |
+| bzmux | 106,7–120,6 | 6,1–6,9 | ~56 KB |
+| kitty 0.48.2 | 675,8–714,2 | 38,5–40,7 | ~56 KB |
 
-A distância para o kitty é de **~2,5x com turbo** e **~4,6x com a CPU baixa**. Os
-dois números do bzmux são o mesmo código na mesma máquina, medidos em 2026-10-27
-com `schedutil` e 400–1200 frames; o que muda é a **frequência efetiva**: o
-`draw` custa 7,9 ms com o turbo em 4,3 GHz e 22 ms com a CPU em ~1,5 GHz, e a
-vazão acompanha (~3x).
+A distância é de **~6x** (5,6–6,7x tiro a tiro). O bzmux gasta ~8,5 ms por frame
+de 1470 células e o kitty ~1,4 ms: **5,8 µs contra 1 µs por célula**.
 
-Por isso o número não existe sem a condição: **registre governor e frequência**
-(o `bench.sh` imprime `GHz méd/pico` por etapa). As medições mais antigas desta
-máquina foram todas com `powersave` (~1,4 GHz, 3–5x menos que `schedutil`) —
-prova independente: o gerador isolado, que não toca no terminal, fez 256 fps com
-`powersave` e 762 fps com `schedutil`.
+O número do kitty que estava aqui (275,9 fps / 15,8 MB/s, grade 68×19) foi medido
+em outra condição desta máquina (CPU baixa) e **não se compara**: a mesma versão
+dele faz 2,5x mais hoje só com o turbo. Sempre re-meça os dois na mesma sessão,
+com a mesma janela e registrando a frequência; é isso que o `bench.sh` e o
+`PYTERM_GEOM` existem para garantir.
+
+**A frequência efetiva decide o número.** O mesmo código do bzmux mediu 107–121
+fps com o turbo em 4,3 GHz e 59–64 fps com a CPU em ~1,5 GHz (`draw` de 8,5 ms
+contra 22 ms); as medições antigas, com `powersave` (~1,4 GHz), davam 3–5x menos
+que `schedutil`. Prova independente: o gerador isolado, que não toca no
+terminal, fez 256 fps com `powersave` e 756–771 com `schedutil`.
 
 O fps depende da grade (célula maior = menos frames por segundo com a mesma
-vazão); **MB/s é o número que compara**. A grade do kitty sai 68×19, não 68×20 —
-arredondamento de célula dele, e a diferença de bytes/frame é essa.
+vazão); **MB/s é o número que compara**. O `--frames 1200` também importa: com
+300 frames a janela sobe no meio da conta e o fps sai 10–20% acima.
 
-O 6,4 MB/s fica *acima* do 0,7–1,9 MiB/s de "parse + grade" do README, e o
+O 6,1–6,9 MB/s fica *acima* do 0,7–1,9 MiB/s de "parse + grade" do README, e o
 motivo é o desenho ligado: com ele desligado (seção abaixo) o mesmo fogo dá
-10,7 MB/s. O número do README mede um despejo de texto uniforme (escape curto,
-poucos runs); este mede uma tela que troca de cor em toda célula, que é o pior
-caso também do parse.
+10,8–11,1 MB/s. O número do README mede um despejo de texto uniforme (escape
+curto, poucos runs); este mede uma tela que troca de cor em toda célula, que é o
+pior caso também do parse.
 
 Este número é o **depois do P9** (desenho por Pango), da fonte em pontos e do
 bug 13: o desenho subiu de 12,8 para 22,7 ms por frame e a vazão caiu de 0,6
@@ -90,9 +93,9 @@ pixels pintados** por célula. Compare fps daqui pra frente, não com os de trá
 
 #### Onde o tempo vai
 
-`PYTERM_PROF=1` (ver abaixo), 1200 frames a 70×21, 111,5 fps / 6,4 MB/s:
-**parse 43%** (`pty` 0,28 ms por leitura, 16.387 leituras = 4,6 s de 10,5 s) e
-**desenho 33%** (`draw` 7,9 ms por draw, 446 draws = 3,5 s); o resto é o gerador
+`PYTERM_PROF=1` (ver abaixo), 1200 frames a 70×21, 113,5 fps / 6,5 MB/s:
+**parse 44%** (`pty` 0,28 ms por leitura, 16.301 leituras = 4,7 s de 10,6 s) e
+**desenho 34%** (`draw` 8,1 ms por draw, 448 draws = 3,6 s); o resto é o gerador
 esperando. Com a CPU baixa a ordem se inverte (desenho 49%, parse 25%), porque o
 desenho é mais sensível à frequência que o parse.
 
@@ -151,14 +154,15 @@ Duas sondas isolam as etapas: `PYTERM_NODRAW=1` desliga o desenho
 
 | etapa ligada | fps | MB/s | onde o tempo vai |
 |---|---|---|---|
-| geração pura, fora do terminal (80×24) | **763** | **56** | é o teto do gerador (schedutil) |
-| só read do pty (NOPARSE+NODRAW) | **713** | **41** | o IO não é o limite (turbo) |
+| geração pura, fora do terminal (80×24) | **756–771** | **55** | é o teto do gerador (turbo) |
+| só read do pty (NOPARSE+NODRAW) | **629–635** | **35** | o IO não é o limite (turbo) |
 | read + parse → grade (NODRAW), antes do P20 | 17,2 | 1,0 | powersave; pty 4,17 ms/leitura = 99% |
-| read + parse → grade (NODRAW), depois do P20 | **187** | **10,7** | turbo; pty 0,27 ms/leitura (CPU baixa: 156 / 8,8) |
+| read + parse → grade (NODRAW), depois do P20 | **192–198** | **11** | turbo; pty 0,27 ms/leitura (CPU baixa: 156 / 8,8) |
 | + desenho (normal), antes do P20 | 8,2 | 0,5 | powersave; parse 48% + desenho 52% |
-| + desenho (normal), hoje | **111,5** | **6,4** | turbo; parse 43% + desenho 33% (CPU baixa: 60 / 3,4) |
+| + desenho (normal), hoje | **107–121** | **6,1–6,9** | turbo; parse 44% + desenho 34% (CPU baixa: 60 / 3,4) |
 
-Uma linha por etapa, `./bench.sh --frames 1200`. As linhas de `schedutil` são de
+Uma linha por etapa, `./bench.sh --frames 1200` (grade travada por
+`PYTERM_GEOM=980x640`). As linhas de `schedutil` são de
 2026-10-27; as do P20 tinham sido medidas com `powersave` (a coluna de fps
 antiga aparece entre parênteses onde existe). **Números de bancadas diferentes
 não se comparam**: o mesmo NOPARSE deu 14 MB/s com `powersave`, 25–33 com
@@ -324,8 +328,10 @@ casar, senão o texto não cai nas células (bug 13 do HISTORY).
 
 0. **um de cada vez** — dois terminais desenhando ao mesmo tempo disputam CPU
    e os dois números saem piores;
-1. mesmas colunas e mesmas linhas nos dois — mais fácil pedindo o mesmo tamanho
-   de janela em pixels, já que fonte e DPI são as mesmas (no kitty:
+1. mesmas colunas e mesmas linhas nos dois — trave o tamanho: no bzmux com
+   `PYTERM_GEOM=980x640` (sem isso o WM às vezes abre 80×24 e o número muda),
+   e no kitty pedindo o mesmo tamanho em pixels, já que fonte e DPI são as
+   mesmas (no kitty:
    `kitty --override remember_window_size=no --override initial_window_width=980
    --override initial_window_height=640 -e ...`; a janela padrão do bzmux é
    980×640, o que dá 70×21 com um workspace e 57×21 com dois — abrir ou fechar a

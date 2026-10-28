@@ -16,6 +16,16 @@ from .gui import Gtk, Gdk, GLib, Pango
 from .view import TermView
 
 SIDEBAR_W = 170          # largura fixa (arrastável fica pra depois)
+
+
+def _geom():
+    # PYTERM_GEOM=980x640 trava o tamanho: medir exige a mesma grade nos dois
+    m = os.environ.get("PYTERM_GEOM", "")
+    w, _, h = m.partition("x")
+    if w.isdigit() and h.isdigit() and int(w) > 0 and int(h) > 0:
+        return int(w), int(h)
+    return 980, 640
+
 TAB_TITLE_CHARS = 20     # aba: largura em chars, não em px (o título trunca)
 _styled = False          # o provider é da tela: aplica uma vez por processo
 
@@ -329,7 +339,7 @@ class BzmuxWindow(Gtk.Window):
         self.add(hbox)
         # 680x420 casava com a fonte de 16 px; com 13 pontos (23 px nesta tela)
         # a grade caía para 48x14. 980x640 devolve ~70x20.
-        self.set_default_size(980, 640)
+        self.set_default_size(*_geom())
         self.connect("destroy", self.on_destroy)
         # a view trata e retorna True (o sinal não sobe); este handler é a
         # rede pra quando o foco NÃO está numa sessão (cartão da lateral,

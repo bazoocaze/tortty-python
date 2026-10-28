@@ -40,6 +40,8 @@ if [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE" 2>/dev/null)" 2>/dev/null; the
     echo "aviso: já há um bzmux rodando (debug.sh); dois desenhando contaminam" >&2
 fi
 
+GEOM=${PYTERM_GEOM:-980x640}
+
 GOV=$(cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor 2>/dev/null || true)
 case "$GOV" in
     powersave|conservative)
@@ -56,12 +58,14 @@ stage() {
     rm -f "$_out" "$_log"
     _freq=/tmp/bzmux-bench-$_slug.freq
     rm -f "$_freq"
+    # O app pode cair em qualquer core; amostra o mais rapido do instante.
     ( while kill -0 "$$" 2>/dev/null; do
-          cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null >> "$_freq"
+          cat /sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq 2>/dev/null |
+              sort -n | tail -1 >> "$_freq"
           sleep 0.2
       done ) &
     _sampler=$!
-    env "$@" PYTERM_PROF=1 "$HERE/run.sh" \
+    env PYTERM_GEOM="$GEOM" "$@" PYTERM_PROF=1 "$HERE/run.sh" \
         --cmd "python3 $HERE/tools/doomfire.py --fps 0 --frames $FRAMES --stats-to $_out" \
         >"$_log" 2>&1 &
     _pid=$!
@@ -97,7 +101,13 @@ stage() {
         echo "  (a etapa não produziu stats; fim do log:)" >&2
         tail -3 "$_log" >&2 2>/dev/null
     fi
-    [ -n "$_grade" ] && GRADE=$_grade
+    if [ -n "$_grade" ]; then
+        if [ "$GRADE" = "?" ]; then
+            GRADE=$_grade
+        elif [ "$_grade" != "$GRADE" ]; then
+            echo "  aviso: grade $_grade != $GRADE; o número não é comparável" >&2
+        fi
+    fi
     return 0
 }
 
@@ -120,4 +130,4 @@ printf "%-26s %7s %7s %12s %10s %9s %13s\n" "gerador isolado" \
     "$(sed -n 's/^bytes\/frame *\([0-9]*\)$/\1/p' "$_out" | tail -1)" "-" "-" "-"
 
 echo
-echo "governor: $GOV | grade: $GRADE | referência e protocolo: docs/BENCHMARKS.md"
+echo "governor: $GOV | grade: $GRADE (PYTERM_GEOM=$GEOM) | protocolo: docs/BENCHMARKS.md"

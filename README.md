@@ -228,13 +228,14 @@ mais recente e tem data/governor em `docs/BENCHMARKS.md`):
 |---|---|---|
 | **uma tecla** (eco de 1 char) | **0,4 µs por caractere** | ~1 ms de ponta a ponta (dominado por desenho) |
 | `seq 1 100000` (575 KiB) | **~0,8 s** | milissegundos |
-| doom-fire, tela cheia trocando de cor (`tools/doomfire.py`) | **59–64 fps / 3,3–3,6 MB/s** | 276 fps / 15,8 MB/s (kitty) |
+| doom-fire, tela cheia trocando de cor (`tools/doomfire.py`) | **107–121 fps / 6,1–6,9 MB/s** | 676–714 fps / 38,5–40,7 MB/s (kitty 0.48.2) |
 
 A carga do doom-fire (tela toda trocando de cor, pior caso do parser) é a única
 com número próprio aqui: **todos os detalhes, a escada de IO/parse/desenho, o
 protocolo e as armadilhas ficam em [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md)**,
-que é a fonte da verdade (com data e governor). Resumo de uma linha: o IO do pty
-não é o gargalo, o desenho é — e com governor `powersave` tudo cai 2–5x.
+que é a fonte da verdade (com data, governor e frequência da CPU). Resumo de uma
+linha: o IO do pty não é o gargalo; o parse em Python e o desenho dividem a conta,
+e com governor `powersave` tudo cai 2–5x.
 
 Conclusão honesta: **na interação o bzmux é imperceptível** — digitar, andar
 no `mc`, abrir `vim` custa microssegundos por tecla, porque a carga por evento
