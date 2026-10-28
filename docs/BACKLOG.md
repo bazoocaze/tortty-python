@@ -84,6 +84,33 @@ mudou (`xclip -o -selection primary`); `drag` e depois `wheel` — o destaque te
 de sumir; `copy` depois do wheel não pode devolver texto de outra linha. `core/checks.py` cobre `selection_text` puro,
 mas não o estado da view (precisa de Gtk).
 
+P29 — `Alt+Backspace` (e `Alt` nas teclas de `SIMPLE`) não manda o prefixo
+`ESC`. **Na fila** (2026-10-27). No kitty e no ghostty, no `zsh`, `Alt+Backspace`
+apaga a palavra à esquerda; no bzmux age como `Backspace` puro (apaga 1 char).
+
+Causa: `encode_key()` (`core/keys.py`) trata `kv in SIMPLE` antes de qualquer
+coisa e devolve `SIMPLE[kv]` **sem olhar o `alt`** — o `"\x1b" + s` só existe no
+ramo dos imprimíveis e das dead keys. `BackSpace` está em `SIMPLE` como
+`"\x7f"`, então Alt+Backspace sai igual a Backspace. O `zsh` liga
+`backward-kill-word` em `"^[^?"` (ESC DEL) por padrão — que é o que xterm,
+kitty e ghostty mandam nesse caso. No protocolo do kitty (flag 1,
+`disambiguate`) o caminho é outro (`CSI 127;3u`), mas o `zsh` não fala esse
+protocolo: o conserto é no caminho legado.
+
+Mesma raiz, provavelmente o mesmo sintoma: `Alt+Tab`, `Alt+setas`,
+`Alt+Home/End`, `Alt+F1..F12` e `Ctrl+Alt+letra` (que cai em
+`chr(kv & 0x1f)` sem ESC). O escopo do fix é decidir se `Alt` prefixa `ESC` em
+todas as sequências (como xterm faz) ou só nas de `SIMPLE`, tomando cuidado com
+o que já tem tratamento próprio: `Shift+Tab` (`\x1b[Z`) e o `APP_CURSOR`
+(DECCKM), para não sair `ESC ESC [ Z` nem perder o `\x1bO`.
+
+Verificação (manual, precisa de display): dentro do bzmux, `cat -v` e apertar
+`Alt+Backspace` — tem de aparecer `^[^?` (hoje aparece `^?`); no `zsh`, digitar
+duas palavras e apertar `Alt+Backspace` — apaga a palavra, como no kitty.
+`tools/xtest.py key alt+BackSpace` injeta a tecla. `keys.py` fica fora do
+`--selftest` por depender das constantes do Gdk, então não entra em
+`core/checks.py`.
+
 Os 25 itens anteriores (P1–P25) estão concluídos. Histórico, bugs e quirks:
 [HISTORY.md](HISTORY.md). Status e por onde retomar:
 [../TASK-bzmux.md](../TASK-bzmux.md).
