@@ -132,5 +132,16 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
   para fazer um terminal inteiro em Python e a resposta foi sim — ele é usado
   no dia a dia assim. O teto de vazão (~6x o kitty) é o preço aceito, e se
   ataca otimizando o caminho em Python (parse, desenho), não reescrevendo em C.
+- **Núcleo nativo (C ou Rust) não entra**: já foi tentado antes, no experimento
+  irmão que embute o núcleo do kitty como lib C: ~4,9 mil linhas de C escrito à
+  mão e 68 commits em 6 dias, e os bugs caros foram de **fronteira**, não de
+  VT — a tecla indo duas vezes ao pty ao fundir a instrumentação, e o frame de
+  atraso que passou por "não é do app" e custou dois dias para achar, com
+  métricas falsas de até 1,6 s criadas pelo próprio instrumento. O mesmo app em
+  Python saiu em ~3,5 mil linhas, mais rápido e com mais escopo. Atravessar a
+  fronteira (ABI, estado duplicado, debug em duas linguagens, teste que exige
+  build) cobra mais do que o pedaço de código que evita. Se a vazão virar
+  prioridade, a rota é otimizar o Python (P26/P27) ou reescrever o núcleo no
+  mesmo repositório e na mesma linguagem — não colar um núcleo alheio.
 - **Um usuário, uma máquina**: nada de multiplexação de sessão, servidor, ou
   reconexão.
