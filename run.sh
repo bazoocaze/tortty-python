@@ -2,7 +2,7 @@
 # run.sh — roda o bzmux aqui, para testar rápido. Passa os argumentos para o
 # app e sai com o código dele; nada de instância em background.
 #
-# É o script para o usuário experimentar o terminal. Durante o desenvolvimento
+# É o script para rodar o terminal à mão. Durante o desenvolvimento
 # o caminho é o debug.sh: ele sobe por este script (mesmo interpretador), mas
 # com log em /tmp/bzmux.log, PID file, --kill e --status.
 #

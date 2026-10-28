@@ -9,7 +9,7 @@ Aqui mora só o parse/decodificação e a lista de *placements*; o cairo entra
 depois, no `window.py` (`surface_from_image`). Assim o protocolo é testável
 sem display.
 
-Suportado (o suficiente pro `kitten icat` e pro experimento):
+Suportado (o suficiente pro `kitten icat`):
 
     a=t transmitir   a=T transmitir+e_mostrar   a=p mostrar (já transmitida)
     a=d apagar (d=i,i=<id> ou d=a)              a=q query

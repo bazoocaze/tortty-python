@@ -548,7 +548,7 @@ class Term:
                 self.focus_report = on  # CSI I / CSI O no foco
             elif private and p in (1005, 1015):
                 # UTF-8 / urxvt: o SGR (1006) cobre; não vale implementar
-                # três codificações de coordenada para o experimento
+                # três codificações de coordenada que ninguém usa
                 pass
             elif private and p == 2004:
                 # bracketed paste: o app pede pra saber que o texto colado não
@@ -630,7 +630,7 @@ class Term:
         elif final == "n" and params == (6,):
             # DSR: informa posição do cursor
             self.child_out += f"\x1b[{self.cy + 1};{self.cx + 1}R".encode()
-        # resto: ignorado silenciosamente (experimento mínimo)
+        # resto: ignorado silenciosamente (não implementado)
 
     # -- parser -------------------------------------------------------
     def _sgr_fast(self, text, i):

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""bzmux — terminal mínimo em Python puro (experimento).
+"""bzmux — terminal em Python puro.
 
-Propósito: sentir na pele o custo do caminho quente (parse VT + grade +
-desenho) em Python, comparado ao núcleo C do kitty. Roda shell de verdade
-e aguenta o `mc` — devagar, e esse é o ponto.
+pty + parser VT + grade + cairo/Pango, sem C. Nasceu para medir o custo do
+caminho quente em Python comparado ao núcleo C do kitty; hoje roda shell, `mc`
+e `vim` no dia a dia. A medição e o protocolo ficam em docs/BENCHMARKS.md.
 
 Uso:
     python3 bzmux.py [--cmd 'comando'] [--quit-after SEG] [--selftest]
