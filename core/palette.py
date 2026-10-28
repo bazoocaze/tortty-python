@@ -55,9 +55,36 @@ def _build_256():
 
 
 PALETTE256 = _build_256()
+_PAL_F = [tuple(c / 255 for c in rgb) for rgb in PALETTE256]
 
 BG_DEFAULT = (0, 0, 0)
 FG_DEFAULT = (214, 214, 214)
+
+# Desenho: as mesmas cores em float 0..1 (o cairo pede float), cacheadas para
+# não refazer divisão nem alocar lista por run. Teto porque o truecolor pode
+# gerar valores sem fim; as tuplas são compartilhadas, então `is` compara cor.
+_FG_F = tuple(c / 255 for c in FG_DEFAULT)
+_BG_F = tuple(c / 255 for c in BG_DEFAULT)
+_F_CACHE = {}
+
+
+def cell_rgb_f(c):
+    """Cor da célula já em floats 0..1, pronta para `set_source_rgb`."""
+    v = _F_CACHE.get(c)
+    if v is None:
+        if c == DEF_FG:
+            v = _FG_F
+        elif c == DEF_BG:
+            v = _BG_F
+        elif c & TC:
+            v = (((c >> 16) & 0xFF) / 255, ((c >> 8) & 0xFF) / 255,
+                 (c & 0xFF) / 255)
+        else:
+            v = _PAL_F[c]
+        if len(_F_CACHE) > 4096:
+            _F_CACHE.clear()
+        _F_CACHE[c] = v
+    return v
 
 # DEC special graphics (ESC ( 0): tecla -> unicode
 DEC_SPECIAL = {

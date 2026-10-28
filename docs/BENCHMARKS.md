@@ -56,11 +56,11 @@ tiros de cada em 2026-10-27, `schedutil` com turbo em 4,29 GHz:
 
 | | fps | MB/s de escapes | bytes/frame |
 |---|---|---|---|
-| bzmux | 106,7–120,6 | 6,1–6,9 | ~56 KB |
+| bzmux | 110,4–122,6 | 6,2–6,9 | ~56 KB |
 | kitty 0.48.2 | 675,8–714,2 | 38,5–40,7 | ~56 KB |
 
-A distância é de **~6x** (5,6–6,7x tiro a tiro). O bzmux gasta ~8,5 ms por frame
-de 1470 células e o kitty ~1,4 ms: **5,8 µs contra 1 µs por célula**.
+A distância é de **~6x** (5,6–6,6x tiro a tiro). O bzmux gasta ~7,7 ms por frame
+de 1470 células e o kitty ~1,4 ms: **5,2 µs contra 1 µs por célula**.
 
 O número do kitty que estava aqui (275,9 fps / 15,8 MB/s, grade 68×19) foi medido
 em outra condição desta máquina (CPU baixa) e **não se compara**: a mesma versão
@@ -114,19 +114,25 @@ de uma cor subestima o pior caso em **~5x** (era 15x com a CPU baixa).
 O desenho é a maior fatia depois do parse. Medido no `_on_draw` com
 instrumentação temporária por seção (`perf_counter` em volta de cada trecho do
 laço; não ficou no código), doom-fire 600 frames a 70×21, grade travada com
-`PYTERM_GEOM`, turbo em 4,29 GHz, 100–102 fps / 5,8–5,9 MB/s na mesma rodada, 3
-tiros (variação < 5%):
+`PYTERM_GEOM`, turbo em 4,29 GHz:
 
-| etapa do `_on_draw` | µs/run | ms/draw | % |
+Duas colunas: **antes** e **depois** do P24/P25 (cor em float cacheado,
+`show_layout_line`), mesma metodologia e mesma CPU. A tabela "antes" é a
+referência histórica; a "depois" é o que o código faz hoje.
+
+| etapa do `_on_draw` | antes µs/run | depois µs/run | % hoje |
 |---|---|---|---|
-| agrupar run (`while j` comparando fg/bg/flags/seleção) | 0,27 | 0,4 | 4% |
-| cor: 2× `cell_rgb` (lookup + 6 divisões) | 0,69 | 0,9 | 10% |
-| estado: 2× `cr.set_source_rgb` (fg e bg) | 0,99 | 1,3 | 14% |
-| fundo: `cr.rectangle` + `cr.fill` | 1,33 | 1,8 | 19% |
-| texto: `"".join` do run + `dict.get` do cache de layout | 1,00 | 1,3 | 14% |
-| `cr.move_to` + `PangoCairo.show_layout` | **2,83** | **3,7** | **40%** |
-| soma das seções | 7,11 | 9,4 | 6,3 µs/célula |
-| resto (métricas, `paint` do fundo, cursor, sub-célula) | — | ~0,6 | ~6% |
+| agrupar run (`while j` comparando fg/bg/flags/seleção) | 0,27 | 0,26 | 5% |
+| cor: 2× `cell_rgb` (lookup + 6 divisões → cache float) | 0,69 | **0,37** | 6% |
+| estado + fundo: 2× `set_source_rgb` + `rectangle` + `fill` | 2,32 (0,99+1,33) | **1,56** | 27% |
+| texto: `"".join` do run + `dict.get` do cache de layout | 1,00 | 0,93 | 16% |
+| `cr.move_to` + `show_layout` → `show_layout_line` | **2,83** | **2,44** | **43%** |
+| soma das seções | 7,11 | **5,71** | 5,0 µs/célula |
+| `draw` sem instrumentação | 7,76 ms | **6,54 ms** (-16%) | |
+
+O resto do draw (métricas, `paint` do fundo, cursor, sub-célula) fica em ~0,6 ms.
+O ganho no bench de ponta é +4,8% de fps (110,7 → 116,0), porque o desenho é
+~34% do tempo: cortar 16% dele rende ~5% na vazão total.
 
 São **~1323 runs por draw para 1470 células** (1,13 célula/run): o fogo troca a
 cor de quase toda célula, então agrupar não tem o que juntar (o laço Python de
@@ -172,7 +178,7 @@ Duas sondas isolam as etapas: `PYTERM_NODRAW=1` desliga o desenho
 | read + parse → grade (NODRAW), antes do P20 | 17,2 | 1,0 | powersave; pty 4,17 ms/leitura = 99% |
 | read + parse → grade (NODRAW), depois do P20 | **192–198** | **11** | turbo; pty 0,27 ms/leitura (CPU baixa: 156 / 8,8) |
 | + desenho (normal), antes do P20 | 8,2 | 0,5 | powersave; parse 48% + desenho 52% |
-| + desenho (normal), hoje | **107–121** | **6,1–6,9** | turbo; parse 44% + desenho 34% (CPU baixa: 60 / 3,4) |
+| + desenho (normal), hoje | **110–123** | **6,2–6,9** | turbo; parse 45% + desenho 31% (CPU baixa: 60 / 3,4) |
 
 Uma linha por etapa, `./bench.sh --frames 1200` (grade travada por
 `PYTERM_GEOM=980x640`). As linhas de `schedutil` são de

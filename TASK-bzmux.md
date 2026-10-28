@@ -18,16 +18,15 @@ mão com `tools/xtest.py`.
 
 Nada pela metade: árvore limpa, tudo commitado.
 
-**Próximo alvo: o desenho.** Com o parser resolvido (P20–P22), o `_on_draw` é a
-maior fatia do tempo: 40% Pango (`show_layout`, ~1 glifo por run) e 33% entre
-estado de cairo (2 `set_source_rgb`) e fundo (`rectangle`+`fill`) — 4 chamadas
-por run, com ~1323 runs por draw no doom-fire. A
+**Próximo alvo: o desenho.** O barato já foi feito (P24/P25: cor em float
+cacheada e `show_layout_line`, `draw` 7,76 → 6,54 ms, pixels idênticos). O que
+sobra está medido e no [`docs/BACKLOG.md`](docs/BACKLOG.md): P26 é o único que
+ataca de verdade a emissão (`cr.show_glyphs`, 2,43 → 0,76 µs/run) e o preço é
+sair do Pango — experimento com validação por pixel, não compromisso; P27
+(dirty-rect / linha em surface) é estrutural e o doom-fire não mede. A
 decomposição por etapa e o método estão em
-[`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) (seção "Decomposição do desenho"); o
-primeiro passo já foi dado: `show_glyph_item` custa 17% menos e dá pixels
-idênticos (P25), `cr.show_glyphs` custa 69% menos mas sai do Pango (P26), e
-cor/estado em float vale ~7% com risco zero (P24). O P19 (telas reescritas
-dentro do `pi`) segue aberto e independente.
+[`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) (seção "Decomposição do desenho").
+O P19 (telas reescritas dentro do `pi`) segue aberto e independente.
 
 ## Fila
 

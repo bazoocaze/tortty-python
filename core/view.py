@@ -21,7 +21,7 @@ from .gui import Gtk, Gdk, GLib, Pango, PangoCairo, cairo
 from .keys import encode_key, is_modifier
 from . import mouse
 from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, BG_DEFAULT, FG_DEFAULT,
-                      cell_rgb)
+                      cell_rgb, cell_rgb_f)
 from .term import Term
 
 _PROF = bool(os.environ.get("PYTERM_PROF"))   # mede o custo de draw e de pty
@@ -132,7 +132,7 @@ class TermView(Gtk.DrawingArea):
         self._advance = None          # avanço real da fonte, em px (float)
         self._dpi = None              # resolução do display (Xft.dpi)
         self._diag_done = False
-        self._layouts = {}            # (texto, negrito) -> Pango.Layout
+        self._layouts = {}            # (texto, negrito) -> (layout, linha, base)
 
         self.master = None
         self.child_pid = None
@@ -538,8 +538,8 @@ class TermView(Gtk.DrawingArea):
                 PangoCairo.context_get_resolution(layout.get_context()),
                 self.term.cols))
         # fundo
-        r, g, b = [c / 255 for c in BG_DEFAULT]
-        cr.set_source_rgb(r, g, b)
+        cur = cell_rgb_f(DEF_BG)      # a última cor posta no contexto
+        cr.set_source_rgb(*cur)
         cr.paint()
         sel = self.sel_range()
         rows = self.visible_rows()
@@ -567,17 +567,23 @@ class TermView(Gtk.DrawingArea):
                 # depois converter transformava o texto default (256) em
                 # "cor 1" (vermelho), porque 256/257 são sentinelas e não
                 # índices da paleta.
-                fgc = cell_rgb(fg, FG_DEFAULT)
-                bgc = cell_rgb(bg, BG_DEFAULT)
+                # cell_rgb_f devolve a MESMA tupla para a mesma cor: dá para
+                # pular a chamada com `is` (app monocromático repete muito).
+                fgc = cell_rgb_f(fg)
+                bgc = cell_rgb_f(bg)
                 if (fl & INV) or s0:
                     fgc, bgc = bgc, fgc      # inverso / seleção = reverso
-                if bgc != BG_DEFAULT:
-                    cr.set_source_rgb(*[c / 255 for c in bgc])
+                if bgc is not cur:
+                    cr.set_source_rgb(*bgc)
+                    cur = bgc
+                if bgc is not cell_rgb_f(DEF_BG):
                     rw = (og_w if j >= t.cols else j * cw) - x * cw
                     rh = max(ch, og_h - y * ch) if y == last_y else ch
                     cr.rectangle(x * cw, y * ch, rw, rh)
                     cr.fill()
-                cr.set_source_rgb(*[c / 255 for c in fgc])
+                if fgc is not cur:
+                    cr.set_source_rgb(*fgc)
+                    cur = fgc
                 txt = "".join(c[0] for c in row[x:j])
                 # Pango (P9): layout de verdade, com shaping e fallback de
                 # fonte; `cr.move_to` na quina da célula e o layout desenha a
@@ -586,16 +592,29 @@ class TermView(Gtk.DrawingArea):
                 # um run se repete muito (fundo do mesmo tom, texto de app
                 # parado). Teto para não crescer sem limite em dump de texto.
                 key = (txt, bool(fl & BOLD))
-                lay = self._layouts.get(key)
-                if lay is None:
+                ent = self._layouts.get(key)
+                if ent is None:
                     if len(self._layouts) > 800:
                         self._layouts.clear()
                     lay = self.new_layout(cr)
                     lay.set_attributes(self.text_attrs(bool(fl & BOLD)))
                     lay.set_text(txt, -1)
-                    self._layouts[key] = lay
-                cr.move_to(x * cw, y * ch)
-                PangoCairo.show_layout(cr, lay)
+                    # guardar a linha e a baseline junto: show_layout_line
+                    # custa ~17% menos que show_layout e sai idêntico (P25).
+                    # linha None = layout com mais de uma linha (texto com
+                    # quebra): aí é show_layout, que desenha todas. A decisão
+                    # fica no cache — get_line_count() por run custa o ganho.
+                    base = lay.get_baseline() / Pango.SCALE
+                    line = lay.get_line(0) if lay.get_line_count() == 1 else None
+                    ent = (lay, line, base)
+                    self._layouts[key] = ent
+                lay, line, base = ent
+                if line is None:
+                    cr.move_to(x * cw, y * ch)
+                    PangoCairo.show_layout(cr, lay)
+                else:
+                    cr.move_to(x * cw, y * ch + base)
+                    PangoCairo.show_layout_line(cr, line)
                 if fl & UL:
                     cr.rectangle(x * cw, y * ch + ch - 2, (j - x) * cw, 1)
                     cr.fill()
@@ -635,12 +654,11 @@ class TermView(Gtk.DrawingArea):
         # cursor bloco — só no vivo: no histórico o cursor do app não está ali
         if (self.view_off == 0 and t.cursor_visible
                 and t.cy < t.rows and t.cx < t.cols):
-            cr.set_source_rgb(*[c / 255 for c in FG_DEFAULT])
+            cr.set_source_rgb(*cell_rgb_f(DEF_FG))
             cr.rectangle(t.cx * cw, t.cy * ch, cw, ch)
             cr.fill()
             cell = t.grid[t.cy][t.cx]
-            bgc = cell_rgb(cell[2], BG_DEFAULT)
-            cr.set_source_rgb(*[c / 255 for c in bgc])
+            cr.set_source_rgb(*cell_rgb_f(cell[2]))
             layout.set_attributes(self.text_attrs(False))
             layout.set_text(cell[0], -1)
             cr.move_to(t.cx * cw, t.cy * ch)
@@ -652,10 +670,10 @@ class TermView(Gtk.DrawingArea):
             layout.set_text(label, -1)
             lw = layout.get_pixel_size()[0]
             x0 = (t.cols - 1) * cw - lw
-            cr.set_source_rgb(*[c / 255 for c in FG_DEFAULT])
+            cr.set_source_rgb(*cell_rgb_f(DEF_FG))
             cr.rectangle(x0 - 2, 0, lw + 4, ch)
             cr.fill()
-            cr.set_source_rgb(*[c / 255 for c in BG_DEFAULT])
+            cr.set_source_rgb(*cell_rgb_f(DEF_BG))
             cr.move_to(x0, 0)
             PangoCairo.show_layout(cr, layout)
         return False

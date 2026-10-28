@@ -51,7 +51,7 @@ bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core
     run-tests.sh   roda a bateria de testes
     core/
       __init__.py  fachada com import preguiçoso (core.Term não puxa o Gtk)
-      palette.py   célula [char, fg, bg, flags], paleta xterm-256, charset DEC
+      palette.py   célula [char, fg, bg, flags], paleta xterm-256 (int e float), charset DEC
       term.py      grade, cursor, parser VT — não conhece GTK
       keys.py      keyval do X11 -> bytes do filho (dead keys, DECCKM)
       kitty_kbd.py protocolo de teclado do kitty (CSI ... u)

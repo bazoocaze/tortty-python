@@ -784,6 +784,46 @@ tem grab em `Super+1`…`9`/`N`/`Q` (o `xtest` injeta no servidor e passaria pel
 grab), mas fica a nota no README: se o dash do GNOME capturar, use a variante
 `Ctrl+Shift`.
 
+### P24/P25 — Desenho: cor em float e `show_layout_line` (2026-10-27)
+
+Motivo medido: com o parser resolvido (P20–P22), o desenho virou a maior fatia
+depois dele (34% do tempo). A decomposição por seção apontava 40% em
+`PangoCairo.show_layout`, 19% no par `rectangle`+`fill` e 24% em cor/estado —
+com 4 chamadas de contexto e 2 conversões de cor por run, ~1323 runs por draw no
+doom-fire. Duas delas não tinham motivo para custar o que custavam.
+
+Fix (nenhuma mudança de aparência; a grade sai **pixel a pixel igual**):
+
+- `palette.cell_rgb_f(c)` devolve a cor já em float 0..1 e **cacheada** (tuplas
+  compartilhadas, teto de 4096 para o truecolor). O laço do desenho deixou de
+  montar `[c / 255 for c in rgb]` e de refazer 6 divisões por run; como a mesma
+  cor devolve a **mesma tupla**, dá para pular o `set_source_rgb` com `is` —
+  o que também ataca o caso de app monocromático, onde a cor se repete.
+- o cache de layout guarda `(layout, linha, baseline)` e o desenho usa
+  `PangoCairo.show_layout_line` em vez de `show_layout` (-17% no micro). A
+  baseline vem de `layout.get_baseline()`, não do ascent da fonte: CJK resolve
+  fallback com baseline 21 contra 17 do monoespaçado.
+
+Ganho medido (doom-fire 600 frames, `PYTERM_GEOM`, turbo, 5 tiros cada):
+`draw` **7,76 → 6,54 ms/call (-16%)** e 110,7 → 116,0 fps (+4,8%, coerente com
+desenho ser 34% do tempo). Na decomposição instrumentada: `cell_rgb` 0,69 → 0,37
+µs/run, estado+fundo 2,32 → 1,56, `move_to`+`show_layout_line` 2,83 → 2,44, soma
+7,11 → 5,71 µs/run. O bench de 1200 frames: 118,5 fps / 6,8 MB/s (draw 6,93 ms).
+
+**Armadilha que quase matou o ganho:** a primeira versão decidia entre
+`show_layout` e `show_layout_line` com `lay.get_line_count() > 1` **por run**.
+Uma chamada gi por run custa ~0,3 µs e anulou a diferença — o primeiro teste deu
+só -4%. A decisão passou para a criação da entrada do cache (`line = None`
+quando o texto tem quebra de linha), e o ganho apareceu. Chamada de binding por
+run é caro mesmo quando "parece grátis".
+
+Verificação: a bateria não cobre desenho (precisa de display), então a
+fidelidade foi conferida por captura em display isolado (`Xvfb :99`, para o
+mouse e a sessão do usuário não interferirem): tela com truecolor, negrito,
+sublinhado, inverso, acento, CJK e emoji, capturada no HEAD e no código novo —
+**0 pixels de diferença na grade** (`compare -metric AE`; os 448 que sobram são
+o título da aba, "bz-antigo" vs "pybzmux"). 17 testes seguem passando.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 Todos foram achados com medição, não por leitura — vale registrar o método.
 
