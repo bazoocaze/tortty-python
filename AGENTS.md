@@ -67,7 +67,7 @@ bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core
       selftest.py  runner sem dependências do --selftest
       cli.py       argv e arranque
     tests/         runner pytest de core/checks.py
-    tools/         xtest.py, pixel.py — teste manual com X11;
+    tools/         xtest.py, pixel.py — teste manual, exige X11 (só eles);
                    doomfire.py — carga de medição
 
 O que sustenta essa divisão: o caminho do --selftest importa só palette, term
@@ -91,8 +91,10 @@ um Pango.Layout cacheado por (texto, negrito): agrupar trouxe o frame uniforme
 de 1920 células para ~2 ms, e o Pango cobrou ~20% num frame de 1360 células com
 37 cores (números em docs/HISTORY.md, P9).
 
-Não objetivo: virar o app. A parte C/GTK de referência ficou no repositório do
-experimento do kitty (ver README.md); nada daqui é compartilhado com ela.
+Não objetivo: clonar o kitty/gtkterm ou derivar do núcleo C deles — nada daqui
+vem de lá. Python puro não é limitação pendente: é a conclusão do experimento
+(dá para fazer um terminal inteiro em Python, e ele é usado assim no dia a dia);
+o teto de vazão é o preço aceito e se ataca em Python, não reescrevendo em C.
 
 ## Convenções
 

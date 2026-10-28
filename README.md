@@ -7,10 +7,10 @@
 > núcleo C do kitty como `libkittycore.a` — ficou **naquele** repositório: aqui
 > não há C, não há compilação e nada do bzmux é compartilhado com ela.
 
-Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**.
-Nasceu como experimento para sentir na pele o custo do caminho quente em Python
-comparado ao núcleo C do `gtkterm`; hoje é uma aplicação real, usada no dia a
-dia, e a medição continua sendo a régua. Não é produto distribuído: sem
+Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**,
+sem C e sem compilação. Nasceu como experimento para responder a uma pergunta
+— *daria pra fazer um terminal inteiro em Python?* — e a resposta foi **sim**:
+é uma aplicação real, usada no dia a dia, e a medição continua sendo a régua. Não é produto distribuído: sem
 empacotamento, release nem suporte — o que não é feito está em
 [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). O estado, a retomada e a fila ficam em
 [`TASK-bzmux.md`](TASK-bzmux.md); o backlog pendente em
@@ -212,14 +212,14 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
 Testado com `ls --color`, `mc` (painéis, molduras, barra de teclas, cores,
 setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen).
 
-## Limites conhecidos (de propósito)
+## Limites conhecidos
 
 Lista completa, com a razão de cada um e o que quebra na prática, em
-[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). Em resumo: seleção só por célula (sem
-palavra/bloco), gráficos sem animação/z-index, caractere largo ocupando uma
-célula só (sem `wcwidth`), protocolo de teclado do kitty parcial, sem busca no
-scrollback e sem arquivo de configuração/tema — tudo de propósito, porque o que
-está sendo medido é o caminho quente.
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). Em resumo: seleção só por célula
+(sem palavra/bloco), gráficos sem animação/z-index, caractere largo ocupando
+uma célula só (sem `wcwidth`), protocolo de teclado do kitty parcial, sem busca
+no scrollback e sem arquivo de configuração/tema. São escolhas — nenhuma delas
+é consequência de ser Python, e as que incomodam no uso viram item de backlog.
 
 ## O que a medição realmente mostra (corrigido)
 

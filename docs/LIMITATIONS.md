@@ -33,7 +33,8 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 - **Ligadura depende da fonte instalada**: o shaping existe (Pango), mas a
   Monospace padrão da máquina (DejaVu) quase não tem ligadura. Sem configuração
   de fonte, não há como escolher uma Fira Code/JetBrains.
-- **Fonte e paleta fixas no código**: ver "Sem configuração" abaixo.
+- **Fonte e paleta fixas no código**: escolha atual, não limite técnico; ver
+  "Sem arquivo de configuração/tema" abaixo.
 
 ## Parser VT (o que não é interpretado)
 
@@ -86,7 +87,8 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 - **Layouts não-US**: a tradução keyval→bytes é por tabela; texto vem do
   `ev.string` do Gdk quando existe, mas atalhos com teclas mortas e layout
   exótico dependem do que o Gdk entrega.
-- **Sem remapeamento de teclas**: nenhum arquivo de configuração de atalhos.
+- **Sem remapeamento de teclas**: os atalhos são fixos em `core/window.py`,
+  consequência de não haver arquivo de configuração.
 
 ## Gráficos (protocolo de imagens)
 
@@ -110,9 +112,9 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 ## Interface
 
 - **Sem arquivo de configuração/tema**: fonte, tamanho e paleta são fixos no
-  código (`core/palette.py`, `core/style.py`), de propósito — o que está sendo
-  medido é o caminho quente, não customização. Também não há flag de linha de
-  comando para mudar fonte ou cor. O tamanho é **13 pontos** (convenção de
+  código (`core/palette.py`, `core/style.py`) e não há flag de linha de comando
+  para mudar fonte ou cor. É escolha atual, não limite técnico: mudar exige
+  editar o código e reiniciar. O tamanho é **13 pontos** (convenção de
   terminal: pontos, convertidos pelo DPI do display), não pixels.
 - **Sem abas/workspaces persistentes**: abas e workspaces vivem só na execução;
   fechar a janela perde o layout.
@@ -126,7 +128,9 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 - **Não é produto distribuído**: nasceu como experimento para medir o custo do
   caminho quente em Python e virou aplicação real de uso diário, mas não tem
   empacotamento, instalador, versionamento semântico nem caminho de produção.
-- **Não vai para Wayland puro sem X11**: o `keys.py` usa keyval do Gdk (funciona
-  em Wayland), mas o teste manual (`tools/xtest.py`, `tools/pixel.py`) é X11.
+- **Python puro é decisão, não pendência**: o experimento perguntou se dava
+  para fazer um terminal inteiro em Python e a resposta foi sim — ele é usado
+  no dia a dia assim. O teto de vazão (~6x o kitty) é o preço aceito, e se
+  ataca otimizando o caminho em Python (parse, desenho), não reescrevendo em C.
 - **Um usuário, uma máquina**: nada de multiplexação de sessão, servidor, ou
   reconexão.
