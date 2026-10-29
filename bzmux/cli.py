@@ -81,7 +81,7 @@ def main(argv=None):
         return 2
     # import tardio: --selftest e --help rodam sem tocar em Gtk/PyGObject
     try:
-        from .gui import GLib, Gtk, Gdk, GdkX11
+        from .gui import Gdk, GdkX11, GLib, Gtk
         from .window import BzmuxWindow
     except ModuleNotFoundError as e:
         if e.name not in ("gi", "cairo"):
@@ -92,7 +92,8 @@ def main(argv=None):
             "gir1.2-gtk-3.0\n"
             "  instalado por pipx/venv isolado: use --system-site-packages\n"
             "  (ou rode 'bzmux --selftest', que não precisa de display nem gi)",
-            file=sys.stderr)
+            file=sys.stderr,
+        )
         return 1
 
     # WM_CLASS estável: o padrão do GLib vem do argv[0] e muda entre o console

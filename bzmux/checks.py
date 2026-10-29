@@ -9,7 +9,6 @@ matriz de casos.
 import base64
 import contextlib
 import io
-import json
 import os
 import tempfile
 import zlib
@@ -112,7 +111,11 @@ def argv_parsing():
 
     assert cli.parse_args(["bzmux"]) == (None, 0, None, None)
     assert cli.parse_args(["bzmux", "--cmd", "mc", "--quit-after", "2"]) == (
-        "mc", 2, None, None)
+        "mc",
+        2,
+        None,
+        None,
+    )
     assert cli.parse_args(["bzmux", "--cmd"])[3] == "--cmd"
     assert cli.parse_args(["bzmux", "--nada"])[3] == "--nada"
     out, err = io.StringIO(), io.StringIO()
@@ -182,7 +185,7 @@ def wrap_and_control():
     """Linha que enche a largura + CR/LF avança UMA linha (regressão do P15)."""
     t = Term(cols=10, rows=4)
     t.feed("0123456789")
-    assert t.cx == 9            # quebra pendente, cursor na última coluna
+    assert t.cx == 9  # quebra pendente, cursor na última coluna
     t.feed("\r\n")
     assert (t.cx, t.cy) == (0, 1), (t.cx, t.cy)
     # a quebra pendente continua valendo quando vem texto, não controle
@@ -231,7 +234,9 @@ def mouse_modes_and_sgr():
     assert (t.mouse_mode, t.mouse_sgr) == (2, True)
     assert mouse.encode(mouse.LEFT, 0, 0, True, sgr=True) == "\x1b[<0;1;1M"
     assert mouse.encode(mouse.LEFT, 4, 2, False, sgr=True) == "\x1b[<0;5;3m"
-    assert mouse.encode(mouse.LEFT, 0, 0, True) == "\x1b[M" + chr(32) + chr(33) + chr(33)
+    assert mouse.encode(mouse.LEFT, 0, 0, True) == (
+        "\x1b[M" + chr(32) + chr(33) + chr(33)
+    )
 
 
 def selection():
@@ -281,17 +286,25 @@ def style_contrast():
     escurecer o verde do selecionado ou apagar o texto da segunda linha, isto
     quebra antes de virar reclamação de olho.
     """
-    for fg, bg in ((style.CARD_FG, style.SIDEBAR_BG),
-                   (style.CARD_INFO_FG, style.SIDEBAR_BG),
-                   (style.CARD_SEL_FG, style.CARD_SEL_BG),
-                   (style.CARD_SEL_INFO_FG, style.CARD_SEL_BG),
-                   (style.CARD_FG, style.TAB_BAR_BG),
-                   (style.CARD_FG, style.TAB_ACTIVE_BG)):
+    for fg, bg in (
+        (style.CARD_FG, style.SIDEBAR_BG),
+        (style.CARD_INFO_FG, style.SIDEBAR_BG),
+        (style.CARD_SEL_FG, style.CARD_SEL_BG),
+        (style.CARD_SEL_INFO_FG, style.CARD_SEL_BG),
+        (style.CARD_FG, style.TAB_BAR_BG),
+        (style.CARD_FG, style.TAB_ACTIVE_BG),
+    ):
         assert style.contrast(fg, bg) >= 4.5, (fg, bg, style.contrast(fg, bg))
     # e o CSS tem que realmente usar os tokens, não uma cópia à mão
     css = style.css()
-    for token in (style.SIDEBAR_BG, style.CARD_SEL_BG, style.CARD_SEL_FG,
-                  style.TAB_BAR_BG, style.TAB_ACTIVE_BG, style.TAB_SEP):
+    for token in (
+        style.SIDEBAR_BG,
+        style.CARD_SEL_BG,
+        style.CARD_SEL_FG,
+        style.TAB_BAR_BG,
+        style.TAB_ACTIVE_BG,
+        style.TAB_SEP,
+    ):
         assert token in css
     assert style.CARD_INFO_FG in css
 
@@ -304,14 +317,16 @@ def desktop_shortcut():
     assert f"StartupWMClass={shortcut.WMCLASS}" in txt
     assert "Categories=System;TerminalEmulator;" in txt
     assert "Icon=bzmux" in txt
-    assert shortcut._icon_bytes().lstrip().startswith(b"<svg")   # o wheel tem o asset
+    assert shortcut._icon_bytes().lstrip().startswith(b"<svg")  # o wheel tem o asset
     # XDG_DATA_HOME manda nos caminhos (nada de ~/.local/share na mão)
     old = os.environ.get("XDG_DATA_HOME")
     os.environ["XDG_DATA_HOME"] = "/tmp/xdg-probe"
     try:
         assert shortcut.desktop_path() == "/tmp/xdg-probe/applications/bzmux.desktop"
-        assert shortcut.icon_path() == \
-            "/tmp/xdg-probe/icons/hicolor/scalable/apps/bzmux.svg"
+        assert (
+            shortcut.icon_path()
+            == "/tmp/xdg-probe/icons/hicolor/scalable/apps/bzmux.svg"
+        )
     finally:
         if old is None:
             del os.environ["XDG_DATA_HOME"]
@@ -324,20 +339,20 @@ def window_state():
     """Geometria salva: lixo e monitor desconectado são descartados."""
     mons = [(0, 0, 1920, 1080)]
     assert state.fit(300, 200, 900, 600, mons) == (300, 200, 900, 600)
-    assert state.fit(5000, 5000, 900, 600, mons) is None   # monitor desconectado
-    assert state.fit(300, 200, 100, 50, mons) is None      # tamanho lixo
-    assert state.fit("x", None, 900, 600, mons) is None    # arquivo editado à mão
+    assert state.fit(5000, 5000, 900, 600, mons) is None  # monitor desconectado
+    assert state.fit(300, 200, 100, 50, mons) is None  # tamanho lixo
+    assert state.fit("x", None, 900, 600, mons) is None  # arquivo editado à mão
     assert state.fit(300, 200, 900, 600, []) == (300, 200, 900, 600)
 
     old = os.environ.get("XDG_STATE_HOME")
     with tempfile.TemporaryDirectory() as tmp:
         os.environ["XDG_STATE_HOME"] = tmp
         try:
-            assert state.load() is None            # ausente não é erro
+            assert state.load() is None  # ausente não é erro
             state.save({"x": 1, "y": 2, "w": 3, "h": 4, "max": True})
             assert state.load() == {"x": 1, "y": 2, "w": 3, "h": 4, "max": True}
             with open(state.state_path(), "w") as f:
-                f.write("{quebrado")               # JSON pela metade
+                f.write("{quebrado")  # JSON pela metade
             assert state.load() is None
         finally:
             if old is None:

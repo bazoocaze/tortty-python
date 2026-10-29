@@ -55,10 +55,10 @@ class Placement:
 
 class Graphics:
     def __init__(self):
-        self.images = {}          # id -> Image
-        self.placements = []      # o que está desenhado agora
+        self.images = {}  # id -> Image
+        self.placements = []  # o que está desenhado agora
         self._next_id = 1
-        self._buf = None          # chunks de uma transmissão em curso (m=1)
+        self._buf = None  # chunks de uma transmissão em curso (m=1)
 
     # -- utilidades ---------------------------------------------------
     def clear(self):
@@ -77,7 +77,7 @@ class Graphics:
         keep = []
         for p in self.placements:
             if p.row > bottom:
-                keep.append(p)          # fora da região: não mexe
+                keep.append(p)  # fora da região: não mexe
                 continue
             p.row -= 1
             if floor is not None and p.row >= floor:
@@ -97,8 +97,7 @@ class Graphics:
         col, row = cursor
         dx = int(kv.get("X") or 0)
         dy = int(kv.get("Y") or 0)
-        self.placements.append(Placement(img.id, col, row, cols, rows,
-                                         dx, dy))
+        self.placements.append(Placement(img.id, col, row, cols, rows, dx, dy))
         return rows
 
     # -- o protocolo --------------------------------------------------
@@ -126,7 +125,7 @@ class Graphics:
             self._buf = {"b64": "", "kv": dict(cur)}
         self._buf["b64"] += payload
         if cur.get("m") == "1":
-            return [], 0, False         # ainda tem pedaço vindo
+            return [], 0, False  # ainda tem pedaço vindo
 
         kv, b64 = self._buf["kv"], self._buf["b64"]
         self._buf = None
@@ -147,7 +146,7 @@ class Graphics:
         ident = int(kv["i"]) if kv.get("i") else 0
 
         if action in ("f", "a", "c"):
-            return [], 0, False         # animação/controle: ignorado de propósito
+            return [], 0, False  # animação/controle: ignorado de propósito
         if action == "q":
             # `a=q` é sonda de CAPACIDADE, não consulta de imagem: o
             # `kitten icat` manda três (direto / arquivo / memória) e só segue
@@ -163,8 +162,7 @@ class Graphics:
             how = kv.get("d", "a")
             if how == "i":
                 self.images.pop(ident, None)
-                self.placements = [p for p in self.placements
-                                   if p.image_id != ident]
+                self.placements = [p for p in self.placements if p.image_id != ident]
             else:
                 self.placements.clear()
                 if how == "a":

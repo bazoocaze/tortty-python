@@ -23,8 +23,10 @@ as armadilhas de teste em [`docs/HISTORY.md`](docs/HISTORY.md).
 ```sh
 ./run.sh                      # abre aqui, para testar (erros na hora)
 ./run.sh --cmd 'mc'           # comando inicial
-./run-tests.sh                # testes, sem janela
+./run-tests.sh                # ruff + testes, sem janela
 uv run pytest -q              # só a parte pytest
+uv run ruff check .           # só o lint
+uv run ruff format .          # formata (não roda no run-tests)
 python3 -m bzmux --selftest   # os mesmos checks, sem depender de pytest
 python3 -m bzmux --help       # opções, sem abrir janela
 ./bench.sh                    # mede a vazão (doom-fire), ~10 s
@@ -120,8 +122,10 @@ sem sofrimento. `python-preference = system` garante a mesma versão do python.
 
 ```sh
 uv venv --system-site-packages   # uma vez (o uv sync não passa essa flag)
-uv sync                          # pytest
+uv sync                          # pytest + ruff
 uv run pytest -q                 # testes
+uv run ruff check .              # lint (E, F, I, W)
+uv run ruff format .             # formata
 uv sync --extra tools            # + python-xlib (as tools rodam com python3)
 ./run.sh                         # app rodando em .venv/bin/python
 ```
@@ -138,7 +142,7 @@ rodar na mão: `uv run python -m bzmux`.
 ```
 run.sh                   # roda o app (teste rápido; escolhe o python)
 debug.sh                 # desenvolvimento: background, log, --kill/--status
-run-tests.sh             # selftest + pytest
+run-tests.sh             # ruff (check + format --check) + selftest + pytest
 bench.sh                 # escada do doom-fire (medição)
 pyproject.toml           # pacote, entry point, ambiente uv (uv.lock)
 bzmux/

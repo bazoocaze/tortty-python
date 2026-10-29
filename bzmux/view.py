@@ -17,14 +17,20 @@ import sys
 import termios
 import time
 
-from .gui import Gtk, Gdk, GLib, Pango, PangoCairo, cairo
-from .keys import encode_key, is_modifier
 from . import mouse
-from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, BG_DEFAULT, FG_DEFAULT,
-                      cell_rgb, cell_rgb_f)
+from .gui import Gdk, GLib, Gtk, Pango, PangoCairo, cairo
+from .keys import encode_key, is_modifier
+from .palette import (
+    BOLD,
+    DEF_BG,
+    DEF_FG,
+    INV,
+    UL,
+    cell_rgb_f,
+)
 from .term import Term
 
-_PROF = bool(os.environ.get("PYTERM_PROF"))   # mede o custo de draw e de pty
+_PROF = bool(os.environ.get("PYTERM_PROF"))  # mede o custo de draw e de pty
 _NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem desenho
 _NOPARSE = bool(os.environ.get("PYTERM_NOPARSE"))  # sonda: só lê o pty e descarta
 
@@ -44,7 +50,7 @@ def surface_from_image(img, cairo):
     `create_for_data`, então o bytearray tem que continuar vivo — quem chama
     guarda o segundo item da tupla.
     """
-    if img.fmt == 100:                       # PNG: o cairo lê direto
+    if img.fmt == 100:  # PNG: o cairo lê direto
         return cairo.ImageSurface.create_from_png(io.BytesIO(img.data)), None
     w, h = img.width, img.height
     src = img.data
@@ -62,8 +68,7 @@ def surface_from_image(img, cairo):
             buf[oi + 3] = src[si + 3] if n == 4 else 255
             si += n
             oi += 4
-    surf = cairo.ImageSurface.create_for_data(buf, cairo.FORMAT_ARGB32, w, h,
-                                              stride)
+    surf = cairo.ImageSurface.create_for_data(buf, cairo.FORMAT_ARGB32, w, h, stride)
     return surf, buf
 
 
@@ -87,32 +92,41 @@ class TermView(Gtk.DrawingArea):
     o seu notebook.
     """
 
-    def __init__(self, cmd=None, cwd=None, font_size=13, on_exit=None,
-                 on_title=None, shortcuts=None):
+    def __init__(
+        self,
+        cmd=None,
+        cwd=None,
+        font_size=13,
+        on_exit=None,
+        on_title=None,
+        shortcuts=None,
+    ):
         super().__init__()
-        self.on_exit = on_exit        # chamada quando o shell sai
-        self.on_title = on_title      # chamada quando o título (OSC) muda
-        self.shortcuts = shortcuts    # atalhos da janela (prioridade)
+        self.on_exit = on_exit  # chamada quando o shell sai
+        self.on_title = on_title  # chamada quando o título (OSC) muda
+        self.shortcuts = shortcuts  # atalhos da janela (prioridade)
         self._title = "bzmux"
-        self.app_title = False        # o app já mandou OSC 0/2?
+        self.app_title = False  # o app já mandou OSC 0/2?
         self.start_cwd = cwd or os.getcwd()
         self._notified = False
-        self.dead_mark = 0            # dead key pendente (marca combinante)
+        self.dead_mark = 0  # dead key pendente (marca combinante)
         self.term = Term()
         # seleção local (quando o app NÃO pediu mouse): âncora e ponta
         self.sel_start = None
         self.sel_end = None
         self.dragging = False
-        self._held = None             # botão do protocolo apertado agora
-        self._state = 0               # modificadores do último evento
-        self.view_off = 0             # 0 = vivo; >0 = linhas de histórico
-        self._img_cache = {}          # id da imagem -> (surface, keepalive)
+        self._held = None  # botão do protocolo apertado agora
+        self._state = 0  # modificadores do último evento
+        self.view_off = 0  # 0 = vivo; >0 = linhas de histórico
+        self._img_cache = {}  # id da imagem -> (surface, keepalive)
 
         self.set_can_focus(True)
-        self.add_events(Gdk.EventMask.BUTTON_PRESS_MASK |
-                        Gdk.EventMask.BUTTON_RELEASE_MASK |
-                        Gdk.EventMask.POINTER_MOTION_MASK |
-                        Gdk.EventMask.SCROLL_MASK)
+        self.add_events(
+            Gdk.EventMask.BUTTON_PRESS_MASK
+            | Gdk.EventMask.BUTTON_RELEASE_MASK
+            | Gdk.EventMask.POINTER_MOTION_MASK
+            | Gdk.EventMask.SCROLL_MASK
+        )
         self.connect("draw", self.on_draw)
         self.connect("button-press-event", self.on_button_press)
         self.connect("button-release-event", self.on_button_release)
@@ -126,22 +140,22 @@ class TermView(Gtk.DrawingArea):
         self.connect("size-allocate", self.on_resize)
         self.font_size = font_size
         self._metrics = None
-        self._font_desc = None        # Pango.FontDescription (P9)
-        self._attrs_plain = None      # Pango.AttrList: espaçamento nas células
-        self._attrs_bold = None       # idem + negrito
-        self._advance = None          # avanço real da fonte, em px (float)
-        self._dpi = None              # resolução do display (Xft.dpi)
+        self._font_desc = None  # Pango.FontDescription (P9)
+        self._attrs_plain = None  # Pango.AttrList: espaçamento nas células
+        self._attrs_bold = None  # idem + negrito
+        self._advance = None  # avanço real da fonte, em px (float)
+        self._dpi = None  # resolução do display (Xft.dpi)
         self._diag_done = False
-        self._layouts = {}            # (texto, negrito) -> (layout, linha, base)
+        self._layouts = {}  # (texto, negrito) -> (layout, linha, base)
 
         self.master = None
         self.child_pid = None
-        self.child_exited = False     # waitpid já chegou?
+        self.child_exited = False  # waitpid já chegou?
         self.exit_code = None
         self._draw_pending = False
         self._prof = {}
-        self._prof_bytes = 0     # bytes lidos do master (casam com o que o filho escreveu)
-        self._prof_eagain = 0    # BlockingIOError: watch disparou sem byte disponível
+        self._prof_bytes = 0  # bytes lidos do master (o que o filho escreveu)
+        self._prof_eagain = 0  # BlockingIOError: watch sem byte disponível
         self.pty_watch = 0
         self._closing = False
         self._hungup = False
@@ -156,8 +170,13 @@ class TermView(Gtk.DrawingArea):
             # filho herdava os dois. Com SIGHUP ignorado o hangup do grupo
             # não matava job nenhum; com SIGPIPE ignorado, `seq 1 100000 |
             # head -3` não parava no pipe quebrado. Volta tudo ao default.
-            for sig in (signal.SIGHUP, signal.SIGPIPE, signal.SIGINT,
-                        signal.SIGQUIT, signal.SIGTERM):
+            for sig in (
+                signal.SIGHUP,
+                signal.SIGPIPE,
+                signal.SIGINT,
+                signal.SIGQUIT,
+                signal.SIGTERM,
+            ):
                 try:
                     signal.signal(sig, signal.SIG_DFL)
                 except (OSError, ValueError):
@@ -166,7 +185,7 @@ class TermView(Gtk.DrawingArea):
                 try:
                     os.chdir(cwd)
                 except OSError:
-                    pass        # cwd do filho pode ter sido apagado
+                    pass  # cwd do filho pode ter sido apagado
             os.environ["TERM"] = "xterm-256color"
             # sem COLORTERM o app acha que só há 256 cores e arredonda o RGB
             # para o cubo: era isto que fazia cor "não bater" com o kitty
@@ -183,8 +202,11 @@ class TermView(Gtk.DrawingArea):
         # ganhava a disputa sempre — com despejo contínuo a tela congelava no
         # último frame desenhado (bug do doom-fire)
         self.pty_watch = GLib.io_add_watch(
-            fd, GLib.PRIORITY_DEFAULT_IDLE,
-            GLib.IO_IN | GLib.IO_HUP | GLib.IO_ERR, self.on_pty)
+            fd,
+            GLib.PRIORITY_DEFAULT_IDLE,
+            GLib.IO_IN | GLib.IO_HUP | GLib.IO_ERR,
+            self.on_pty,
+        )
         # O EOF do pty NÃO é sinal confiável de que o shell morreu: no Linux
         # o master devolve EIO, o watch morre e o loop do Gtk segue vivo (a
         # janela ficava aberta depois do Ctrl+D). O sinal de verdade é o
@@ -199,7 +221,7 @@ class TermView(Gtk.DrawingArea):
         ainda congelava, porque o redraw do GDK tem prioridade MENOR que o
         watch do pty. Agora o desenho é coalescido e ritmado.
         """
-        if _NODRAW:            # sonda de medição: mede só o caminho pty -> grade
+        if _NODRAW:  # sonda de medição: mede só o caminho pty -> grade
             return
         if self._draw_pending:
             return
@@ -209,7 +231,7 @@ class TermView(Gtk.DrawingArea):
     def _flush_draw(self):
         self._draw_pending = False
         self.queue_draw()
-        return False          # um tiro só
+        return False  # um tiro só
 
     def on_pty(self, fd, cond):
         if not _PROF:
@@ -225,7 +247,7 @@ class TermView(Gtk.DrawingArea):
             data = os.read(fd, 65536)
         except BlockingIOError:
             if _PROF:
-                self._prof_eagain += 1   # watch disparou sem byte: mede o giro
+                self._prof_eagain += 1  # watch disparou sem byte: mede o giro
             return True
         except OSError:
             # EIO = todo mundo fechou o lado escravo (o shell saiu). Se o
@@ -243,8 +265,8 @@ class TermView(Gtk.DrawingArea):
             with open(os.environ["PYTERM_RAWLOG"], "ab") as f:
                 f.write(data)
         if _PROF:
-            self._prof_bytes += len(data)   # tem que casar com o que o filho escreveu
-        if _NOPARSE:           # sonda: mede só read do pty, sem decode/parse/grade
+            self._prof_bytes += len(data)  # tem que casar com o que o filho escreveu
+        if _NOPARSE:  # sonda: mede só read do pty, sem decode/parse/grade
             return True
         # enquanto o usuário lê o histórico, guarda como a tela visível estava:
         # nem todo output muda o que está na tela (o `pi` manda um
@@ -274,16 +296,28 @@ class TermView(Gtk.DrawingArea):
         jump = self.term.scrolled - scrolled_before
         log = os.environ.get("PYTERM_SCROLLLOG")
         if log and jump > max(2, self.term.rows // 2):
+            fmt = "jump=%d rows=%d top=%d bottom=%d alt=%s bytes=%d t=%.3f\n  %r\n"
             with open(log, "a") as f:
-                f.write("jump=%d rows=%d top=%d bottom=%d alt=%s bytes=%d t=%.3f\n  %r\n"
-                        % (jump, self.term.rows, self.term.top, self.term.bottom,
-                           self.term.alt_grid is not None, len(data), time.time(),
-                           data[:600]))
+                f.write(
+                    fmt
+                    % (
+                        jump,
+                        self.term.rows,
+                        self.term.top,
+                        self.term.bottom,
+                        self.term.alt_grid is not None,
+                        len(data),
+                        time.time(),
+                        data[:600],
+                    )
+                )
         if self.view_off and self._view_signature() != seen:
             self.view_off = 0
         elif self.view_off:
-            self.view_off = min(self.view_off + (len(self.term.scrollback) - seen_sb),
-                                len(self.term.scrollback))
+            self.view_off = min(
+                self.view_off + (len(self.term.scrollback) - seen_sb),
+                len(self.term.scrollback),
+            )
         self.request_draw()
         return True
 
@@ -294,20 +328,19 @@ class TermView(Gtk.DrawingArea):
         except (AttributeError, ValueError):
             self.exit_code = None
         self.child_exited = True
-        self._drain_pty()     # não perder o último output (logout, msg de erro)
+        self._drain_pty()  # não perder o último output (logout, msg de erro)
         # fechar a ABA manda SIGHUP no filho: aí o "código -1" é nosso, não
         # notícia (só interessa a saída que o usuário pediu)
         if self.exit_code and not self._closing:
-            print(f"bzmux: shell saiu com código {self.exit_code}",
-                  file=sys.stderr)
+            print(f"bzmux: shell saiu com código {self.exit_code}", file=sys.stderr)
         self._notify_exit()
-        return False          # remove o child watch
+        return False  # remove o child watch
 
     def _drain_pty(self):
         """Lê o que sobrou no master sem bloquear (fd é non-blocking)."""
         if self.master is None:
             return
-        for _ in range(64):   # teto: filho mal comportado não trava a saída
+        for _ in range(64):  # teto: filho mal comportado não trava a saída
             try:
                 data = os.read(self.master, 65536)
             except (BlockingIOError, InterruptedError, OSError):
@@ -327,10 +360,14 @@ class TermView(Gtk.DrawingArea):
         if self._closing:
             return
         if _PROF and self._prof:
-            parts = [f"{k} {n}x {t*1000/n:.2f}ms/call ({t*1000:.0f}ms)"
-                     for k, (n, t) in self._prof.items() if n]
-            parts.append(f"bytes {self._prof_bytes/1e6:.2f}MB"
-                         f" eagain {self._prof_eagain}")
+            parts = [
+                f"{k} {n}x {t * 1000 / n:.2f}ms/call ({t * 1000:.0f}ms)"
+                for k, (n, t) in self._prof.items()
+                if n
+            ]
+            parts.append(
+                f"bytes {self._prof_bytes / 1e6:.2f}MB eagain {self._prof_eagain}"
+            )
             print("prof:", " | ".join(parts), file=sys.stderr)
         self._closing = True
         if self.pty_watch:
@@ -360,11 +397,11 @@ class TermView(Gtk.DrawingArea):
         """
         if not self.child_pid or self._hungup:
             return
-        self._hungup = True    # _close() e on_destroy() chamam os dois
+        self._hungup = True  # _close() e on_destroy() chamam os dois
         try:
             os.killpg(self.child_pid, signal.SIGHUP)
         except OSError:
-            pass              # grupo já não existe: shell saiu sozinho
+            pass  # grupo já não existe: shell saiu sozinho
 
     def dump_text(self):
         """Texto do dump (SIGUSR1 / saída) desta sessão."""
@@ -378,14 +415,18 @@ class TermView(Gtk.DrawingArea):
         for y in range(t.rows):
             lines.append(t.row_text(y).rstrip())
         if t.graphics.placements or t.graphics.images:
-            lines.append(f"=== imagens: {len(t.graphics.images)} guardadas, "
-                         f"{len(t.graphics.placements)} na tela ===")
+            lines.append(
+                f"=== imagens: {len(t.graphics.images)} guardadas, "
+                f"{len(t.graphics.placements)} na tela ==="
+            )
             for pl in t.graphics.placements:
                 img = t.graphics.images.get(pl.image_id)
-                lines.append(f"  id={pl.image_id} em ({pl.col},{pl.row}) "
-                             f"{pl.cols}x{pl.rows} "
-                             f"+{pl.dx},{pl.dy}px "
-                             f"fmt={img.fmt if img else '-'}")
+                lines.append(
+                    f"  id={pl.image_id} em ({pl.col},{pl.row}) "
+                    f"{pl.cols}x{pl.rows} "
+                    f"+{pl.dx},{pl.dy}px "
+                    f"fmt={img.fmt if img else '-'}"
+                )
         lines.append(f"=== cursor {t.cx},{t.cy} ===")
         return "\n".join(lines)
 
@@ -429,7 +470,7 @@ class TermView(Gtk.DrawingArea):
         # letter_spacing (o run tem que ocupar exatamente N células)
         self._advance = w / Pango.SCALE
         self._metrics = (math.ceil(self._advance), math.ceil(h / Pango.SCALE))
-        self.term.cell_size = self._metrics   # o protocolo de imagem usa isso
+        self.term.cell_size = self._metrics  # o protocolo de imagem usa isso
         return self._metrics
 
     def new_layout(self, cr):
@@ -448,8 +489,9 @@ class TermView(Gtk.DrawingArea):
         al = Pango.AttrList()
         # letter_spacing vale entre glifos (o último não recebe): run de N fecha
         # N*cw com erro menor que 1 px
-        al.insert(Pango.attr_letter_spacing_new(
-            round((cw - self._advance) * Pango.SCALE)))
+        al.insert(
+            Pango.attr_letter_spacing_new(round((cw - self._advance) * Pango.SCALE))
+        )
         if bold:
             al.insert(Pango.attr_weight_new(Pango.Weight.BOLD))
             self._attrs_bold = al
@@ -471,9 +513,9 @@ class TermView(Gtk.DrawingArea):
 
     def _send_winsize(self, cols, rows):
         import fcntl
+
         cw, ch = self.metrics()
-        winsz = struct.pack("HHHH", rows, cols,
-                            int(cols * cw), int(rows * ch))
+        winsz = struct.pack("HHHH", rows, cols, int(cols * cw), int(rows * ch))
         try:
             fcntl.ioctl(self.master, termios.TIOCSWINSZ, winsz)
             os.kill(self.child_pid, signal.SIGWINCH)
@@ -486,14 +528,15 @@ class TermView(Gtk.DrawingArea):
 
     def _view_signature(self):
         """O que está na tela agora (texto + cor por célula), para comparar."""
-        return "".join("%s|%d|%d" % (c[0], c[1], c[2])
-                       for row in self.visible_rows() for c in row)
+        return "".join(
+            "%s|%d|%d" % (c[0], c[1], c[2]) for row in self.visible_rows() for c in row
+        )
 
     def scroll_view(self, delta):
         """Rola a visão no histórico. `delta` > 0 = pra trás no tempo."""
         t = self.term
         if t.alt_grid is not None:
-            return False      # alt-screen não tem histórico que rolar
+            return False  # alt-screen não tem histórico que rolar
         off = max(0, min(len(t.scrollback), self.view_off + delta))
         if off != self.view_off:
             self.view_off = off
@@ -536,12 +579,17 @@ class TermView(Gtk.DrawingArea):
         if os.environ.get("PYTERM_DIAG") and not self._diag_done:
             self._diag_done = True
             layout.set_text("MMMMMMMMMM", -1)
-            sys.stderr.write("DIAG: avanco %r cell %r res %r cols %r\n" % (
-                layout.get_size()[0] / Pango.SCALE / 10, self.metrics(),
-                PangoCairo.context_get_resolution(layout.get_context()),
-                self.term.cols))
+            sys.stderr.write(
+                "DIAG: avanco %r cell %r res %r cols %r\n"
+                % (
+                    layout.get_size()[0] / Pango.SCALE / 10,
+                    self.metrics(),
+                    PangoCairo.context_get_resolution(layout.get_context()),
+                    self.term.cols,
+                )
+            )
         # fundo
-        cur = cell_rgb_f(DEF_BG)      # a última cor posta no contexto
+        cur = cell_rgb_f(DEF_BG)  # a última cor posta no contexto
         cr.set_source_rgb(*cur)
         cr.paint()
         sel = self.sel_range()
@@ -562,8 +610,12 @@ class TermView(Gtk.DrawingArea):
                 j = x + 1
                 while j < t.cols:
                     c2 = row[j]
-                    if (c2[1] != fg or c2[2] != bg or c2[3] != fl
-                            or (bool(sel) and _in_sel(y, j, sel)) != s0):
+                    if (
+                        c2[1] != fg
+                        or c2[2] != bg
+                        or c2[3] != fl
+                        or (bool(sel) and _in_sel(y, j, sel)) != s0
+                    ):
                         break
                     j += 1
                 # a cor vira RGB ANTES de inverter: trocar os índices e só
@@ -575,7 +627,7 @@ class TermView(Gtk.DrawingArea):
                 fgc = cell_rgb_f(fg)
                 bgc = cell_rgb_f(bg)
                 if (fl & INV) or s0:
-                    fgc, bgc = bgc, fgc      # inverso / seleção = reverso
+                    fgc, bgc = bgc, fgc  # inverso / seleção = reverso
                 if bgc is not cur:
                     cr.set_source_rgb(*bgc)
                     cur = bgc
@@ -643,7 +695,7 @@ class TermView(Gtk.DrawingArea):
             surf = entry[0]
             w = max(1, pl.cols) * cw
             h = max(1, pl.rows) * ch
-            x0 = pl.col * cw + pl.dx     # X=/Y=: offset em pixels (centralização)
+            x0 = pl.col * cw + pl.dx  # X=/Y=: offset em pixels (centralização)
             y0 = vr * ch + pl.dy
             cr.save()
             cr.rectangle(x0, y0, w, h)
@@ -655,8 +707,7 @@ class TermView(Gtk.DrawingArea):
             cr.restore()
 
         # cursor bloco — só no vivo: no histórico o cursor do app não está ali
-        if (self.view_off == 0 and t.cursor_visible
-                and t.cy < t.rows and t.cx < t.cols):
+        if self.view_off == 0 and t.cursor_visible and t.cy < t.rows and t.cx < t.cols:
             cr.set_source_rgb(*cell_rgb_f(DEF_FG))
             cr.rectangle(t.cx * cw, t.cy * ch, cw, ch)
             cr.fill()
@@ -704,16 +755,25 @@ class TermView(Gtk.DrawingArea):
         mods = mouse.mods_from_state(
             bool(st & Gdk.ModifierType.SHIFT_MASK),
             bool(st & Gdk.ModifierType.MOD1_MASK),
-            bool(st & Gdk.ModifierType.CONTROL_MASK))
-        self._write_child(mouse.encode(button, col, row, pressed=pressed,
-                                       sgr=self.term.mouse_sgr, mods=mods,
-                                       motion=motion))
+            bool(st & Gdk.ModifierType.CONTROL_MASK),
+        )
+        self._write_child(
+            mouse.encode(
+                button,
+                col,
+                row,
+                pressed=pressed,
+                sgr=self.term.mouse_sgr,
+                mods=mods,
+                motion=motion,
+            )
+        )
 
     def on_button_press(self, widget, ev):
         t = self.term
         self._state = ev.state
         col, row = self.cell_at(ev.x, ev.y)
-        self.back_to_live()      # clicar sempre volta pro vivo
+        self.back_to_live()  # clicar sempre volta pro vivo
         btn = mouse.GDK_BUTTONS.get(ev.button)
         if t.mouse_mode and btn is not None:
             # o app quer saber do mouse: nada de seleção local
@@ -757,23 +817,23 @@ class TermView(Gtk.DrawingArea):
                 self.queue_draw()
             return True
         if t.mouse_mode == 2 and self._held is not None:
-            self.report_mouse(self._held, *self.cell_at(ev.x, ev.y),
-                              motion=True)
+            self.report_mouse(self._held, *self.cell_at(ev.x, ev.y), motion=True)
             return True
         if t.mouse_mode == 3:
             # movimento sem botão: código 35 (32 + "botão 3")
-            self.report_mouse(mouse.RELEASE, *self.cell_at(ev.x, ev.y),
-                              motion=True)
+            self.report_mouse(mouse.RELEASE, *self.cell_at(ev.x, ev.y), motion=True)
             return True
         return False
 
     def on_scroll(self, widget, ev):
         t = self.term
         self._state = ev.state
-        btn = {Gdk.ScrollDirection.UP: mouse.WHEEL_UP,
-               Gdk.ScrollDirection.DOWN: mouse.WHEEL_DOWN,
-               Gdk.ScrollDirection.LEFT: mouse.WHEEL_LEFT,
-               Gdk.ScrollDirection.RIGHT: mouse.WHEEL_RIGHT}.get(ev.direction)
+        btn = {
+            Gdk.ScrollDirection.UP: mouse.WHEEL_UP,
+            Gdk.ScrollDirection.DOWN: mouse.WHEEL_DOWN,
+            Gdk.ScrollDirection.LEFT: mouse.WHEEL_LEFT,
+            Gdk.ScrollDirection.RIGHT: mouse.WHEEL_RIGHT,
+        }.get(ev.direction)
         if btn is None:
             return False
         back = btn in (mouse.WHEEL_UP, mouse.WHEEL_LEFT)
@@ -852,8 +912,13 @@ class TermView(Gtk.DrawingArea):
             # só modificador não, senão o Shift do Shift+PgUp já resetava
             self.back_to_live()
         out, self.dead_mark, handled = encode_key(
-            ev.keyval, ev.state, self.dead_mark, self.term.app_cursor,
-            self.term.kbd_flags, text=ev.string or "")
+            ev.keyval,
+            ev.state,
+            self.dead_mark,
+            self.term.app_cursor,
+            self.term.kbd_flags,
+            text=ev.string or "",
+        )
         self._write_child(out or "")
         return handled
 
@@ -862,7 +927,7 @@ class TermView(Gtk.DrawingArea):
         if not (self.term.kbd_flags & 2):
             return False
         out, _, handled = encode_key(
-            ev.keyval, ev.state, 0, self.term.app_cursor,
-            self.term.kbd_flags, event=3)
+            ev.keyval, ev.state, 0, self.term.app_cursor, self.term.kbd_flags, event=3
+        )
         self._write_child(out or "")
         return handled

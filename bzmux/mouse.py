@@ -33,8 +33,11 @@ GDK_WHEEL = {4: WHEEL_UP, 5: WHEEL_DOWN, 6: WHEEL_LEFT, 7: WHEEL_RIGHT}
 
 def mods_from_state(shift, alt, ctrl):
     """Monta os bits de modificador do protocolo."""
-    return ((MOD_SHIFT if shift else 0) | (MOD_ALT if alt else 0)
-            | (MOD_CTRL if ctrl else 0))
+    return (
+        (MOD_SHIFT if shift else 0)
+        | (MOD_ALT if alt else 0)
+        | (MOD_CTRL if ctrl else 0)
+    )
 
 
 def encode(button, col, row, pressed=True, sgr=False, mods=0, motion=False):
@@ -45,13 +48,12 @@ def encode(button, col, row, pressed=True, sgr=False, mods=0, motion=False):
     """
     mods &= MOD_SHIFT | MOD_ALT | MOD_CTRL
     if not pressed and not sgr and button in WHEELS:
-        return ""           # wheel no protocolo antigo é só press
+        return ""  # wheel no protocolo antigo é só press
     b = button | mods
     if motion:
         b |= MOD_MOTION
     if sgr:
-        return "\x1b[<%d;%d;%d%s" % (b, col + 1, row + 1,
-                                     "M" if pressed else "m")
+        return "\x1b[<%d;%d;%d%s" % (b, col + 1, row + 1, "M" if pressed else "m")
     # protocolo antigo: release é sempre 3 (o app sabe qual botão pelo
     # press anterior) e cada coordenada é um byte 32..255
     if not pressed:

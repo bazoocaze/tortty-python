@@ -20,7 +20,7 @@ bzmux = "bzmux.cli:run"
 tools = ["python-xlib>=0.33"]
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.16"]
 
 [build-system]
 requires = ["hatchling"]
@@ -37,3 +37,16 @@ python-preference = "system"
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.ruff]
+# 88 é o default do ruff; o código é escrito a ~79, o formatter compacta
+line-length = 88
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.ruff.lint.per-file-ignores]
+# gui.py é o único ponto que importa Gtk/cairo e os reexporta: os nomes
+# parecem não usados no arquivo e o require_version vem antes dos imports
+"bzmux/gui.py" = ["F401", "E402"]

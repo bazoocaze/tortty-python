@@ -10,7 +10,7 @@ janela abre no padrão e nada mais acontece.
 import json
 import os
 
-MIN_W, MIN_H = 320, 200     # abaixo disto é lixo de WM/restauração, não geometria
+MIN_W, MIN_H = 320, 200  # abaixo disto é lixo de WM/restauração, não geometria
 
 
 def state_path():
@@ -40,7 +40,7 @@ def save(data):
             f.write("\n")
         os.replace(tmp, path)
     except OSError:
-        pass        # não poder salvar não pode derrubar o fechamento
+        pass  # não poder salvar não pode derrubar o fechamento
 
 
 def fit(x, y, w, h, monitors):

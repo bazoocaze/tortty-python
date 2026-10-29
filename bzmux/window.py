@@ -10,12 +10,13 @@ O que é de sessão mora na `view.py`; aqui só há ciclo de vida e atalhos.
 
 import os
 import signal
+import sys
 
 from . import state, style
-from .gui import GdkX11, Gtk, Gdk, GLib, Pango
+from .gui import Gdk, GdkX11, GLib, Gtk, Pango
 from .view import TermView
 
-SIDEBAR_W = 170          # largura fixa (arrastável fica pra depois)
+SIDEBAR_W = 170  # largura fixa (arrastável fica pra depois)
 
 
 def _geom():
@@ -26,8 +27,9 @@ def _geom():
         return int(w), int(h)
     return 980, 640
 
-TAB_TITLE_CHARS = 20     # aba: largura em chars, não em px (o título trunca)
-_styled = False          # o provider é da tela: aplica uma vez por processo
+
+TAB_TITLE_CHARS = 20  # aba: largura em chars, não em px (o título trunca)
+_styled = False  # o provider é da tela: aplica uma vez por processo
 
 
 def apply_style():
@@ -38,8 +40,8 @@ def apply_style():
     provider = Gtk.CssProvider()
     provider.load_from_data(style.css().encode())
     Gtk.StyleContext.add_provider_for_screen(
-        Gdk.Screen.get_default(), provider,
-        Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+    )
     _styled = True
 
 
@@ -69,7 +71,8 @@ def _digit_of(ev):
     funcionaria no US e quebraria no ABNT2.
     """
     ok, kv, _, _, _ = Gdk.Keymap.get_default().translate_keyboard_state(
-        ev.hardware_keycode, 0, ev.group)
+        ev.hardware_keycode, 0, ev.group
+    )
     if ok and Gdk.KEY_0 <= kv <= Gdk.KEY_9:
         return kv - Gdk.KEY_0
     return None
@@ -105,7 +108,7 @@ class Workspace:
         self.info_label.get_style_context().add_class("info")
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         vbox.set_border_width(6)
-        vbox.pack_start(self.name_label, False, True, 0)   # fill: truncar no 170
+        vbox.pack_start(self.name_label, False, True, 0)  # fill: truncar no 170
         vbox.pack_start(self.info_label, False, True, 0)
         self.card = Gtk.EventBox()
         # o EventBox é transparente no CSS: quem pinta o fundo é a ListBoxRow,
@@ -130,11 +133,14 @@ class Workspace:
 
     def new_tab(self):
         """Aba nova, herdando o cwd da aba corrente."""
-        v = TermView(cmd=self.win.cmd, cwd=self.win.current_cwd(self),
-                     font_size=self.win.font_size,
-                     on_exit=self.on_view_exit,
-                     on_title=self.on_view_title,
-                     shortcuts=self.win.handle_shortcut)
+        v = TermView(
+            cmd=self.win.cmd,
+            cwd=self.win.current_cwd(self),
+            font_size=self.win.font_size,
+            on_exit=self.on_view_exit,
+            on_title=self.on_view_title,
+            shortcuts=self.win.handle_shortcut,
+        )
         self.views.append(v)
         # mesmo motivo do cartão (P14): sem limite o título longo vira largura
         # mínima e a janela inteira estica (o notebook se recusa a encolher)
@@ -147,7 +153,7 @@ class Workspace:
         box.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
         box.add(label)
         box.connect("button-press-event", self.on_tab_click, v)
-        v.tab_label = label        # atualizado no on_view_title
+        v.tab_label = label  # atualizado no on_view_title
         self.notebook.append_page(v, box)
         self.notebook.set_tab_reorderable(v, True)
         # página recém-anexada nasce HIDDEN e o notebook ignora o
@@ -171,7 +177,7 @@ class Workspace:
             if page >= 0:
                 self.notebook.remove_page(page)
         if not self.views:
-            self.win.close_workspace(self)     # última aba: fecha o workspace
+            self.win.close_workspace(self)  # última aba: fecha o workspace
         else:
             self.view.grab_focus()
             self.update_card()
@@ -184,7 +190,7 @@ class Workspace:
         return False
 
     def on_tab_click(self, widget, ev, view):
-        if ev.button == 2:              # clique do meio fecha a aba
+        if ev.button == 2:  # clique do meio fecha a aba
             self.close_tab(view)
             return True
         return False
@@ -197,7 +203,7 @@ class Workspace:
         # ainda não está mapeada e o foco fica no notebook (as teclas seguintes
         # não chegavam em ninguém). Um idle resolve.
         GLib.idle_add(self._focus_idle, v)
-        v.queue_draw()          # aba escondida não recebe size-allocate
+        v.queue_draw()  # aba escondida não recebe size-allocate
         self.update_card()
         self.win.sync_title()
 
@@ -244,8 +250,7 @@ class Workspace:
             n = self.win.workspaces.index(self) + 1
         except ValueError:
             n = 0
-        self.name_label.set_markup(
-            f"<b>{n}</b>  {GLib.markup_escape_text(self.name)}")
+        self.name_label.set_markup(f"<b>{n}</b>  {GLib.markup_escape_text(self.name)}")
         v = self.view
         title = self.label_text(v) if v is not None else "-"
         k = len(self.views)
@@ -269,7 +274,7 @@ class Workspace:
         """Duplo clique no cartão: edita o nome no lugar."""
         box = self.card.get_child()
         entry = Gtk.Entry()
-        entry.set_width_chars(6)        # mínimo, não largura: ver P14
+        entry.set_width_chars(6)  # mínimo, não largura: ver P14
         entry.set_text(self.name)
         box.remove(self.name_label)
         box.pack_start(entry, False, False, 0)
@@ -319,7 +324,7 @@ class BzmuxWindow(Gtk.Window):
         self.dump_to = dump_to
         self.quit_after = quit_after
         self.workspaces = []
-        self.font_size = 13          # pontos (convenção de terminal)
+        self.font_size = 13  # pontos (convenção de terminal)
         self._closing = False
         # geometria lembrada entre execuções. Com PYTERM_GEOM quem manda é o
         # protocolo de medição: não restaura e não salva (a grade do bench
@@ -330,9 +335,9 @@ class BzmuxWindow(Gtk.Window):
 
         apply_style()
         self.sidebar = Gtk.ListBox()
-        self.sidebar.set_name("sidebar")     # alvo do CSS (style.py)
+        self.sidebar.set_name("sidebar")  # alvo do CSS (style.py)
         self.sidebar.set_size_request(SIDEBAR_W, -1)
-        self.sidebar.set_visible(False)      # só com 2+ workspaces
+        self.sidebar.set_visible(False)  # só com 2+ workspaces
         # sem isto o show_all() da janela mostra a lateral de novo e ela come
         # 170 px da grade mesmo com um workspace só (P17)
         self.sidebar.set_no_show_all(True)
@@ -345,9 +350,13 @@ class BzmuxWindow(Gtk.Window):
         self.add(hbox)
         # 680x420 casava com a fonte de 16 px; com 13 pontos (23 px nesta tela)
         # a grade caía para 48x14. 980x640 devolve ~70x20.
-        geom = state.fit(self._saved.get("x"), self._saved.get("y"),
-                         self._saved.get("w"), self._saved.get("h"),
-                         self._monitors())
+        geom = state.fit(
+            self._saved.get("x"),
+            self._saved.get("y"),
+            self._saved.get("w"),
+            self._saved.get("h"),
+            self._monitors(),
+        )
         self.set_default_size(*(geom[2:] if geom else _geom()))
         if geom:
             self.move(geom[0], geom[1])
@@ -367,11 +376,9 @@ class BzmuxWindow(Gtk.Window):
         if quit_after:
             GLib.timeout_add_seconds(quit_after, self._on_quit_after)
         # SIGUSR1 dumpar as abas na hora (depuração: "kill -USR1 <pid>")
-        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1,
-                             self._on_dump_signal)
+        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1, self._on_dump_signal)
         # SIGTERM fecha como o --quit-after: o dump e o prof saem no fim
-        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM,
-                             self._on_term_signal)
+        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM, self._on_term_signal)
 
     # -- workspaces ----------------------------------------------------
     @property
@@ -441,9 +448,9 @@ class BzmuxWindow(Gtk.Window):
             self.dump()
             if not self._closing:
                 self._closing = True
-                self.destroy()          # -> on_destroy -> Gtk.main_quit
+                self.destroy()  # -> on_destroy -> Gtk.main_quit
             return True
-        for w in self.workspaces:       # renumera os cartões
+        for w in self.workspaces:  # renumera os cartões
             w.update_card()
         return self.select_workspace(self.workspaces[0])
 
@@ -472,10 +479,10 @@ class BzmuxWindow(Gtk.Window):
                 if ws is not None:
                     self.close_workspace(ws)
                 return True
-            n = _digit_of(ev)           # Ctrl+Shift+1..9 (0 = o 10º)
+            n = _digit_of(ev)  # Ctrl+Shift+1..9 (0 = o 10º)
             if n is not None:
                 self.select_workspace_index(9 if n == 0 else n - 1)
-                return True            # consome mesmo sem workspace no índice
+                return True  # consome mesmo sem workspace no índice
         if sup and not ctrl and not alt:
             # alias de workspace pelo Super (o WM pode engolir Super+dígito)
             if kv in (Gdk.KEY_n, Gdk.KEY_N):
@@ -485,12 +492,12 @@ class BzmuxWindow(Gtk.Window):
                 if ws is not None:
                     self.close_workspace(ws)
                 return True
-            n = _digit_of(ev)           # Super+1..9 (0 = o 10º)
+            n = _digit_of(ev)  # Super+1..9 (0 = o 10º)
             if n is not None:
                 self.select_workspace_index(9 if n == 0 else n - 1)
-                return True            # senão o dígito vaza pro filho
+                return True  # senão o dígito vaza pro filho
         if alt:
-            n = _digit_of(ev)           # Alt+1..9 (0 = a 10ª aba)
+            n = _digit_of(ev)  # Alt+1..9 (0 = a 10ª aba)
             if n is not None and ws is not None:
                 return ws.select_tab(9 if n == 0 else n - 1)
         return False
@@ -575,14 +582,22 @@ class BzmuxWindow(Gtk.Window):
 
     def on_configure(self, widget, ev):
         """Atualiza a geometria viva; maximizado não sobrescreve a normal."""
-        if os.environ.get("PYTERM_GEOMLOG"):      # sonda: cliente x moldura
+        if os.environ.get("PYTERM_GEOMLOG"):  # sonda: cliente x moldura
             import sys
+
             g = self.get_window()
             ext = g.get_frame_extents() if g else None
-            print("geom: ev=%s,%s getpos=%s frame=%s" % (
-                ev.x, ev.y, self.get_position(),
-                (ext.x, ext.y, ext.width, ext.height) if ext else None),
-                file=sys.stderr, flush=True)
+            print(
+                "geom: ev=%s,%s getpos=%s frame=%s"
+                % (
+                    ev.x,
+                    ev.y,
+                    self.get_position(),
+                    (ext.x, ext.y, ext.width, ext.height) if ext else None,
+                ),
+                file=sys.stderr,
+                flush=True,
+            )
         if self._remember and not self._max:
             self._saved.update(w=ev.width, h=ev.height)
             if self._is_x11():
@@ -606,7 +621,7 @@ class BzmuxWindow(Gtk.Window):
         s = dict(self._saved)
         s["max"] = self._max
         if not self._is_x11():
-            s.pop("x", None)     # no Wayland não existe posição para lembrar
+            s.pop("x", None)  # no Wayland não existe posição para lembrar
             s.pop("y", None)
         self._saved = s
         state.save(s)

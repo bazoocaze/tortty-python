@@ -29,11 +29,14 @@ def __getattr__(name):
     """Import preguiçoso: `bzmux.Term` não puxa o Gtk."""
     if name == "Term":
         from .term import Term
+
         return Term
     if name == "BzmuxWindow":
         from .window import BzmuxWindow
+
         return BzmuxWindow
     if name == "selftest":
         from .selftest import selftest
+
         return selftest
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

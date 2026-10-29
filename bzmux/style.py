@@ -8,16 +8,16 @@ Contraste é medido, não opinado: `contrast()` é sRGB relativo (WCAG) e o chec
 `style_contrast` exige o mínimo entre cada texto e o seu fundo.
 """
 
-SIDEBAR_BG = "#000000"      # fundo da lateral e do cartão normal
-CARD_HOVER_BG = "#141414"   # cartão sob o mouse
-CARD_FG = "#e0e0e0"         # nome do workspace
-CARD_INFO_FG = "#8a8a8a"    # linha de baixo (aba ativa, contagem)
-CARD_SEL_BG = "#1f4d2e"     # workspace ativo: verde escuro
-CARD_SEL_FG = "#ffffff"     # nome sobre o verde escuro
+SIDEBAR_BG = "#000000"  # fundo da lateral e do cartão normal
+CARD_HOVER_BG = "#141414"  # cartão sob o mouse
+CARD_FG = "#e0e0e0"  # nome do workspace
+CARD_INFO_FG = "#8a8a8a"  # linha de baixo (aba ativa, contagem)
+CARD_SEL_BG = "#1f4d2e"  # workspace ativo: verde escuro
+CARD_SEL_FG = "#ffffff"  # nome sobre o verde escuro
 CARD_SEL_INFO_FG = "#cfe3d5"  # linha de baixo sobre o verde
-TAB_BAR_BG = "#000000"      # barra de abas (o vazio ao lado das abas)
-TAB_ACTIVE_BG = "#1f4d2e"   # aba ativa: mesmo verde do workspace ativo
-TAB_SEP = "#333333"         # linha de 1 px entre as abas
+TAB_BAR_BG = "#000000"  # barra de abas (o vazio ao lado das abas)
+TAB_ACTIVE_BG = "#1f4d2e"  # aba ativa: mesmo verde do workspace ativo
+TAB_SEP = "#333333"  # linha de 1 px entre as abas
 
 CSS = """
 #sidebar { background-color: %(SIDEBAR_BG)s; }
@@ -42,8 +42,11 @@ notebook > header > tabs > tab:checked { background-color: %(TAB_ACTIVE_BG)s; }
 
 
 def _tokens():
-    return {k: v for k, v in globals().items()
-            if k.isupper() and isinstance(v, str) and v.startswith("#")}
+    return {
+        k: v
+        for k, v in globals().items()
+        if k.isupper() and isinstance(v, str) and v.startswith("#")
+    }
 
 
 def css():
@@ -58,7 +61,7 @@ def _linear(c):
 
 def _luminance(hex_color):
     h = hex_color.lstrip("#")
-    r, g, b = (int(h[i:i + 2], 16) for i in (0, 2, 4))
+    r, g, b = (int(h[i : i + 2], 16) for i in (0, 2, 4))
     return 0.2126 * _linear(r) + 0.7152 * _linear(g) + 0.0722 * _linear(b)
 
 

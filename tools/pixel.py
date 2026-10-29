@@ -45,17 +45,22 @@ def cor(img, x, y):
     if not (0 <= x < img["w"] and 0 <= y < img["h"]):
         raise Erro(f"ponto fora da imagem: {x},{y} ({img['w']}x{img['h']})")
     o = y * img["rs"] + x * img["nc"]
-    return tuple(img["px"][o:o + 3])
+    return tuple(img["px"][o : o + 3])
 
 
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("png")
     ap.add_argument("pontos", nargs="*", help="x,y (repetível)")
-    ap.add_argument("--scan", type=int, metavar="X",
-                    help="amostra a coluna X a cada 19 px (altura da célula)")
-    ap.add_argument("--row", type=int, metavar="Y",
-                    help="amostra a linha Y em 6 pontos da largura")
+    ap.add_argument(
+        "--scan",
+        type=int,
+        metavar="X",
+        help="amostra a coluna X a cada 19 px (altura da célula)",
+    )
+    ap.add_argument(
+        "--row", type=int, metavar="Y", help="amostra a linha Y em 6 pontos da largura"
+    )
     a = ap.parse_args(argv)
 
     img = carregar(a.png)
@@ -75,15 +80,25 @@ def main(argv):
             print(f"  y={y:4d} -> {cor(img, x, y)}")
     elif a.row is not None:
         y = a.row
-        amostras = [0, img["w"] // 5, 2 * img["w"] // 5, 3 * img["w"] // 5,
-                    4 * img["w"] // 5, img["w"] - 1]
+        amostras = [
+            0,
+            img["w"] // 5,
+            2 * img["w"] // 5,
+            3 * img["w"] // 5,
+            4 * img["w"] // 5,
+            img["w"] - 1,
+        ]
         print("  " + "  ".join(f"x={x}->{cor(img, x, y)}" for x in amostras))
     else:
         w, h = img["w"], img["h"]
         print(f"  centro           -> {cor(img, w // 2, h // 2)}")
         print(f"  topo (y=2)       -> {cor(img, 5, 2)}")
-        print(f"  pé (y=h-3)       -> {[cor(img, x, h - 3) for x in (5, w // 2, w - 5)]}")
-        print(f"  direita (x=w-3)  -> {[cor(img, w - 3, y) for y in (5, h // 2, h - 5)]}")
+        print(
+            f"  pé (y=h-3)       -> {[cor(img, x, h - 3) for x in (5, w // 2, w - 5)]}"
+        )
+        print(
+            f"  direita (x=w-3)  -> {[cor(img, w - 3, y) for y in (5, h // 2, h - 5)]}"
+        )
     return 0
 
 

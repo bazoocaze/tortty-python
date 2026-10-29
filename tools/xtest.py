@@ -27,30 +27,58 @@ O PID vem de `/tmp/bzmux.pid` (o `debug.sh` escreve lá); `--pid N` ou
 
 import argparse
 import json
-import os
 import sys
 import time
 
-from Xlib import X, XK, display
+from Xlib import XK, X, display
 from Xlib.ext import xtest
 
 PIDFILE = "/tmp/bzmux.pid"
 ATOM_PID = "_NET_WM_PID"
 
-MODS = {"ctrl": "Control_L", "shift": "Shift_L", "alt": "Alt_L",
-        "super": "Super_L"}
+MODS = {"ctrl": "Control_L", "shift": "Shift_L", "alt": "Alt_L", "super": "Super_L"}
 
 # layout US/ABNT: o símbolo que exige Shift aponta para a tecla base
-SHIFTED = {"!": "1", "@": "2", "#": "3", "$": "4", "%": "5", "^": "6",
-           "&": "7", "*": "8", "(": "9", ")": "0", "_": "minus",
-           "+": "equal", "{": "bracketleft", "}": "bracketright",
-           "|": "backslash", ":": "semicolon", '"': "apostrophe",
-           "<": "comma", ">": "period", "?": "slash", "~": "grave"}
+SHIFTED = {
+    "!": "1",
+    "@": "2",
+    "#": "3",
+    "$": "4",
+    "%": "5",
+    "^": "6",
+    "&": "7",
+    "*": "8",
+    "(": "9",
+    ")": "0",
+    "_": "minus",
+    "+": "equal",
+    "{": "bracketleft",
+    "}": "bracketright",
+    "|": "backslash",
+    ":": "semicolon",
+    '"': "apostrophe",
+    "<": "comma",
+    ">": "period",
+    "?": "slash",
+    "~": "grave",
+}
 # símbolos que saem direto da tecla, sem modificador
-PLAIN = {"-": "minus", "=": "equal", "[": "bracketleft", "]": "bracketright",
-         "\\": "backslash", ";": "semicolon", "'": "apostrophe",
-         ",": "comma", ".": "period", "/": "slash", "`": "grave",
-         " ": "space", "\n": "Return", "\t": "Tab"}
+PLAIN = {
+    "-": "minus",
+    "=": "equal",
+    "[": "bracketleft",
+    "]": "bracketright",
+    "\\": "backslash",
+    ";": "semicolon",
+    "'": "apostrophe",
+    ",": "comma",
+    ".": "period",
+    "/": "slash",
+    "`": "grave",
+    " ": "space",
+    "\n": "Return",
+    "\t": "Tab",
+}
 
 
 class Erro(Exception):
@@ -239,8 +267,11 @@ def main(argv):
         print(janela.id, flush=True)
     elif a.cmd == "geometry":
         g = janela.get_geometry()
-        print(json.dumps({"id": janela.id, "x": inj.ox, "y": inj.oy,
-                          "w": g.width, "h": g.height}))
+        print(
+            json.dumps(
+                {"id": janela.id, "x": inj.ox, "y": inj.oy, "w": g.width, "h": g.height}
+            )
+        )
     elif a.cmd == "activate":
         janela.configure(stack_mode=X.Above)
         d.set_input_focus(janela, X.RevertToParent, X.CurrentTime)
@@ -268,8 +299,9 @@ def main(argv):
         inj.move(a.x1, a.y1)
         inj.botao(a.button, True)
         for i in range(1, a.steps + 1):
-            inj.move(a.x1 + (a.x2 - a.x1) * i // a.steps,
-                     a.y1 + (a.y2 - a.y1) * i // a.steps)
+            inj.move(
+                a.x1 + (a.x2 - a.x1) * i // a.steps, a.y1 + (a.y2 - a.y1) * i // a.steps
+            )
         inj.botao(a.button, False)
     elif a.cmd == "key":
         for c in a.combo:

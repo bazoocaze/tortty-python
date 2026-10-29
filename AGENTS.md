@@ -51,7 +51,7 @@ nenhum arquivo solto na raiz. O código:
 
     run.sh         roda o app (teste rápido; escolhe o python)
     debug.sh       desenvolvimento: background, log, --kill/--status
-    run-tests.sh   roda a bateria de testes
+    run-tests.sh   roda o lint e a bateria de testes
     bench.sh       escada do doom-fire (medição, precisa de display)
     bzmux/
       __main__.py  `python -m bzmux` (chama cli.run)
@@ -114,6 +114,9 @@ o teto de vazão é o preço aceito e se ataca em Python, não reescrevendo em C
   terminar uma iteração, mencionar discretamente que a doc está pendente; a
   decisão de sincronizar é dele.
 - Evitar backticks.
+- Estilo é do `ruff format` (line-length 88), não de alinhamento manual; o lint
+  é `ruff check` com E, F, I, W. Não escolher hand-format em cima do formatter:
+  `./run-tests.sh` falha se o arquivo não estiver formatado.
 
 ## Testes
 
@@ -204,10 +207,15 @@ App:
   referência. Precisa de display e não guarda número: os valores ficam em
   docs/BENCHMARKS.md. Fecha cada app com SIGTERM (o handler faz dump e imprime
   o prof).
-- ./run-tests.sh — selftest (sem dependências) e depois pytest; argumentos
-  extras vão para o pytest (-k, -x). --selftest-only pula o pytest. Sai != 0 se
-  algo falhar. Não precisa de display.
-- uv run pytest -q — só a parte pytest; uv sync instala o ambiente (pytest).
+- ./run-tests.sh — ruff (check + format --check), selftest (sem dependências)
+  e depois pytest; argumentos extras vão para o pytest (-k, -x).
+  --selftest-only pula o pytest, --no-lint pula o ruff. Sai != 0 se algo
+  falhar. Não precisa de display.
+- uv run pytest -q — só a parte pytest; uv sync instala o ambiente (pytest +
+  ruff).
+- uv run ruff check . / uv run ruff format . — lint (E, F, I, W; config em
+  pyproject.toml, line-length 88) e formatação. O run-tests só *verifica* o
+  formato; formatar é decisão de quem mexe, não do fluxo de teste.
 - uv run python -m bzmux — o app direto pelo uv (mesmo interpretador do venv).
 
 Teste manual, com display e python3-xlib (em tools/):

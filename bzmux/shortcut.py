@@ -10,7 +10,7 @@ import sys
 from importlib import resources
 
 APP = "bzmux"
-WMCLASS = "Bzmux"     # casa com Gdk.set_program_class no cli
+WMCLASS = "Bzmux"  # casa com Gdk.set_program_class no cli
 
 
 def data_home():
@@ -83,8 +83,12 @@ def _run(tool, *args):
     if not exe:
         return
     try:
-        subprocess.run([exe] + list(args), check=False,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(
+            [exe] + list(args),
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
     except OSError:
         pass
 
@@ -100,18 +104,18 @@ def validate(path=None):
     exe = shutil.which("desktop-file-validate")
     if not exe:
         return ""
-    r = subprocess.run([exe, path or desktop_path()],
-                       capture_output=True, text=True)
+    r = subprocess.run([exe, path or desktop_path()], capture_output=True, text=True)
     return r.stdout + r.stderr
 
 
 def install():
-    """Escreve .desktop + ícone; devolve os dois caminhos. RuntimeError se não houver Exec."""
+    """Escreve .desktop + ícone; devolve os dois caminhos (RuntimeError sem Exec)."""
     exe = exec_path()
     if not exe:
         raise RuntimeError(
             "não achei o comando instalado (pipx install ...), e rodar da árvore "
-            "não serve: o atalho precisa de um Exec absoluto")
+            "não serve: o atalho precisa de um Exec absoluto"
+        )
     _write(desktop_path(), entry(exe).encode())
     _write(icon_path(), _icon_bytes())
     refresh()

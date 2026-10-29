@@ -4,10 +4,21 @@ Sem GTK aqui dentro — é o que deixa o parser testável por `--selftest` sem
 abrir janela (e sem display). Quem desenha é `window.BzmuxWindow`.
 """
 
-from .graphics import Graphics
-from .palette import (DEF_FG, DEF_BG, BOLD, UL, INV, rgb, DEC_SPECIAL,
-                      PALETTE256, FG_DEFAULT, BG_DEFAULT)
 import re
+
+from .graphics import Graphics
+from .palette import (
+    BG_DEFAULT,
+    BOLD,
+    DEC_SPECIAL,
+    DEF_BG,
+    DEF_FG,
+    FG_DEFAULT,
+    INV,
+    PALETTE256,
+    UL,
+    rgb,
+)
 
 # Fast path do parser (P20): fim do texto imprimível e cache de escape -> cor.
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
@@ -32,7 +43,7 @@ _CSI_RE = re.compile(r"\x1b\[([0-9;:?]*)([\x40-\x7e])")
 def _csi_parse(body, final):
     """Corpo do CSI (sem ESC[ e sem final) -> (nums, prefixo privado)."""
     while body and " " <= body[-1] <= "/":
-        body = body[:-1]               # intermediários: não usamos nenhum
+        body = body[:-1]  # intermediários: não usamos nenhum
     prefix = ""
     while body and body[0] in "?<=>":
         prefix += body[0]
@@ -75,8 +86,8 @@ class Term:
     def __init__(self, cols=80, rows=24):
         self.cols, self.rows = cols, rows
         self.grid = [self._blank_row() for _ in range(rows)]
-        self.alt_grid = None          # None = buffer principal
-        self.scrolled = 0             # linhas que saíram pelo topo (diagnóstico)
+        self.alt_grid = None  # None = buffer principal
+        self.scrolled = 0  # linhas que saíram pelo topo (diagnóstico)
         self.scrollback = []
         # reflow (P3): row_wrapped[i] = "esta linha continua na de baixo"
         # (quebra mole, não '\n'). É o que permite re-quebrar no resize em vez
@@ -86,23 +97,23 @@ class Term:
         self.alt_wrapped = None
         self.cx, self.cy = 0, 0
         self.fg, self.bg, self.flags = DEF_FG, DEF_BG, 0
-        self.top, self.bottom = 0, rows - 1   # scroll region
+        self.top, self.bottom = 0, rows - 1  # scroll region
         self.wrap_pending = False
         self.cursor_visible = True
-        self.app_cursor = False       # DECCKM (?1): setas em modo aplicação
-        self.mouse_mode = 0           # ?1000=1 ?1002=2 ?1003=3 (0 = off)
-        self.mouse_sgr = False        # ?1006: coordenadas SGR
-        self.focus_report = False     # ?1004: avisar foco in/out
+        self.app_cursor = False  # DECCKM (?1): setas em modo aplicação
+        self.mouse_mode = 0  # ?1000=1 ?1002=2 ?1003=3 (0 = off)
+        self.mouse_sgr = False  # ?1006: coordenadas SGR
+        self.focus_report = False  # ?1004: avisar foco in/out
         self.bracketed_paste = False  # ?2004: colar com marcadores
         # protocolo de teclado do kitty (P5): flags atuais + pilha para
         # push/pop (CSI > flags u / CSI < n u / CSI = flags ; modo u)
         self.kbd_flags = 0
         self.kbd_stack = []
-        self.cell_size = (10, 19)     # px por célula (o window ajusta)
-        self.charset_dec = False      # ESC ( 0 ativo?
+        self.cell_size = (10, 19)  # px por célula (o window ajusta)
+        self.charset_dec = False  # ESC ( 0 ativo?
         self.saved = None
         self.child_out = bytearray()  # respostas ao filho (DA, CPR...)
-        self.graphics = Graphics()    # protocolo de imagens do kitty (P6)
+        self.graphics = Graphics()  # protocolo de imagens do kitty (P6)
         self.apc = ""
         self.title = "bzmux"
         self.state = "ground"
@@ -154,7 +165,7 @@ class Term:
             self.grid, self.row_wrapped = self.alt_grid, self.alt_wrapped
             self.cols, self.rows = old_cols, old_rows
             self.cx, self.cy = self.saved or (0, 0)
-            self._reflow(cols, rows)          # re-quebra o principal salvo
+            self._reflow(cols, rows)  # re-quebra o principal salvo
             self.alt_grid, self.alt_wrapped = self.grid, self.row_wrapped
             self.saved = (self.cx, self.cy)
         self.cols, self.rows = cols, rows
@@ -163,14 +174,14 @@ class Term:
             if y < old_rows:
                 row = old_grid[y][:cols]
                 if len(row) < cols:
-                    row = row + [self._blank_cell_raw()
-                                 for _ in range(cols - len(row))]
+                    row = row + [self._blank_cell_raw() for _ in range(cols - len(row))]
                 new.append(row)
             else:
                 new.append([self._blank_cell_raw() for _ in range(cols)])
         self.grid = new
-        self.row_wrapped = (old_wrapped[:rows] +
-                            [False] * max(0, rows - len(old_wrapped)))
+        self.row_wrapped = old_wrapped[:rows] + [False] * max(
+            0, rows - len(old_wrapped)
+        )
         self.top, self.bottom = 0, rows - 1
         self.cx = min(old_cx, cols - 1)
         self.cy = min(old_cy, rows - 1)
@@ -196,8 +207,10 @@ class Term:
             if i < len(self.scrollback):
                 row, wrapped = self.scrollback[i], self.sb_wrapped[i]
             else:
-                row, wrapped = self.grid[i - len(self.scrollback)], \
-                    self.row_wrapped[i - len(self.scrollback)]
+                row, wrapped = (
+                    self.grid[i - len(self.scrollback)],
+                    self.row_wrapped[i - len(self.scrollback)],
+                )
             if cur is None:
                 cur = []
                 lines.append(cur)
@@ -225,15 +238,18 @@ class Term:
             while real and line[real - 1][0] == " " and line[real - 1][2] == DEF_BG:
                 real -= 1
             if li == line_idx and cur_off is not None and cur_off > real:
-                real = cur_off          # não perde a posição do cursor
+                real = cur_off  # não perde a posição do cursor
             del line[real:]
 
         new_rows, new_wrap = [], []
         cur_new = None
         blank = self._blank_cell_raw
         for li, line in enumerate(lines):
-            chunks = ([line[k:k + cols] for k in range(0, len(line), cols)]
-                      if line else [[]])
+            chunks = (
+                [line[k : k + cols] for k in range(0, len(line), cols)]
+                if line
+                else [[]]
+            )
             for ci, chunk in enumerate(chunks):
                 if len(chunk) < cols:
                     chunk = chunk + [blank() for _ in range(cols - len(chunk))]
@@ -241,11 +257,16 @@ class Term:
                 new_wrap.append(ci < len(chunks) - 1)
                 # só o primeiro chunk que contém o cursor ganha (sem isso o
                 # último chunk da linha sobrescrevia e o cursor pulava)
-                if (li == line_idx and cur_off is not None and cur_new is None
-                        and (cur_off < (ci + 1) * cols
-                             or ci == len(chunks) - 1)):
-                    cur_new = (len(new_rows) - 1,
-                               max(0, min(cols - 1, cur_off - ci * cols)))
+                if (
+                    li == line_idx
+                    and cur_off is not None
+                    and cur_new is None
+                    and (cur_off < (ci + 1) * cols or ci == len(chunks) - 1)
+                ):
+                    cur_new = (
+                        len(new_rows) - 1,
+                        max(0, min(cols - 1, cur_off - ci * cols)),
+                    )
         # o que está DEPOIS do cursor é área em branco: não vale empurrar
         # linha vazia pro scrollback só porque a tela alargou
         if cur_new is not None:
@@ -291,8 +312,7 @@ class Term:
         # rolagem de tela cheia: a linha que sai pelo topo vai pro histórico,
         # então a imagem que estava nela continua existindo (com linha
         # negativa) e reaparece quando a visão sobe no scrollback
-        self.graphics.scroll(self.top, self.bottom,
-                            -1001 if self.top == 0 else None)
+        self.graphics.scroll(self.top, self.bottom, -1001 if self.top == 0 else None)
         if self.alt_grid is not None:
             self.grid.pop(self.top)
             self.grid.insert(self.bottom, self._blank_row())
@@ -394,16 +414,14 @@ class Term:
     def insert_lines(self, n):
         for _ in range(n):
             self.grid.pop(self.bottom)
-            self.grid.insert(self.cy, [self.blank_cell()
-                                       for _ in range(self.cols)])
+            self.grid.insert(self.cy, [self.blank_cell() for _ in range(self.cols)])
             self.row_wrapped.pop(self.bottom)
             self.row_wrapped.insert(self.cy, False)
 
     def delete_lines(self, n):
         for _ in range(n):
             self.grid.pop(self.cy)
-            self.grid.insert(self.bottom, [self.blank_cell()
-                                           for _ in range(self.cols)])
+            self.grid.insert(self.bottom, [self.blank_cell() for _ in range(self.cols)])
             self.row_wrapped.pop(self.cy)
             self.row_wrapped.insert(self.bottom, False)
 
@@ -476,9 +494,11 @@ class Term:
                     # paleta 256 — vim com termguicolors, bat e gradiente em
                     # texto caíam todos em faixas chapadas.
                     if len(vals) == 3:
-                        c = rgb(min(255, max(0, vals[0])),
-                                min(255, max(0, vals[1])),
-                                min(255, max(0, vals[2])))
+                        c = rgb(
+                            min(255, max(0, vals[0])),
+                            min(255, max(0, vals[1])),
+                            min(255, max(0, vals[2])),
+                        )
                         if p == 38:
                             self.fg = c
                         else:
@@ -543,7 +563,7 @@ class Term:
                 # report (é o que o xterm faz).
                 self.mouse_mode = {1000: 1, 1002: 2, 1003: 3}[p] if on else 0
             elif private and p == 1006:
-                self.mouse_sgr = on     # coordenadas SGR (>223 e release)
+                self.mouse_sgr = on  # coordenadas SGR (>223 e release)
             elif private and p == 1004:
                 self.focus_report = on  # CSI I / CSI O no foco
             elif private and p in (1005, 1015):
@@ -556,8 +576,9 @@ class Term:
                 self.bracketed_paste = on
 
     def csi_dispatch(self, final, params, prefix=""):
-        get = lambda i, d: (params[i] if i < len(params)
-                            and params[i] is not None else d)
+        def get(i, d):
+            return params[i] if i < len(params) and params[i] is not None else d
+
         private = prefix == "?"
 
         if final == "m":
@@ -565,11 +586,9 @@ class Term:
         elif final in "ABCDEFG":
             k = get(0, 1) or 1
             if final in "AE":
-                self.cursor_to(self.cy - k if final == "A" else self.cy + k,
-                               self.cx)
+                self.cursor_to(self.cy - k if final == "A" else self.cy + k, self.cx)
             elif final in "CD":
-                self.cursor_to(self.cy,
-                               self.cx + k if final == "C" else self.cx - k)
+                self.cursor_to(self.cy, self.cx + k if final == "C" else self.cx - k)
             elif final == "B":
                 self.cursor_to(self.cy + k, self.cx)
             elif final == "F":
@@ -591,12 +610,12 @@ class Term:
         elif final == "@":
             k = get(0, 1) or 1
             row = self.grid[self.cy]
-            row[self.cx:self.cx] = [self.blank_cell()] * k
-            del row[self.cols:]
+            row[self.cx : self.cx] = [self.blank_cell()] * k
+            del row[self.cols :]
         elif final == "P":
             k = get(0, 1) or 1
             row = self.grid[self.cy]
-            del row[self.cx:self.cx + k]
+            del row[self.cx : self.cx + k]
             row.extend([self.blank_cell()] * k)
         elif final == "X":
             k = get(0, 1) or 1
@@ -638,7 +657,7 @@ class Term:
         end = text.find("m", i + 2)
         if end < 0 or end - i > 24:
             return None
-        key = text[i:end + 1]
+        key = text[i : end + 1]
         v = _ESC_CACHE.get(key)
         if v is None:
             v = _parse_truecolor(key)
@@ -668,13 +687,13 @@ class Term:
             avail = self.cols - cx
             k = n - i
             row = self.grid[self.cy]
-            if k >= avail:                 # enche até a última coluna: quebra mole
-                row[cx:] = [[c, fg, bg, fl] for c in run[i:i + avail]]
+            if k >= avail:  # enche até a última coluna: quebra mole
+                row[cx:] = [[c, fg, bg, fl] for c in run[i : i + avail]]
                 self.cx = self.cols - 1
                 self.wrap_pending = True
                 i += avail
             else:
-                row[cx:cx + k] = [[c, fg, bg, fl] for c in run[i:]]
+                row[cx : cx + k] = [[c, fg, bg, fl] for c in run[i:]]
                 self.cx = cx + k
                 i = n
 
@@ -756,8 +775,7 @@ class Term:
                 # e só então o byte final. Sem aceitar os intermediários, um
                 # `CSI * x` (DECSACE, que o icat manda) terminava no `*` e o
                 # `x` caía no ground — imprimia um "x" solto na tela.
-                if (ch.isdigit() or ch in ";?: " or ch in "<=>" or
-                        " " <= ch <= "/"):
+                if ch.isdigit() or ch in ";?: " or ch in "<=>" or " " <= ch <= "/":
                     self.csi += ch
                 else:
                     key = (self.csi, ch)
@@ -795,7 +813,7 @@ class Term:
                 else:
                     self.state = "ground"
             elif st == "charset":
-                self.charset_dec = (ch == "0")
+                self.charset_dec = ch == "0"
                 self.state = "ground"
             i += 1
 
@@ -803,8 +821,7 @@ class Term:
         body, self.apc = self.apc, ""
         self.state = "ground"
         cw, ch = self.cell_size
-        resp, used, move = self.graphics.handle(body, (self.cx, self.cy),
-                                                (cw, ch))
+        resp, used, move = self.graphics.handle(body, (self.cx, self.cy), (cw, ch))
         for r in resp:
             self.child_out += b"\x1b_" + r.encode() + b"\x1b\\"
         if move and used:
@@ -820,9 +837,8 @@ class Term:
         elif o in ("10;?", "11;?"):
             # cor padrão de frente/fundo (X11: 4 dígitos por componente)
             r, g, b = FG_DEFAULT if o[0] == "1" and o[1] == "0" else BG_DEFAULT
-            self.child_out += (
-                f"\x1b]{o[:2]};rgb:{r*257:04x}/{g*257:04x}/{b*257:04x}\x1b\\"
-                .encode())
+            resp = f"\x1b]{o[:2]};rgb:{r * 257:04x}/{g * 257:04x}/{b * 257:04x}"
+            self.child_out += (resp + "\x1b\\").encode()
         elif o.startswith("4;"):
             # entrada da paleta: OSC 4 ; índice ; ? (pode vir em pares)
             parts = o.split(";")[1:]
@@ -836,7 +852,10 @@ class Term:
                     continue
                 if 0 <= n < len(PALETTE256):
                     r, g, b = PALETTE256[n]
-                    out += f"\x1b]4;{n};rgb:{r*257:04x}/{g*257:04x}/{b*257:04x}\x1b\\"
+                    out += (
+                        f"\x1b]4;{n};rgb:{r * 257:04x}/"
+                        f"{g * 257:04x}/{b * 257:04x}\x1b\\"
+                    )
             self.child_out += out.encode()
 
     def _kbd_protocol(self, params, prefix):
@@ -880,8 +899,8 @@ class Term:
             # scrollback, e o draw pintava off linhas — rolar para cima ficava
             # linearmente mais lento)
             lo = len(sb) - off
-            return sb[lo:lo + self.rows]
-        return sb[-off:] + self.grid[:self.rows - off]
+            return sb[lo : lo + self.rows]
+        return sb[-off:] + self.grid[: self.rows - off]
 
     # -- texto (cópia) ------------------------------------------------
     def paste_payload(self, text):
