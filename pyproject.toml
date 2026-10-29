@@ -1,7 +1,7 @@
 [project]
 name = "bzmux"
 version = "0.1.0"
-description = "Terminal leve com abas, workspaces e imagens"
+description = "Terminal em Python com abas, workspaces e imagens"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"

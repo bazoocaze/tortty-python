@@ -1,4 +1,4 @@
-# bzmux — terminal leve com abas, workspaces e imagens
+# bzmux — terminal em Python com abas, workspaces e imagens
 
 > Repositório `pybzmux`; o projeto se chama **bzmux**. Nasceu como `pyterm`
 > dentro do experimento `kitty` e virou repo próprio em 2026-10-25 — por isso
