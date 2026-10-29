@@ -259,6 +259,8 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   workspaces, cartões) vêm de uma tabela de tokens e o CSS é gerado dela — sem
   hex solto no código. A lateral é preta, o workspace ativo fica num verde
   escuro com texto claro, e o contraste (>= 4.5:1) é conferido por check. A
+  barra de abas também é preta: 1 px separa as abas e a ativa usa o mesmo verde
+  do workspace ativo, com a mesma cor de texto em todas as abas. A
   paleta da célula do terminal é outra coisa e não se mistura com esta.
 - **Reflow no resize**: linhas que quebraram mole são re-quebradas na largura
   nova (uma linha longa vira várias ao estreitar, volta a ser uma ao alargar),

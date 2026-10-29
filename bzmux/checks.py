@@ -284,11 +284,14 @@ def style_contrast():
     for fg, bg in ((style.CARD_FG, style.SIDEBAR_BG),
                    (style.CARD_INFO_FG, style.SIDEBAR_BG),
                    (style.CARD_SEL_FG, style.CARD_SEL_BG),
-                   (style.CARD_SEL_INFO_FG, style.CARD_SEL_BG)):
+                   (style.CARD_SEL_INFO_FG, style.CARD_SEL_BG),
+                   (style.CARD_FG, style.TAB_BAR_BG),
+                   (style.CARD_FG, style.TAB_ACTIVE_BG)):
         assert style.contrast(fg, bg) >= 4.5, (fg, bg, style.contrast(fg, bg))
     # e o CSS tem que realmente usar os tokens, não uma cópia à mão
     css = style.css()
-    for token in (style.SIDEBAR_BG, style.CARD_SEL_BG, style.CARD_SEL_FG):
+    for token in (style.SIDEBAR_BG, style.CARD_SEL_BG, style.CARD_SEL_FG,
+                  style.TAB_BAR_BG, style.TAB_ACTIVE_BG, style.TAB_SEP):
         assert token in css
     assert style.CARD_INFO_FG in css
 

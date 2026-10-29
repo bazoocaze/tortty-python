@@ -15,6 +15,9 @@ CARD_INFO_FG = "#8a8a8a"    # linha de baixo (aba ativa, contagem)
 CARD_SEL_BG = "#1f4d2e"     # workspace ativo: verde escuro
 CARD_SEL_FG = "#ffffff"     # nome sobre o verde escuro
 CARD_SEL_INFO_FG = "#cfe3d5"  # linha de baixo sobre o verde
+TAB_BAR_BG = "#000000"      # barra de abas (o vazio ao lado das abas)
+TAB_ACTIVE_BG = "#1f4d2e"   # aba ativa: mesmo verde do workspace ativo
+TAB_SEP = "#333333"         # linha de 1 px entre as abas
 
 CSS = """
 #sidebar { background-color: %(SIDEBAR_BG)s; }
@@ -26,6 +29,15 @@ CSS = """
 .card .info { color: %(CARD_INFO_FG)s; }
 #sidebar row:selected .card label { color: %(CARD_SEL_FG)s; }
 #sidebar row:selected .card .info { color: %(CARD_SEL_INFO_FG)s; }
+notebook > header { background-color: %(TAB_BAR_BG)s; border-color: %(TAB_BAR_BG)s; }
+notebook > header > tabs { background-color: %(TAB_BAR_BG)s; }
+notebook > header > tabs > tab {
+  background-color: %(TAB_BAR_BG)s; box-shadow: none; color: %(CARD_FG)s;
+  border-width: 0 0 0 1px; border-style: solid; border-color: %(TAB_SEP)s;
+  border-radius: 0; padding: 2px 6px; }
+notebook > header > tabs > tab:first-child { border-left-width: 0; }
+notebook > header > tabs > tab:hover { background-color: %(CARD_HOVER_BG)s; }
+notebook > header > tabs > tab:checked { background-color: %(TAB_ACTIVE_BG)s; }
 """
 
 
