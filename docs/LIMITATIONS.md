@@ -116,6 +116,9 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 
 ## Interface
 
+- **Posição da janela só é lembrada no X11**: no Wayland o cliente não escolhe
+  onde a janela fica, então o arquivo de estado guarda apenas tamanho e
+  maximizado. Não é falta de código, é o protocolo.
 - **Sem arquivo de configuração/tema**: fonte, tamanho e paleta são fixos no
   código (`bzmux/palette.py`, `bzmux/style.py`) e não há flag de linha de comando
   para mudar fonte ou cor. É escolha atual, não limite técnico: mudar exige

@@ -250,6 +250,11 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   zumbi) e fecha a janela no `Ctrl+D`/`exit`; antes de fechar drena o que
   sobrou no pty (senão some a última tela) e manda `SIGHUP` pro grupo do filho
   (jobs em background não ficam órfãos).
+- **Geometria lembrada**: posição, tamanho e maximizado ficam em
+  `~/.local/state/bzmux/window.json` (`XDG_STATE_HOME`) e voltam na próxima
+  execução. Se o monitor sumiu ou o arquivo é lixo, a janela abre no padrão; com
+  `PYTERM_GEOM` quem manda é o protocolo de medição (não restaura nem salva).
+  No Wayland só o maximizado é lembrado: posição de janela não existe lá.
 - **Cromo escuro** (`bzmux/style.py`): as cores da interface (lateral dos
   workspaces, cartões) vêm de uma tabela de tokens e o CSS é gerado dela — sem
   hex solto no código. A lateral é preta, o workspace ativo fica num verde

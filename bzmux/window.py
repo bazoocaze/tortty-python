@@ -11,8 +11,8 @@ O que é de sessão mora na `view.py`; aqui só há ciclo de vida e atalhos.
 import os
 import signal
 
-from . import style
-from .gui import Gtk, Gdk, GLib, Pango
+from . import state, style
+from .gui import GdkX11, Gtk, Gdk, GLib, Pango
 from .view import TermView
 
 SIDEBAR_W = 170          # largura fixa (arrastável fica pra depois)
@@ -321,6 +321,12 @@ class BzmuxWindow(Gtk.Window):
         self.workspaces = []
         self.font_size = 13          # pontos (convenção de terminal)
         self._closing = False
+        # geometria lembrada entre execuções. Com PYTERM_GEOM quem manda é o
+        # protocolo de medição: não restaura e não salva (a grade do bench
+        # precisa ser a mesma nos dois terminais comparados).
+        self._remember = not os.environ.get("PYTERM_GEOM")
+        self._saved = (state.load() or {}) if self._remember else {}
+        self._max = bool(self._saved.get("max"))
 
         apply_style()
         self.sidebar = Gtk.ListBox()
@@ -339,7 +345,18 @@ class BzmuxWindow(Gtk.Window):
         self.add(hbox)
         # 680x420 casava com a fonte de 16 px; com 13 pontos (23 px nesta tela)
         # a grade caía para 48x14. 980x640 devolve ~70x20.
-        self.set_default_size(*_geom())
+        geom = state.fit(self._saved.get("x"), self._saved.get("y"),
+                         self._saved.get("w"), self._saved.get("h"),
+                         self._monitors())
+        self.set_default_size(*(geom[2:] if geom else _geom()))
+        if geom:
+            self.move(geom[0], geom[1])
+        if self._max:
+            self.maximize()
+        # a geometria é guardada a cada configure: no destroy o Gtk já devolveu
+        # o tamanho padrão (medido: salvava 980x640 com a janela em 920x610)
+        self.connect("configure-event", self.on_configure)
+        self.connect("window-state-event", self.on_window_state)
         self.connect("destroy", self.on_destroy)
         # a view trata e retorna True (o sinal não sobe); este handler é a
         # rede pra quando o foco NÃO está numa sessão (cartão da lateral,
@@ -540,7 +557,62 @@ class BzmuxWindow(Gtk.Window):
         self.destroy()
         return False
 
+    def _monitors(self):
+        """Retângulos dos monitores, para validar o que veio do arquivo."""
+        disp = Gdk.Display.get_default()
+        if disp is None:
+            return []
+        out = []
+        for i in range(disp.get_n_monitors()):
+            g = disp.get_monitor(i).get_geometry()
+            out.append((g.x, g.y, g.width, g.height))
+        return out
+
+    def _is_x11(self):
+        """Só em X11 o WM aceita posição de janela; no Wayland ela não existe."""
+        disp = Gdk.Display.get_default()
+        return GdkX11 is not None and isinstance(disp, GdkX11.X11Display)
+
+    def on_configure(self, widget, ev):
+        """Atualiza a geometria viva; maximizado não sobrescreve a normal."""
+        if os.environ.get("PYTERM_GEOMLOG"):      # sonda: cliente x moldura
+            import sys
+            g = self.get_window()
+            ext = g.get_frame_extents() if g else None
+            print("geom: ev=%s,%s getpos=%s frame=%s" % (
+                ev.x, ev.y, self.get_position(),
+                (ext.x, ext.y, ext.width, ext.height) if ext else None),
+                file=sys.stderr, flush=True)
+        if self._remember and not self._max:
+            self._saved.update(w=ev.width, h=ev.height)
+            if self._is_x11():
+                # get_position() é a posição da MOLDURA e ev.y é a do cliente:
+                # salvar ev.y e restaurar com move() descia a janela 30 px por
+                # execução (a barra de título lida duas vezes). Casam com
+                # move()/get_frame_extents, então é ele que vai para o arquivo.
+                pos = self.get_position()
+                self._saved.update(x=pos[0], y=pos[1])
+        return False
+
+    def on_window_state(self, widget, ev):
+        """Maximizado é evento de WM, não tamanho: marcar aqui, não medir."""
+        self._max = bool(ev.new_window_state & Gdk.WindowState.MAXIMIZED)
+        return False
+
+    def _save_geometry(self):
+        """Grava o que os handlers já coletaram (com PYTERM_GEOM não grava nada)."""
+        if not self._remember:
+            return
+        s = dict(self._saved)
+        s["max"] = self._max
+        if not self._is_x11():
+            s.pop("x", None)     # no Wayland não existe posição para lembrar
+            s.pop("y", None)
+        self._saved = s
+        state.save(s)
+
     def on_destroy(self, *_):
+        self._save_geometry()
         self._closing = True
         for ws in list(self.workspaces):
             for v in list(ws.views):

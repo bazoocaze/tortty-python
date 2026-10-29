@@ -9,10 +9,12 @@ matriz de casos.
 import base64
 import contextlib
 import io
+import json
 import os
+import tempfile
 import zlib
 
-from . import kitty_kbd, mouse, shortcut, style
+from . import kitty_kbd, mouse, shortcut, state, style
 from .palette import DEF_BG, DEF_FG, FG_DEFAULT, cell_rgb, rgb
 from .term import Term
 
@@ -314,6 +316,33 @@ def desktop_shortcut():
             os.environ["XDG_DATA_HOME"] = old
 
 
+# -- geometria lembrada ------------------------------------------------
+def window_state():
+    """Geometria salva: lixo e monitor desconectado são descartados."""
+    mons = [(0, 0, 1920, 1080)]
+    assert state.fit(300, 200, 900, 600, mons) == (300, 200, 900, 600)
+    assert state.fit(5000, 5000, 900, 600, mons) is None   # monitor desconectado
+    assert state.fit(300, 200, 100, 50, mons) is None      # tamanho lixo
+    assert state.fit("x", None, 900, 600, mons) is None    # arquivo editado à mão
+    assert state.fit(300, 200, 900, 600, []) == (300, 200, 900, 600)
+
+    old = os.environ.get("XDG_STATE_HOME")
+    with tempfile.TemporaryDirectory() as tmp:
+        os.environ["XDG_STATE_HOME"] = tmp
+        try:
+            assert state.load() is None            # ausente não é erro
+            state.save({"x": 1, "y": 2, "w": 3, "h": 4, "max": True})
+            assert state.load() == {"x": 1, "y": 2, "w": 3, "h": 4, "max": True}
+            with open(state.state_path(), "w") as f:
+                f.write("{quebrado")               # JSON pela metade
+            assert state.load() is None
+        finally:
+            if old is None:
+                del os.environ["XDG_STATE_HOME"]
+            else:
+                os.environ["XDG_STATE_HOME"] = old
+
+
 ALL = (
     parser_text_and_cursor,
     sgr_and_erasing,
@@ -333,4 +362,5 @@ ALL = (
     truecolor,
     style_contrast,
     desktop_shortcut,
+    window_state,
 )

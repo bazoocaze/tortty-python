@@ -68,8 +68,9 @@ nenhum arquivo solto na raiz. O código:
       window.py    Workspace + BzmuxWindow (abas, lateral, atalhos globais)
       checks.py    a bateria: asserts puros, sem display
       selftest.py  runner sem dependências do --selftest
-      cli.py       argv e arranque
-      shortcut.py  atalho do sistema (.desktop + ícone) — puro, roda antes do gi (e o entry point do console script)
+      cli.py       argv e arranque (e o entry point do console script)
+      shortcut.py  atalho do sistema (.desktop + ícone) — puro, roda antes do gi
+      state.py     geometria da janela entre execuções (JSON em XDG_STATE_HOME)
     tests/         runner pytest de bzmux/checks.py
     tools/         xtest.py, pixel.py — teste manual, exige X11 (só eles);
                    doomfire.py — carga de medição
@@ -144,8 +145,11 @@ o teto de vazão é o preço aceito e se ataca em Python, não reescrevendo em C
   da grade, resolução e colunas: é o par que tem que bater (bug 13 do HISTORY —
   grade a 130 dpi e desenho a 96). As duas sondas de custo isolam as etapas: PYTERM_NODRAW=1 desliga o desenho (sobra
   pty -> grade) e PYTERM_NOPARSE=1 lê o pty e descarta (isola o IO); com
-  PYTERM_PROF=1 o resumo ainda traz bytes lidos e eagain. A escada com os
-  números fica em docs/BENCHMARKS.md.
+  PYTERM_PROF=1 o resumo ainda traz bytes lidos e eagain. Com
+  PYTERM_GEOMLOG=1 cada configure imprime posição do cliente, da moldura e os
+  frame extents — foi o que mostrou a janela descendo 30 px por execução (o
+  título contado duas vezes). A escada com os números fica em
+  docs/BENCHMARKS.md.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
 - Medição não é teste: os números vêm de execução real. O `bench.sh` só roda o
