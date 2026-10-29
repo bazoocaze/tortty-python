@@ -1,4 +1,4 @@
-# bzmux — terminal em Python puro
+# bzmux — terminal leve com abas, workspaces e imagens
 
 > Repositório `pybzmux`; o projeto se chama **bzmux**. Nasceu como `pyterm`
 > dentro do experimento `kitty` e virou repo próprio em 2026-10-25 — por isso
@@ -11,7 +11,8 @@ Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**,
 sem C e sem compilação. Nasceu como experimento para responder a uma pergunta
 — *daria pra fazer um terminal inteiro em Python?* — e a resposta foi **sim**:
 é uma aplicação real, usada no dia a dia, e a medição continua sendo a régua. Não é produto distribuído: sem
-empacotamento, release nem suporte — o que não é feito está em
+release nem suporte (instalar na máquina é uma linha de pipx, em
+[Como rodar](#como-rodar)) — o que não é feito está em
 [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). O estado, a retomada e a fila ficam em
 [`TASK-bzmux.md`](TASK-bzmux.md); o backlog pendente em
 [`docs/BACKLOG.md`](docs/BACKLOG.md); o que já foi feito, os bugs corrigidos e
