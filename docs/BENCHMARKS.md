@@ -1,13 +1,15 @@
 # Benchmarks e medição
 
-Este é o **único doc com número de vazão/desenho/parse** (com data e governor;
-os outros citam o fato e linkam). Dentro dele:
+Este é o **único doc com número de vazão/desenho/parse/pegada** (com data e
+governor; os outros citam o fato e linkam). Dentro dele:
 
 - **Carga principal: doom-fire** (`tools/doomfire.py`, item P16) — o pior caso
   sintético, tela inteira trocando de cor por célula. É o número da manchete.
 - **Carga real: `dmesg`** — despejo de log com e sem cor.
 - **Escada e decomposições** — IO, parse e desenho separados, com as sondas e o
   perfil (o que custa dentro de cada etapa).
+- **Pegada** — memória do app e custo de instalar o stack gráfico (peso, não
+  vazão).
 - **Protocolo** para comparar dois terminais e as armadilhas de medição.
 
 ## A carga principal: doom-fire
@@ -342,6 +344,32 @@ descarta os bytes, sem decode nem grade — mede o teto de IO.
 `PYTERM_DIAG=1` é outra sonda, de geometria e não de tempo: no primeiro draw
 imprime avanço da fonte, célula da grade, resolução e colunas — os dois têm que
 casar, senão o texto não cai nas células (bug 13 do HISTORY).
+
+## Pegada: memória e disco (2026-10-28)
+
+Peso, não vazão: responde "o que custa ter isto instalado e rodando", e é o que
+sustenta ou derruba chamar o app de leve. Medido no próprio desktop GTK onde ele
+roda, com o `gi`/cairo do sistema.
+
+- **App rodando, uma sessão: PSS total ~17 MB**, dos quais ~2 MB do stack
+  gtk/pango/cairo/freetype/python — o resto é página compartilhada com o
+  desktop, que já a tinha carregada.
+- **Instalar o stack onde ele não existe** (closure do GTK3 + Pango + cairo no
+  Debian): 210 pacotes, 346 MB em disco, dominado por fontes
+  (`fonts-noto-core` 42 MB) e ICU (`libicu74` 36 MB). Numa máquina GTK esse
+  custo é zero, porque o desktop já o pagou.
+- **Rota Qt, para comparação** (P30, no [BACKLOG.md](BACKLOG.md)): PySide6
+  244 MB instalado, app trivial com PSS de 50 MB, dos quais 23 MB de libs Qt.
+  No Windows/macOS é a mesma ordem de grandeza de levar GTK para lá; no Linux o
+  GTK ganha por construção.
+- **PyGObject nunca vem de wheel**: o PyPI publica só sdist (3.58.1), então
+  `pip install pygobject` é compilar contra headers. É o fato que faz o
+  instalador depender do gerenciador de pacotes da distro, e não do pip.
+
+Consequência de redação: a metadata do pacote **não faz claim de desempenho**
+(sem "leve", sem "rápido"). Leve é verdade em pegada e falso em vazão, e a
+vazão é o teto das seções acima — a decisão está em
+[LIMITATIONS.md](LIMITATIONS.md).
 
 ## Protocolo (para comparar dois terminais)
 

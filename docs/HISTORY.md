@@ -887,6 +887,18 @@ Quirks do pipx que apareceram e ficam registrados:
   é `pipx install --force` (ou reinstalar), e versionar por tag fica para quando
   houver release.
 
+Depois do fechamento, o `install.sh` (raiz) embrulha tudo isso num comando:
+deps da distro por gerenciador (apt/dnf/pacman/zypper), o `python3` que importa
+`gi` **e** `cairo`, `pipx install --force --system-site-packages --python PY`,
+e `--selftest` no fim. Detecta clone (instala da árvore) x pipe (instala de
+`git+ssh://…`); `--dry-run`, `--no-deps`, `--uninstall`. Dois bugs no caminho:
+`[ -x python3 ]` testa arquivo no cwd, não no PATH (dizia "deps ausentes" com
+tudo instalado), e a função de busca vazava o path no stdout quando usada como
+condição. O pipe autenticado hoje é `gh api -H "Accept:
+application/vnd.github.raw" /repos/.../contents/install.sh | bash`, porque repo
+privado faz o `raw.githubusercontent` responder **404** — o `curl | bash`
+clássico só passa a valer quando o repositório abrir.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.

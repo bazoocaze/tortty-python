@@ -160,19 +160,13 @@ o único import. A arquitetura já tem a costura; falta a porta existir.
   reproduzido nesta máquina. Ou seja, "pip e roda" é verdade no Windows/mac,
   e quase-verdade no Linux (X11 precisa desse pacote; Wayland não).
 
-### Custo de dependência dos dois lados (medido)
+### Custo de dependência dos dois lados
 
-- GTK3 atual: closure de pacotes no Debian = 210 instalados, 346 MB em disco
-  (dominado por fontes e ICU), mas **já pago pelo desktop**. Custo marginal
-  medido no app rodando: PSS total 17 MB, dos quais ~2 MB do stack
-  gtk/pango/cairo/freetype/python (o resto é compartilhado e residente).
-- Qt: 244 MB em disco, sem compartilhamento num desktop GTK. App trivial
-  (QWidget + QFontMetricsF, offscreen): PSS total 50 MB, dos quais 23 MB de
-  libs PySide6.
-- Conclusão dos números: no Windows/mac o Qt **não é mais pesado** que levar
-  GTK para lá (a closure do GTK via conda tem ordem de grandeza parecida); a
-  diferença é quem gerencia. No Linux o GTK ganha por construção, porque o
-  desktop já o tem carregado.
+Os números de pegada (disco do stack e PSS do app nas duas rotas) moram em
+[`BENCHMARKS.md`](BENCHMARKS.md), seção de pegada — aqui fica só a conclusão:
+no Windows/mac o Qt **não é mais pesado** que levar GTK para lá (a closure do
+GTK via conda tem ordem de grandeza parecida); a diferença é quem gerencia. No
+Linux o GTK ganha por construção, porque o desktop já o tem carregado.
 
 ### Rota A — não mudar lib, mudar o gerenciador (conda-forge)
 

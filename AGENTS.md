@@ -22,9 +22,10 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 - docs/HISTORY.md — backlog concluído (P1–P18), bugs corrigidos,
   quirks (armadilhas que não devem ser redescobertas) e a nota de git.
 - docs/BENCHMARKS.md — benchmarks e medição e **o único lugar com número de
-  vazão/desenho/parse**: a carga doom-fire (manchete), o `dmesg` real, a escada
-  e as decomposições, o protocolo de comparação e as armadilhas (inclui o
-  governor). Os demais docs citam o fato e linkam; não repetem valor.
+  vazão/desenho/parse/pegada**: a carga doom-fire (manchete), o `dmesg` real, a
+  escada e as decomposições, a pegada (PSS do app e disco do stack gráfico), o
+  protocolo de comparação e as armadilhas (inclui o governor). Os demais docs
+  citam o fato e linkam; não repetem valor.
 - README.md — visão para humano: como rodar, ferramentas, ambiente, o que
   funciona, limites, medição, licença.
 

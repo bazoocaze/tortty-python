@@ -20,6 +20,11 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 - **Um core por sessão ativa**: sob despejo contínuo o bzmux satura um core. O
   desenho é coalescido em ~16 ms (60 Hz) de propósito, para o parse não morrer
   de fome.
+- **A metadata não faz claim de desempenho**: a descrição do pacote diz o que o
+  app tem (abas, workspaces, imagens), não "leve" nem "rápido". Leve é verdade
+  em **pegada** (o número está em [`BENCHMARKS.md`](BENCHMARKS.md)) e falso em
+  vazão, que é o limite acima; claim de velocidade viraria promessa que a
+  própria régua desmente.
 
 ## Modelo de célula e texto
 
@@ -126,8 +131,13 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 ## Escopo (decisão, não falta)
 
 - **Não é produto distribuído**: nasceu como experimento para medir o custo do
-  caminho quente em Python e virou aplicação real de uso diário, mas não tem
-  empacotamento, instalador, versionamento semântico nem caminho de produção.
+  caminho quente em Python e virou aplicação real de uso diário. Tem pacote
+  instalável (`pipx` ou `install.sh`, item P31), mas não tem release, PyPI,
+  instalador para outra plataforma, versionamento semântico nem suporte.
+- **Só Linux, com GTK3 do sistema**: o PyGObject e o cairo vêm da distro e o
+  cromo é GTK3 — macOS e Windows exigiriam levar o stack inteiro, o que é a
+  discussão do P30 no [BACKLOG.md](BACKLOG.md). Não é portabilidade prometida
+  para depois; é onde ele roda.
 - **Python puro é decisão, não pendência**: o experimento perguntou se dava
   para fazer um terminal inteiro em Python e a resposta foi sim — ele é usado
   no dia a dia assim. O teto de vazão (~6x o kitty) é o preço aceito, e se
