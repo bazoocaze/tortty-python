@@ -34,7 +34,7 @@ notebook > header > tabs { background-color: %(TAB_BAR_BG)s; }
 notebook > header > tabs > tab {
   background-color: %(TAB_BAR_BG)s; box-shadow: none; color: %(CARD_FG)s;
   border-width: 0 0 0 1px; border-style: solid; border-color: %(TAB_SEP)s;
-  border-radius: 0; padding: 2px 6px; }
+  border-radius: 0; padding: 5px 16px; }
 notebook > header > tabs > tab:first-child { border-left-width: 0; }
 notebook > header > tabs > tab:hover { background-color: %(CARD_HOVER_BG)s; }
 notebook > header > tabs > tab:checked { background-color: %(TAB_ACTIVE_BG)s; }
