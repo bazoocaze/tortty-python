@@ -168,6 +168,9 @@ class TermView(Gtk.DrawingArea):
                 except OSError:
                     pass        # cwd do filho pode ter sido apagado
             os.environ["TERM"] = "xterm-256color"
+            # sem COLORTERM o app acha que só há 256 cores e arredonda o RGB
+            # para o cubo: era isto que fazia cor "não bater" com o kitty
+            os.environ["COLORTERM"] = "truecolor"
             try:
                 os.execlp("sh", "sh", "-c", cmd)
             except Exception:
