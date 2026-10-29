@@ -153,6 +153,14 @@ o teto de vazão é o preço aceito e se ataca em Python, não reescrevendo em C
 
 App:
 
+- ./install.sh — instala na máquina: confere/instala as dependências da distro
+  (apt/dnf/pacman/zypper), acha o python3 que enxerga gi+cairo, garante o pipx e
+  roda `pipx install --force --system-site-packages --python PY SPEC`; no fim
+  roda o `--selftest`. SPEC é a árvore local quando o script está num clone e
+  `git+ssh://git@github.com/bazoocaze/pybzmux.git` quando vem por pipe. Modos:
+  --dry-run, --no-deps, --uninstall, -h. Só Linux. Hoje o pipe exige `gh api`
+  porque o repositório é privado; `curl | bash` só passa a valer quando ele
+  abrir.
 - bzmux — o terminal (console script instalado, `python3 -m bzmux` na árvore,
   ou ./run.sh). Opções: --cmd COMANDO, --quit-after SEG,
   --dump-to ARQUIVO, --selftest (roda os checks e sai), -h/--help (ajuda sem

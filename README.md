@@ -32,21 +32,45 @@ python3 -m bzmux --help       # opções, sem abrir janela
 
 ## Instalar na máquina (pipx, direto do GitHub)
 
-Enquanto não há release, a instalação é do repositório. O `bzmux` usa o PyGObject
-do sistema, então o venv isolado precisa **ver** o Gtk3 da distro:
+Enquanto não há release, a instalação é do repositório. O `bzmux` usa o
+PyGObject do sistema, então o venv isolado precisa **ver** o Gtk3 da distro — é
+isso que o `install.sh` resolve (dependências da distro, o `python3` que enxerga
+o `gi`, pipx e a instalação):
+
+```sh
+./install.sh               # do clone: instala, verifica e diz o que fazer
+./install.sh --dry-run     # mostra cada comando sem executar
+./install.sh --uninstall   # remove pelo pipx
+```
+
+Sem clonar — o repositório é **privado**, então o `curl | bash` clássico ainda
+não serve (o raw dá 404 sem autenticação). O equivalente autenticado é:
+
+```sh
+gh api -H "Accept: application/vnd.github.raw" \
+    /repos/bazoocaze/pybzmux/contents/install.sh | bash
+```
+
+Quando o repositório for público, o clássico passa a valer:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/bazoocaze/pybzmux/main/install.sh | bash
+```
+
+E o passo a passo à mão, que é o que o script faz por baixo:
 
 ```sh
 sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0   # Linux (deb)
 pipx install --system-site-packages \
-    "git+ssh://git@github.com/bazoocaze/pybzmux.git"           # comando `bzmux`
+    "git+ssh://git@github.com:bazoocaze/pybzmux.git"           # comando `bzmux`
 bzmux --selftest && bzmux                                      # confere e abre
 ```
 
 O repositório é privado, por isso a URL é `git+ssh` (usa a sua chave; `https`
 exigiria token). A versão no pyproject é fixa, então commit novo não aparece no
-`pipx upgrade`: para atualizar, `pipx install --force "git+ssh://..."`. Sem o
-`--system-site-packages` o app sai com uma mensagem dizendo o que instalar, em
-vez de traceback (`bzmux --selftest` funciona mesmo assim, sem gi e sem
+`pipx upgrade`: para atualizar, rode o instalador de novo (ele usa `--force`).
+Sem o `--system-site-packages` o app sai com uma mensagem dizendo o que
+instalar, em vez de traceback (`bzmux --selftest` funciona mesmo assim, sem gi e sem
 display).
 
 O `./bench.sh` imprime fps, MB/s, custo de desenho/parse e a frequência da CPU
