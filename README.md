@@ -43,6 +43,10 @@ o `gi`, pipx e a instalação):
 ./install.sh --uninstall   # remove pelo pipx
 ```
 
+Se o `pipx` não estiver instalado, o script usa o `uvx pipx` em vez de pedir
+`sudo apt install` (o venv da ferramenta é criado com o python do sistema, então
+o `gi` continua visível).
+
 O instalador também cria o atalho no menu do sistema (`~/.local/share/applications`
 + ícone em `hicolor`, respeitando `XDG_DATA_HOME`): `--no-shortcut` pula essa
 parte, e quem já instalou antes roda `bzmux --install-shortcut` uma vez. O

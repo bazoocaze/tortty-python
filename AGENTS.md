@@ -162,7 +162,10 @@ App:
   `git+ssh://git@github.com/bazoocaze/pybzmux.git` quando vem por pipe. Modos:
   --dry-run, --no-deps, --no-shortcut, --uninstall, -h. Só Linux. No fim cria o
   atalho do sistema chamando `bzmux --install-shortcut` (e o remove no
-  --uninstall, antes do pipx, senão o comando já não existe). Hoje o pipe exige `gh api`
+  --uninstall, antes do pipx, senão o comando já não existe). Usa o pipx do
+  sistema quando existe e cai no `uvx --from pipx pipx` quando não — nesse caso
+  o `--python` é obrigatório, porque o interpretador do uv não vê o gi da
+  distro. Hoje o pipe exige `gh api`
   porque o repositório é privado; `curl | bash` só passa a valer quando ele
   abrir.
 - bzmux — o terminal (console script instalado, `python3 -m bzmux` na árvore,

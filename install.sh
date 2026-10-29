@@ -77,6 +77,23 @@ pm_install() {
     esac
 }
 
+# -- qual pipx usar -------------------------------------------------------------
+# Do sistema, se houver. Sem ele, o `uvx pipx` serve: roda sem instalar nada no
+# sistema (é o caso do servidor/da máquina sem pipx do apt), e o --python abaixo
+# compensa o interpretador do uv, que não enxerga o gi da distro.
+PIPX=()
+pick_pipx() {
+    [ -n "${PIPX[0]:-}" ] && return 0
+    if command -v pipx >/dev/null 2>&1; then
+        PIPX=(pipx); return 0
+    fi
+    if command -v uvx >/dev/null 2>&1; then
+        say "== pipx não encontrado; usando 'uvx pipx' (sem instalar no sistema)"
+        PIPX=(uvx --from pipx pipx); return 0
+    fi
+    return 1
+}
+
 # -- instalacao -------------------------------------------------------------
 install() {
     [ "$(uname -s)" = "Linux" ] || die "só Linux por enquanto (Windows/macOS: ver docs/BACKLOG.md, P30)"
@@ -89,6 +106,8 @@ install() {
     else
         say "== instalando de $REPO"
     fi
+
+    pick_pipx || { say "== pipx e uvx ausentes; instalando o pipx"; pm_install || die "instale pipx ou uv (sem sudo: uvx --from pipx pipx)"; pick_pipx || die "pipx continua fora do PATH; abra um shell novo"; }
 
     # deps: pycairo/gi/gtk3 do sistema
     if [ "$DEPS" = 1 ] && ! gi_python python3 >/dev/null; then
@@ -105,17 +124,8 @@ install() {
             || die "sem acesso a $REPO — o repositório é privado, configure a chave ssh (ou use um clone local)"
     fi
 
-    if ! command -v pipx >/dev/null 2>&1; then
-        say "== pipx não encontrado; instalando"
-        pm_install || die "instale o pipx (apt install pipx) e rode de novo"
-        if [ "$DRY" = 0 ]; then
-            command -v pipx >/dev/null 2>&1 \
-                || die "pipx continua fora do PATH; abra um shell novo e rode de novo"
-        fi
-    fi
-
     # --force: reexecutar atualiza (a versão no pyproject é fixa)
-    run pipx install --force --system-site-packages --python "$PY" "$spec"
+    run "${PIPX[@]}" install --force --system-site-packages --python "$PY" "$spec"
 
     if [ "$DRY" = 1 ]; then say "+ bzmux --selftest"; return 0; fi
     command -v "$PKG" >/dev/null 2>&1 || die "instalou, mas '$PKG' não está no PATH: adicione ~/.local/bin"
@@ -136,8 +146,8 @@ uninstall() {
     if command -v "$PKG" >/dev/null 2>&1; then
         run "$PKG" --remove-shortcut || true
     fi
-    command -v pipx >/dev/null 2>&1 || die "pipx não encontrado; a instalação já não existe"
-    run pipx uninstall "$PKG"
+    pick_pipx || die "pipx não encontrado; a instalação já não existe"
+    run "${PIPX[@]}" uninstall "$PKG"
 }
 
 case "$MODE" in
