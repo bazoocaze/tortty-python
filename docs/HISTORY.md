@@ -824,7 +824,71 @@ sublinhado, inverso, acento, CJK e emoji, capturada no HEAD e no código novo �
 **0 pixels de diferença na grade** (`compare -metric AE`; os 448 que sobram são
 o título da aba, "bz-antigo" vs "pybzmux"). 17 testes seguem passando.
 
+### P31 — Pacote instalável: `pipx install` direto do GitHub (2026-10-28)
+
+O app era `bzmux.py` solto na raiz importando o pacote `core/`. Funcionava
+(`python3 bzmux.py`, `sys.path` da pasta do script) e não instalava: sem
+`[project.scripts]`, o `uv tool`/`pipx` recusavam com `No executables are
+provided by package`; e o `uv build` **não falhava** — caía num setuptools
+legado e gerava um wheel com `top_level = core` (nome genérico, colisão no
+site-packages) e **sem** o `bzmux.py` dentro. O critério de aceite passou a ser
+inspecionar o wheel, não "buildou".
+
+O que mudou:
+
+- `core/` → `bzmux/` (git mv; todos os imports internos já eram relativos) e
+  `bzmux.py` da raiz apagado — ele ficaria sombreado pelo diretório. No lugar
+  dele, `bzmux/__main__.py` para `python -m bzmux`.
+- `pyproject.toml`: `[build-system]` com hatchling, `packages = ["bzmux"]`,
+  `[project.scripts] bzmux = "bzmux.cli:run"`, licença SPDX (`license = "MIT"`
+  + `license-files`) e `package = false` removido (o uv passou a instalar o
+  projeto em modo editable no `.venv`; o `uv.lock` mudou de `virtual` para
+  `editable`).
+- `cli.run()` (entry point, sem argv, sai com o código) e `main(argv=None)` —
+  o `console_scripts` chama a função **sem argumentos**; `main(argv)` exigia a
+  lista e estouraria `TypeError` no comando instalado. `main` continua aceitando
+  argv explícito porque os checks dependem disso.
+- guarda do `gi`: sem PyGObject o app sai com uma mensagem de duas linhas (apt
+  ou `--system-site-packages`) em vez de traceback, e só captura
+  `ModuleNotFoundError` de `gi`/`cairo` — erro de import nosso continua
+  estourando.
+- `USAGE` e os asserts de `checks.py` passam a dizer `bzmux` (a ajuda do comando
+  instalado mentiria se dissesse `bzmux.py`).
+- scripts: `run.sh` exporta `PYTHONPATH` com a raiz e roda `-m bzmux` (sem
+  `cd`, porque o shell aberto herda o cwd de quem chamou — verificado abrindo
+  de `/tmp` com `--cmd 'pwd > arquivo'`); `run-tests.sh` usa `-m bzmux`;
+  `debug.sh` reconhece as duas formas do processo (`-m bzmux` e o script do
+  PATH) — o `grep bzmux\.py` antigo deixaria `--kill`/`--status` pifando em
+  silêncio.
+
+Verificação: wheel com `bzmux/` + `entry_points.txt` (`bzmux = bzmux.cli:run`)
++ LICENSE e sem `core/`; `python3 -m bzmux --selftest` (17 checks) e `-h` sem
+`gi`; `./run-tests.sh` (selftest + 17 pytest); `./run.sh --quit-after 2` e
+`./debug.sh` (status/kill) fechando pelo PID; venv isolado **sem**
+`--system-site-packages` mostrando a mensagem do `gi` e ainda rodando
+`--selftest`; e o alvo de verdade, `pipx install --system-site-packages` do
+repositório, que abriu e fechou a janela com `--quit-after 2` e cujo
+`--selftest`/`-h` rodam de fora da árvore. O commit (não a árvore de trabalho)
+é o que o `git+...` instala — descobrir isso custou uma rodada falhando com o
+HEAD antigo.
+
+Quirks do pipx que apareceram e ficam registrados:
+
+- o venv da ferramenta é criado com o python **do próprio pipx**. Um pipx que
+  rode num python do uv/pyenv (ex.: `uvx pipx`) gera venv num 3.12 sem `gi` e o
+  `--system-site-packages` não ajuda em nada: precisa de
+  `--python /usr/bin/python3`. Pipx instalado pelo apt já usa o do sistema e o
+  comando simples funciona.
+- `pipx reinstall` e `pipx install --force` **preservam** o
+  `include-system-site-packages` mas **ignoram o `--python`**: a janela volta a
+  falhar por falta de `gi` mesmo repetindo `--python`. Trocar de interpretador
+  exige `pipx uninstall` e instalar de novo — verificado nas duas ordens.
+- com `version = "0.1.0"` fixa, `pipx upgrade` não vê commit novo; atualização
+  é `pipx install --force` (ou reinstalar), e versionar por tag fica para quando
+  houver release.
+
 ## Bugs encontrados e corrigidos (histórico útil)
+
 Todos foram achados com medição, não por leitura — vale registrar o método.
 
 1. **Métrica de célula errada (texto derrapando).** A largura da célula vinha
