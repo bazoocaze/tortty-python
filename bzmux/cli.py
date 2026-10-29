@@ -11,6 +11,8 @@ uso: bzmux [opções]
   --quit-after SEG   fecha sozinho depois de SEG segundos
   --dump-to ARQUIVO  salva a grade visível ao sair
   --selftest         roda os checks sem abrir janela
+  --install-shortcut cria o atalho no menu do sistema (.desktop + ícone)
+  --remove-shortcut  remove o atalho
   -h, --help         mostra esta ajuda e sai"""
 
 
@@ -40,6 +42,30 @@ def run():
     sys.exit(main())
 
 
+def _shortcut(installing):
+    """--install-shortcut / --remove-shortcut: só arquivos, sem Gtk."""
+    from . import shortcut
+
+    if not installing:
+        gone = shortcut.remove()
+        if gone:
+            print("atalho removido: " + ", ".join(gone))
+        else:
+            print("não havia atalho instalado")
+        return 0
+    try:
+        desktop, icon = shortcut.install()
+    except RuntimeError as e:
+        print(f"bzmux: {e}", file=sys.stderr)
+        return 1
+    print(f"atalho: {desktop}\nícone:  {icon}")
+    bad = shortcut.validate(desktop)
+    if bad:
+        print(bad.rstrip(), file=sys.stderr)
+        return 1
+    return 0
+
+
 def main(argv=None):
     argv = sys.argv if argv is None else argv
     if "-h" in argv[1:] or "--help" in argv[1:]:
@@ -47,13 +73,15 @@ def main(argv=None):
         return 0
     if "--selftest" in argv:
         return selftest()
+    if "--install-shortcut" in argv or "--remove-shortcut" in argv:
+        return _shortcut("--install-shortcut" in argv)
     cmd, quit_after, dump_to, erro = parse_args(argv)
     if erro:
         print(f"bzmux: opção inválida: {erro}\n\n{USAGE}", file=sys.stderr)
         return 2
     # import tardio: --selftest e --help rodam sem tocar em Gtk/PyGObject
     try:
-        from .gui import Gtk, Gdk, GdkX11
+        from .gui import GLib, Gtk, Gdk, GdkX11
         from .window import BzmuxWindow
     except ModuleNotFoundError as e:
         if e.name not in ("gi", "cairo"):
@@ -66,6 +94,12 @@ def main(argv=None):
             "  (ou rode 'bzmux --selftest', que não precisa de display nem gi)",
             file=sys.stderr)
         return 1
+
+    # WM_CLASS estável: o padrão do GLib vem do argv[0] e muda entre o console
+    # script (bzmux), o `-m bzmux` (__main__.py) e o venv — com ele instável o
+    # atalho do sistema não acha a janela. Casa com StartupWMClass do .desktop.
+    GLib.set_prgname("bzmux")
+    Gdk.set_program_class("Bzmux")
 
     win = BzmuxWindow(cmd=cmd, quit_after=quit_after, dump_to=dump_to)
     win.show_all()

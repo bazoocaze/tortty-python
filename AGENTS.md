@@ -68,7 +68,8 @@ nenhum arquivo solto na raiz. O código:
       window.py    Workspace + BzmuxWindow (abas, lateral, atalhos globais)
       checks.py    a bateria: asserts puros, sem display
       selftest.py  runner sem dependências do --selftest
-      cli.py       argv e arranque (e o entry point do console script)
+      cli.py       argv e arranque
+      shortcut.py  atalho do sistema (.desktop + ícone) — puro, roda antes do gi (e o entry point do console script)
     tests/         runner pytest de bzmux/checks.py
     tools/         xtest.py, pixel.py — teste manual, exige X11 (só eles);
                    doomfire.py — carga de medição
@@ -159,14 +160,17 @@ App:
   roda `pipx install --force --system-site-packages --python PY SPEC`; no fim
   roda o `--selftest`. SPEC é a árvore local quando o script está num clone e
   `git+ssh://git@github.com/bazoocaze/pybzmux.git` quando vem por pipe. Modos:
-  --dry-run, --no-deps, --uninstall, -h. Só Linux. Hoje o pipe exige `gh api`
+  --dry-run, --no-deps, --no-shortcut, --uninstall, -h. Só Linux. No fim cria o
+  atalho do sistema chamando `bzmux --install-shortcut` (e o remove no
+  --uninstall, antes do pipx, senão o comando já não existe). Hoje o pipe exige `gh api`
   porque o repositório é privado; `curl | bash` só passa a valer quando ele
   abrir.
 - bzmux — o terminal (console script instalado, `python3 -m bzmux` na árvore,
   ou ./run.sh). Opções: --cmd COMANDO, --quit-after SEG,
-  --dump-to ARQUIVO, --selftest (roda os checks e sai), -h/--help (ajuda sem
-  abrir janela; opção inválida também sai, com exit 2). Sem PyGObject no
-  ambiente, a mensagem diz o que instalar em vez de estourar traceback.
+  --dump-to ARQUIVO, --selftest (roda os checks e sai), --install-shortcut /
+  --remove-shortcut (atalho no menu: .desktop + ícone em XDG_DATA_HOME), -h/--help
+  (ajuda sem abrir janela; opção inválida também sai, com exit 2). Sem PyGObject
+  no ambiente, a mensagem diz o que instalar em vez de estourar traceback.
 - pipx install --system-site-packages git+ssh://git@github.com/bazoocaze/pybzmux.git
   — instala na máquina (Linux; build feito do clone pelo hatchling, o comando
   bzmux fica no PATH). Os detalhes e as armadilhas ficam em docs/BACKLOG.md

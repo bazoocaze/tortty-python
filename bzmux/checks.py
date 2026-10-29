@@ -9,9 +9,10 @@ matriz de casos.
 import base64
 import contextlib
 import io
+import os
 import zlib
 
-from . import kitty_kbd, mouse, style
+from . import kitty_kbd, mouse, shortcut, style
 from .palette import DEF_BG, DEF_FG, FG_DEFAULT, cell_rgb, rgb
 from .term import Term
 
@@ -290,6 +291,29 @@ def style_contrast():
     assert style.CARD_INFO_FG in css
 
 
+# -- atalho do sistema -------------------------------------------------
+def desktop_shortcut():
+    """O .desktop tem que casar com o WM_CLASS e o ícone viajar no pacote."""
+    txt = shortcut.entry("/opt/bin/bzmux")
+    assert "Exec=/opt/bin/bzmux" in txt
+    assert f"StartupWMClass={shortcut.WMCLASS}" in txt
+    assert "Categories=System;TerminalEmulator;" in txt
+    assert "Icon=bzmux" in txt
+    assert shortcut._icon_bytes().lstrip().startswith(b"<svg")   # o wheel tem o asset
+    # XDG_DATA_HOME manda nos caminhos (nada de ~/.local/share na mão)
+    old = os.environ.get("XDG_DATA_HOME")
+    os.environ["XDG_DATA_HOME"] = "/tmp/xdg-probe"
+    try:
+        assert shortcut.desktop_path() == "/tmp/xdg-probe/applications/bzmux.desktop"
+        assert shortcut.icon_path() == \
+            "/tmp/xdg-probe/icons/hicolor/scalable/apps/bzmux.svg"
+    finally:
+        if old is None:
+            del os.environ["XDG_DATA_HOME"]
+        else:
+            os.environ["XDG_DATA_HOME"] = old
+
+
 ALL = (
     parser_text_and_cursor,
     sgr_and_erasing,
@@ -308,4 +332,5 @@ ALL = (
     paste_markers,
     truecolor,
     style_contrast,
+    desktop_shortcut,
 )

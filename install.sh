@@ -10,6 +10,7 @@
 #   ./install.sh --uninstall  remove pelo pipx
 #   ./install.sh --dry-run    mostra cada comando e não executa nada
 #   ./install.sh --no-deps    não instala pacotes do sistema
+#   ./install.sh --no-shortcut  não cria o atalho no menu do sistema
 #
 # Uso (sem clonar; o repo é privado, então precisa de gh autenticado):
 #   gh api -H "Accept: application/vnd.github.raw" \
@@ -29,11 +30,13 @@ say()  { printf '%s\n' "$*"; }
 warn() { printf '%s\n' "$*" >&2; }
 die()  { warn "bzmux: $*"; exit 1; }
 
-DRY=0; DEPS=1; MODE=install
+DRY=0; DEPS=1; SHORTCUT=1; MODE=install
 for a in "$@"; do
     case "$a" in
         --dry-run)   DRY=1 ;;
         --no-deps)   DEPS=0 ;;
+        --shortcut)  SHORTCUT=1 ;;
+        --no-shortcut) SHORTCUT=0 ;;
         --uninstall) MODE=uninstall ;;
         -h|--help)   awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
         *) die "opção inválida: $a (use -h)" ;;
@@ -118,12 +121,22 @@ install() {
     command -v "$PKG" >/dev/null 2>&1 || die "instalou, mas '$PKG' não está no PATH: adicione ~/.local/bin"
     say "== verificação"
     "$PKG" --selftest | tail -1
+
+    if [ "$SHORTCUT" = 1 ]; then
+        say "== atalho no menu do sistema"
+        run "$PKG" --install-shortcut
+    fi
+
     say
     say "pronto: rode '$PKG' (atualizar: rode este instalador de novo)"
 }
 
 uninstall() {
-    command -v pipx >/dev/null 2>&1 || die "pipx não encontrado; nada a remover por aqui"
+    # o atalho sai antes: depois do pipx uninstall o comando não existe mais
+    if command -v "$PKG" >/dev/null 2>&1; then
+        run "$PKG" --remove-shortcut || true
+    fi
+    command -v pipx >/dev/null 2>&1 || die "pipx não encontrado; a instalação já não existe"
     run pipx uninstall "$PKG"
 }
 
