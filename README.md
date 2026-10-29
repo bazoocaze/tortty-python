@@ -24,10 +24,29 @@ as armadilhas de teste em [`docs/HISTORY.md`](docs/HISTORY.md).
 ./run.sh --cmd 'mc'           # comando inicial
 ./run-tests.sh                # testes, sem janela
 uv run pytest -q              # só a parte pytest
-python3 bzmux.py --selftest   # os mesmos checks, sem depender de pytest
-python3 bzmux.py --help       # opções, sem abrir janela
+python3 -m bzmux --selftest   # os mesmos checks, sem depender de pytest
+python3 -m bzmux --help       # opções, sem abrir janela
 ./bench.sh                    # mede a vazão (doom-fire), ~10 s
 ```
+
+## Instalar na máquina (pipx, direto do GitHub)
+
+Enquanto não há release, a instalação é do repositório. O `bzmux` usa o PyGObject
+do sistema, então o venv isolado precisa **ver** o Gtk3 da distro:
+
+```sh
+sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0   # Linux (deb)
+pipx install --system-site-packages \
+    "git+ssh://git@github.com/bazoocaze/pybzmux.git"           # comando `bzmux`
+bzmux --selftest && bzmux                                      # confere e abre
+```
+
+O repositório é privado, por isso a URL é `git+ssh` (usa a sua chave; `https`
+exigiria token). A versão no pyproject é fixa, então commit novo não aparece no
+`pipx upgrade`: para atualizar, `pipx install --force "git+ssh://..."`. Sem o
+`--system-site-packages` o app sai com uma mensagem dizendo o que instalar, em
+vez de traceback (`bzmux --selftest` funciona mesmo assim, sem gi e sem
+display).
 
 O `./bench.sh` imprime fps, MB/s, custo de desenho/parse e a frequência da CPU
 por etapa; a leitura dos números e o protocolo estão em
@@ -74,19 +93,22 @@ uv sync --extra tools            # + python-xlib (as tools rodam com python3)
 
 O `run.sh` escolhe o interpretador: `.venv/bin/python` quando ele importa `gi`,
 senão o `python3` do sistema — com um aviso dizendo como recriar o venv. Para
-rodar na mão: `uv run python bzmux.py`.
+rodar na mão: `uv run python -m bzmux`.
 
 ## Como o código está organizado
 
-`bzmux.py` é só o ponto de entrada; o código vive em `core/`:
+`bzmux` é um pacote instalável (`bzmux` no PATH, ou `python -m bzmux` na
+árvore); não há arquivo solto na raiz:
 
 ```
-bzmux.py                 # ponto de entrada: só chama core.cli.main
 run.sh                   # roda o app (teste rápido; escolhe o python)
 debug.sh                 # desenvolvimento: background, log, --kill/--status
 run-tests.sh             # selftest + pytest
-pyproject.toml           # ambiente uv (uv.lock)
-core/
+bench.sh                 # escada do doom-fire (medição)
+pyproject.toml           # pacote, entry point, ambiente uv (uv.lock)
+bzmux/
+├── __main__.py  # `python -m bzmux`
+├── __init__.py  # fachada com import preguiçoso
 ├── palette.py   # célula [char,fg,bg,flags], paleta xterm-256, charset DEC
 ├── term.py      # grade, cursor, parser VT — NÃO conhece Gtk
 ├── keys.py      # keyval do X11 -> bytes do filho (dead keys, DECCKM)
@@ -99,8 +121,8 @@ core/
 ├── window.py    # Workspace (Gtk.Notebook + cartão) e BzmuxWindow
 ├── checks.py    # a bateria de testes
 ├── selftest.py  # runner sem dependências (--selftest)
-└── cli.py       # argv, -h/--help e arranque
-tests/                   # runner pytest de core/checks.py
+└── cli.py       # argv, -h/--help, arranque e entry point do console script
+tests/                   # runner pytest de bzmux/checks.py
 tools/                   # xtest.py, pixel.py (manual, precisa de X),
                          # doomfire.py (carga de medição, roda em qualquer um)
 ```
@@ -111,7 +133,7 @@ A regra é a dependência apontar para dentro: `term`/`palette` não importam
 sem tocar no núcleo de emulação.
 
 O `debug.sh` controla a instância por **PID file** (`/tmp/bzmux.pid`) de
-propósito: `pkill -f bzmux.py` casa com a linha de comando de quem chama e
+propósito: `pkill -f bzmux` casa com a linha de comando de quem chama e
 mata o próprio shell (já aconteceu, deixando janelas órfãs). Ele sobe o app
 pelo `run.sh`, que é quem escolhe o interpretador (venv do uv ou o python do
 sistema) — por isso testar à mão e desenvolver usam o mesmo python.
@@ -154,14 +176,14 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
 - **Desenho** com cairo + Pango: runs agrupados por atributos, bold,
   sublinhado, inverso, cursor em bloco, shaping de verdade (árabe ligado,
   combinações) e fallback de fonte (CJK, emoji em cor).
-- **Kitty keyboard protocol** (`core/kitty_kbd.py`): `CSI > flags u`
+- **Kitty keyboard protocol** (`bzmux/kitty_kbd.py`): `CSI > flags u`
   (push), `CSI < n u` (pop), `CSI = flags ; modo u` (set/add/remove) e
   `CSI ? u` (query). Com `disambiguate`, Esc/Enter/Tab/Backspace e
   Ctrl/Alt/Super+tecla saem como `CSI codigo ; mods u`, então `Ctrl+Shift+letra`
   deixa de se confundir com `Ctrl+letra`; `report event types` acrescenta
   `:1`/`:2`/`:3`; `report all keys as escape codes` manda tudo em CSI-u;
   `report associated text` (`16`) anexa o texto da tecla.
-- **Protocolo de gráficos do kitty** (`core/graphics.py`): APC `G` com
+- **Protocolo de gráficos do kitty** (`bzmux/graphics.py`): APC `G` com
   `a=t`/`a=T`/`a=p`/`a=d`/`a=q`, `f=24` (RGB), `f=32` (RGBA) e `f=100` (PNG),
   imagem em pedaços (`m=1`), `i`/`c`/`r`/`C=1`/`q`, compressão `o=z` (zlib) e
   os offsets `X=`/`Y=` em pixels dentro da célula (é assim que o `icat`
@@ -193,7 +215,7 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   zumbi) e fecha a janela no `Ctrl+D`/`exit`; antes de fechar drena o que
   sobrou no pty (senão some a última tela) e manda `SIGHUP` pro grupo do filho
   (jobs em background não ficam órfãos).
-- **Cromo escuro** (`core/style.py`): as cores da interface (lateral dos
+- **Cromo escuro** (`bzmux/style.py`): as cores da interface (lateral dos
   workspaces, cartões) vêm de uma tabela de tokens e o CSS é gerado dela — sem
   hex solto no código. A lateral é preta, o workspace ativo fica num verde
   escuro com texto claro, e o contraste (>= 4.5:1) é conferido por check. A

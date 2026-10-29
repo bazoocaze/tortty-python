@@ -1,7 +1,7 @@
 #!/bin/sh
 # run-tests.sh — roda a bateria de testes. Não precisa de display.
 #
-# Os mesmos checks (core/checks.py) passam por dois runners: o --selftest, que
+# Os mesmos checks (bzmux/checks.py) passam por dois runners: o --selftest, que
 # não depende de nada, e o pytest. Rodar os dois é de propósito: se o caminho
 # dos testes passar a puxar gi/cairo, o --selftest quebra e o pytest não.
 #
@@ -28,7 +28,7 @@ done
 fails=0
 
 echo "== selftest (sem dependências, sem display)"
-python3 bzmux.py --selftest || fails=1
+python3 -m bzmux --selftest || fails=1
 
 if [ "$ONLY" = 0 ]; then
     echo

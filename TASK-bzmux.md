@@ -34,6 +34,16 @@ P19 aberto: dentro do `pi`, a cada algumas etapas do turno a tela reescreve
 várias telas de uma vez (investigação e sonda em
 [`docs/BACKLOG.md`](docs/BACKLOG.md)).
 
+P30 em discussão: portabilidade gráfica (Windows/macOS) — manter GTK3 via
+conda-forge ou trocar por Qt/PySide6; dados levantados e custo de cada rota em
+[`docs/BACKLOG.md`](docs/BACKLOG.md). Decisão pendente: cairo + Pango é
+identidade ou implementação?
+
+P31 na fila: empacotamento para `pipx install` a partir do GitHub
+(`git+ssh`, sem PyPI): layout `bzmux/`, entry point, `main(argv=None)`, guarda
+do `gi`, `debug.sh`. Resolve só o Linux e independe do P30 — checklist em
+[`docs/BACKLOG.md`](docs/BACKLOG.md).
+
 P1–P23 concluídos — o último par (P9/P10,
 desenho por Pango) com custo no [`docs/HISTORY.md`](docs/HISTORY.md) e a linha de
 base e o número único em [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) (o desenho é

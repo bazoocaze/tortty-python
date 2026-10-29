@@ -107,17 +107,17 @@ def argv_parsing():
     """--help sai sem abrir janela; opção inválida é erro de uso (exit 2)."""
     from . import cli
 
-    assert cli.parse_args(["bzmux.py"]) == (None, 0, None, None)
-    assert cli.parse_args(["bzmux.py", "--cmd", "mc", "--quit-after", "2"]) == (
+    assert cli.parse_args(["bzmux"]) == (None, 0, None, None)
+    assert cli.parse_args(["bzmux", "--cmd", "mc", "--quit-after", "2"]) == (
         "mc", 2, None, None)
-    assert cli.parse_args(["bzmux.py", "--cmd"])[3] == "--cmd"
-    assert cli.parse_args(["bzmux.py", "--nada"])[3] == "--nada"
+    assert cli.parse_args(["bzmux", "--cmd"])[3] == "--cmd"
+    assert cli.parse_args(["bzmux", "--nada"])[3] == "--nada"
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out):
-        assert cli.main(["bzmux.py", "--help"]) == 0
-    assert out.getvalue().startswith("uso: bzmux.py")
+        assert cli.main(["bzmux", "--help"]) == 0
+    assert out.getvalue().startswith("uso: bzmux")
     with contextlib.redirect_stderr(err):
-        assert cli.main(["bzmux.py", "--nada"]) == 2
+        assert cli.main(["bzmux", "--nada"]) == 2
     assert "--cmd" in err.getvalue()
 
 

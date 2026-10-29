@@ -87,7 +87,7 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 - **Layouts não-US**: a tradução keyval→bytes é por tabela; texto vem do
   `ev.string` do Gdk quando existe, mas atalhos com teclas mortas e layout
   exótico dependem do que o Gdk entrega.
-- **Sem remapeamento de teclas**: os atalhos são fixos em `core/window.py`,
+- **Sem remapeamento de teclas**: os atalhos são fixos em `bzmux/window.py`,
   consequência de não haver arquivo de configuração.
 
 ## Gráficos (protocolo de imagens)
@@ -112,7 +112,7 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 ## Interface
 
 - **Sem arquivo de configuração/tema**: fonte, tamanho e paleta são fixos no
-  código (`core/palette.py`, `core/style.py`) e não há flag de linha de comando
+  código (`bzmux/palette.py`, `bzmux/style.py`) e não há flag de linha de comando
   para mudar fonte ou cor. É escolha atual, não limite técnico: mudar exige
   editar o código e reiniciar. O tamanho é **13 pontos** (convenção de
   terminal: pontos, convertidos pelo DPI do display), não pixels.

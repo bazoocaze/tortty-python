@@ -1,11 +1,11 @@
-"""Linha de comando: `bzmux.py [--cmd CMD] [--quit-after SEG] ...`."""
+"""Linha de comando: `bzmux [--cmd CMD] [--quit-after SEG] ...`."""
 
 import sys
 
 from .selftest import selftest
 
 USAGE = """\
-uso: bzmux.py [opções]
+uso: bzmux [opções]
 
   --cmd CMD          comando inicial (default: $SHELL)
   --quit-after SEG   fecha sozinho depois de SEG segundos
@@ -35,7 +35,13 @@ def parse_args(argv):
     return cmd, quit_after, dump_to, None
 
 
-def main(argv):
+def run():
+    """Entry point do console script (pipx): sem argv e sai com o código."""
+    sys.exit(main())
+
+
+def main(argv=None):
+    argv = sys.argv if argv is None else argv
     if "-h" in argv[1:] or "--help" in argv[1:]:
         print(USAGE)
         return 0
@@ -46,8 +52,20 @@ def main(argv):
         print(f"bzmux: opção inválida: {erro}\n\n{USAGE}", file=sys.stderr)
         return 2
     # import tardio: --selftest e --help rodam sem tocar em Gtk/PyGObject
-    from .gui import Gtk, Gdk, GdkX11
-    from .window import BzmuxWindow
+    try:
+        from .gui import Gtk, Gdk, GdkX11
+        from .window import BzmuxWindow
+    except ModuleNotFoundError as e:
+        if e.name not in ("gi", "cairo"):
+            raise
+        print(
+            f"bzmux: falta o {e.name} (PyGObject/Gtk3 + pycairo do sistema).\n"
+            "  Linux (deb): sudo apt install python3-gi python3-gi-cairo "
+            "gir1.2-gtk-3.0\n"
+            "  instalado por pipx/venv isolado: use --system-site-packages\n"
+            "  (ou rode 'bzmux --selftest', que não precisa de display nem gi)",
+            file=sys.stderr)
+        return 1
 
     win = BzmuxWindow(cmd=cmd, quit_after=quit_after, dump_to=dump_to)
     win.show_all()

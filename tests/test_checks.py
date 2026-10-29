@@ -2,7 +2,7 @@
 
 import pytest
 
-from core.checks import ALL
+from bzmux.checks import ALL
 
 
 @pytest.mark.parametrize("check", ALL, ids=[c.__name__ for c in ALL])

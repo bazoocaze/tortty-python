@@ -1,4 +1,4 @@
-"""core — as partes do bzmux, separadas por responsabilidade.
+"""bzmux — as partes do terminal, separadas por responsabilidade.
 
     palette.py   célula, paleta xterm-256, charset DEC        (puro dado)
     term.py      grade, cursor, parser VT                     (sem GTK)
@@ -16,7 +16,7 @@
 * keys usa as constantes de keyval do Gdk, mas não importa Gtk.
 
 Dependência: `term`/`palette` não conhecem `window`. Assim o parser roda em
-máquina sem PyGObject (`python3 bzmux.py --selftest`) e a janela pode ser
+máquina sem PyGObject (`python3 -m bzmux --selftest`) e a janela pode ser
 trocada sem tocar no núcleo.
 
 MIT (ver LICENSE).
@@ -26,7 +26,7 @@ __all__ = ["Term", "BzmuxWindow", "selftest"]
 
 
 def __getattr__(name):
-    """Import preguiçoso: `core.Term` não puxa o Gtk."""
+    """Import preguiçoso: `bzmux.Term` não puxa o Gtk."""
     if name == "Term":
         from .term import Term
         return Term

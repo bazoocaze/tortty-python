@@ -2,7 +2,7 @@
 # debug.sh — abre/fecha o bzmux durante o desenvolvimento, sem deixar
 # instâncias órfãs. Para só rodar o terminal e ver funcionando, use o run.sh.
 #
-# Existe porque `pkill -f bzmux.py` mata o próprio shell de quem chama (o
+# Existe porque `pkill -f bzmux` mata o próprio shell de quem chama (o
 # padrão casa com a linha de comando) e já deixou janelas duplicadas abertas.
 # Aqui o controle é por PID file: só mata o processo que NÓS subimos, e o log
 # fica em /tmp/bzmux.log em vez de se perder. O app em si é sempre subido pelo
@@ -24,10 +24,17 @@ PIDFILE=/tmp/bzmux.pid
 LOG=/tmp/bzmux.log
 
 is_ours() {
-    # o PID existe E ainda é um bzmux.py? (protege contra PID reciclado)
+    # o PID existe E ainda é um bzmux? (protege contra PID reciclado). As duas
+    # formas válidas: `python -m bzmux` (run.sh) e o script do console
+    # (`/.../bin/bzmux`, do pipx). O `.py` no fim não casa, de propósito.
     [ -n "${1:-}" ] || return 1
     [ -d "/proc/$1" ] || return 1
-    tr '\0' ' ' < "/proc/$1/cmdline" 2>/dev/null | grep -q 'bzmux\.py'
+    _cmd=$(tr '\0' ' ' < "/proc/$1/cmdline" 2>/dev/null)
+    case " $_cmd" in
+        *" -m bzmux "*) return 0 ;;
+        *"/bzmux "*) return 0 ;;
+    esac
+    return 1
 }
 
 kill_previous() {

@@ -325,7 +325,7 @@ tela muda — é o teste de três capturas abaixo.
 
 ## Perfil do bzmux
 
-`PYTERM_PROF=1` liga contadores no `TermView` (`core/view.py`): tempo e número
+`PYTERM_PROF=1` liga contadores no `TermView` (`bzmux/view.py`): tempo e número
 de chamadas de `on_pty` (parse) e `on_draw` (desenho), impressos no stderr
 (portanto no `/tmp/bzmux.log` do `debug.sh`) quando a sessão fecha:
 

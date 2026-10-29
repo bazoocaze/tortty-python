@@ -27,4 +27,10 @@ if [ -x "$HERE/.venv/bin/python" ]; then
     fi
 fi
 
-exec "$PY" "$HERE/bzmux.py" "$@"
+# O app é um pacote (`python -m bzmux`), então o repositório precisa estar no
+# sys.path. Usar PYTHONPATH em vez de `cd "$HERE"` de propósito: o shell que o
+# app abre herda o diretório de quem chamou o run.sh.
+PYTHONPATH="$HERE${PYTHONPATH:+:$PYTHONPATH}"
+export PYTHONPATH
+
+exec "$PY" -m bzmux "$@"

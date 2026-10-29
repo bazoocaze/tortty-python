@@ -45,14 +45,16 @@ explicar uma sonda.
 
 ## Arquitetura
 
-bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core/:
+bzmux é um pacote (bzmux/, instalável: `bzmux` no PATH ou `python -m bzmux`);
+nenhum arquivo solto na raiz. O código:
 
-    bzmux.py       ponto de entrada, só delega
     run.sh         roda o app (teste rápido; escolhe o python)
     debug.sh       desenvolvimento: background, log, --kill/--status
     run-tests.sh   roda a bateria de testes
-    core/
-      __init__.py  fachada com import preguiçoso (core.Term não puxa o Gtk)
+    bench.sh       escada do doom-fire (medição, precisa de display)
+    bzmux/
+      __main__.py  `python -m bzmux` (chama cli.run)
+      __init__.py  fachada com import preguiçoso (bzmux.Term não puxa o Gtk)
       palette.py   célula [char, fg, bg, flags], paleta xterm-256 (int e float), charset DEC
       term.py      grade, cursor, parser VT — não conhece GTK
       keys.py      keyval do X11 -> bytes do filho (dead keys, DECCKM)
@@ -65,8 +67,8 @@ bzmux.py é só o ponto de entrada (chama core.cli.main). O código vive em core
       window.py    Workspace + BzmuxWindow (abas, lateral, atalhos globais)
       checks.py    a bateria: asserts puros, sem display
       selftest.py  runner sem dependências do --selftest
-      cli.py       argv e arranque
-    tests/         runner pytest de core/checks.py
+      cli.py       argv e arranque (e o entry point do console script)
+    tests/         runner pytest de bzmux/checks.py
     tools/         xtest.py, pixel.py — teste manual, exige X11 (só eles);
                    doomfire.py — carga de medição
 
@@ -103,7 +105,7 @@ o teto de vazão é o preço aceito e se ataca em Python, não reescrevendo em C
   em inglês.
 - Docstrings e comentários no código: no máximo uma linha.
 - Formato pensado para agente, não precisa ser agradável para humano.
-- Cor de interface só em core/style.py (tokens + CSS gerado); nenhum hex solto
+- Cor de interface só em bzmux/style.py (tokens + CSS gerado); nenhum hex solto
   no código. Cor de célula do terminal é palette.py — não misturar as duas.
 - Não atualizar a documentação a cada iteração de código. Quando o usuário
   terminar uma iteração, mencionar discretamente que a doc está pendente; a
@@ -122,8 +124,8 @@ o teto de vazão é o preço aceito e se ataca em Python, não reescrevendo em C
   respostas (DA/CPR), CSI com intermediário, CLI, teclado do kitty, gráficos,
   reflow, histórico, mouse, seleção, paste, truecolor, contraste do estilo.
 - Teste barato de rodar: um comando (./run-tests.sh), sem display. Os checks
-  ficam em core/checks.py e têm dois runners: o pytest e o
-  python3 bzmux.py --selftest (sem dependências, útil para provar que o caminho
+  ficam em bzmux/checks.py e têm dois runners: o pytest e o
+  python3 -m bzmux --selftest (sem dependências, útil para provar que o caminho
   dos testes não puxa gi). O que precisar de X11 fica como comando manual em
   Scripts e ferramentas, não vira infraestrutura.
 - tools/doomfire.py — carga de medição, não teste: doom-fire em meio-bloco
@@ -151,22 +153,30 @@ o teto de vazão é o preço aceito e se ataca em Python, não reescrevendo em C
 
 App:
 
-- python3 bzmux.py — o terminal. Opções: --cmd COMANDO, --quit-after SEG,
+- bzmux — o terminal (console script instalado, `python3 -m bzmux` na árvore,
+  ou ./run.sh). Opções: --cmd COMANDO, --quit-after SEG,
   --dump-to ARQUIVO, --selftest (roda os checks e sai), -h/--help (ajuda sem
-  abrir janela; opção inválida também sai, com exit 2).
+  abrir janela; opção inválida também sai, com exit 2). Sem PyGObject no
+  ambiente, a mensagem diz o que instalar em vez de estourar traceback.
+- pipx install --system-site-packages git+ssh://git@github.com/bazoocaze/pybzmux.git
+  — instala na máquina (Linux; build feito do clone pelo hatchling, o comando
+  bzmux fica no PATH). Os detalhes e as armadilhas ficam em docs/BACKLOG.md
+  (P31) e no HISTORY.md.
 - ./run.sh — roda o app para testar rápido: passa os argumentos (--cmd,
-  --quit-after, --dump-to, -h) para o bzmux.py, em foreground, e sai com o
+  --quit-after, --dump-to, -h) para o app, em foreground, e sai com o
   código dele. Escolhe o interpretador: .venv/bin/python quando ele importa gi,
   senão o python3 do sistema (com aviso). O venv precisa ser criado com
   uv venv --system-site-packages, porque o PyGObject vem da distro e o uv sync
-  não passa essa flag.
+  não passa essa flag. Exporta PYTHONPATH com a raiz do repositório (é `-m
+  bzmux`), sem mudar de diretório: o shell aberto herda o cwd de quem chamou.
 - ./debug.sh — o script do desenvolvimento: abre/fecha o app sem deixar
   instância órfã. Modos: (nada) background com log em /tmp/bzmux.log, --fg
   foreground, --kill, --status; o resto dos argumentos vai para o app. Sobe pelo
   run.sh (mesmo interpretador) e controla por PID file (/tmp/bzmux.pid),
   matando só o processo que ele mesmo subiu: use isto em vez de
-  pkill -f bzmux.py, que casa com a linha de comando de quem chama e mata o
-  shell errado.
+  pkill -f bzmux, que casa com a linha de comando de quem chama e mata o
+  shell errado. Reconhece as duas formas do processo (`python -m bzmux` e o
+  script do PATH).
 - ./bench.sh — roda a escada do doom-fire (full, `NODRAW`,
   `NOPARSE+NODRAW` e o gerador isolado), espera cada etapa terminar e imprime
   fps, MB/s, bytes/frame, custo de `draw`/`pty` e a frequência da CPU por
@@ -178,7 +188,7 @@ App:
   extras vão para o pytest (-k, -x). --selftest-only pula o pytest. Sai != 0 se
   algo falhar. Não precisa de display.
 - uv run pytest -q — só a parte pytest; uv sync instala o ambiente (pytest).
-- uv run python bzmux.py — o app direto pelo uv (mesmo interpretador do venv).
+- uv run python -m bzmux — o app direto pelo uv (mesmo interpretador do venv).
 
 Teste manual, com display e python3-xlib (em tools/):
 

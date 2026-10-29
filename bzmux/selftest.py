@@ -1,4 +1,4 @@
-"""Runner sem dependências dos checks: python3 bzmux.py --selftest."""
+"""Runner sem dependências dos checks: python3 -m bzmux --selftest."""
 
 import sys
 import traceback

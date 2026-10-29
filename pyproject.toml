@@ -4,8 +4,15 @@ version = "0.1.0"
 description = "Terminal minimo em Python puro - experimento de custo do caminho quente"
 readme = "README.md"
 requires-python = ">=3.9"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = []
+
+# O console script: `pipx install --system-site-packages` instala e o comando
+# `bzmux` aparece no PATH. run() (e nao main()) porque o entry point chama a
+# funcao sem argumentos e precisa fazer sys.exit com o codigo.
+[project.scripts]
+bzmux = "bzmux.cli:run"
 
 [project.optional-dependencies]
 # so as ferramentas de teste manual (tools/) precisam disto; o app usa o
@@ -15,10 +22,14 @@ tools = ["python-xlib>=0.33"]
 [dependency-groups]
 dev = ["pytest>=8"]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["bzmux"]
+
 [tool.uv]
-# projeto virtual: nao ha pacote instalavel (o codigo vive em core/, que nao e
-# nome de pacote publicavel), entao uv so administra o ambiente
-package = false
 # o app roda no python do sistema (PyGObject vem da distro); este venv serve
 # para os testes, entao basta usar o mesmo interpretador do sistema
 python-preference = "system"
