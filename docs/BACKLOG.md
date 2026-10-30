@@ -21,7 +21,8 @@ mensurável pela carga atual — precisaria de uma segunda carga (scroll de log)
 o que é decisão à parte.
 
 P32 — Histórico: o output do app arranca quem está lendo (scroll-lock).
-**Decidido, a implementar** (2026-10-29). Hoje o `view.py` volta ao vivo quando
+**Decidido e implementado** (2026-10-29); falta só o uso real. Hoje o `view.py`
+voltava ao vivo quando
 o usuário manda tecla, quando ele rola até o fim **e quando qualquer output muda
 o conteúdo da tela visível** (`_view_signature()`): o `pi` escrevendo uma linha
 já arranca a visão do histórico. A terceira regra nasceu para o tique de 1 Hz

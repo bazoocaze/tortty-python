@@ -933,6 +933,16 @@ class Term:
             return sb[lo : lo + self.rows]
         return sb[-off:] + self.grid[: self.rows - off]
 
+    def anchored_view_off(self, anchor):
+        """`view_off` que mantém a linha absoluta `anchor` no topo da visão.
+
+        `scrolled` é o índice absoluto da linha do topo do vivo e nunca volta
+        (nem quando o scrollback bate no teto e descarta linha velha), então a
+        conta serve para segurar o texto lido no lugar enquanto o app escreve.
+        Limpa o histórico (`CSI 3J`) e o clampe devolve o vivo: a âncora sumiu.
+        """
+        return max(0, min(self.scrolled - anchor, len(self.scrollback)))
+
     # -- texto (cópia) ------------------------------------------------
     def paste_payload(self, text):
         """O que mandar pro filho quando o usuário cola `text`.

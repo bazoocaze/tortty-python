@@ -122,6 +122,7 @@ class TermView(Gtk.DrawingArea):
         self._held = None  # botão do protocolo apertado agora
         self._state = 0  # modificadores do último evento
         self.view_off = 0  # 0 = vivo; >0 = linhas de histórico
+        self._anchor = 0  # linha absoluta no topo da visão quando no histórico
         self._img_cache = {}  # id da imagem -> (surface, keepalive)
 
         self.set_can_focus(True)
@@ -297,14 +298,11 @@ class TermView(Gtk.DrawingArea):
             self._prof_bytes += len(data)  # tem que casar com o que o filho escreveu
         if _NOPARSE:  # sonda: mede só read do pty, sem decode/parse/grade
             return True
-        # enquanto o usuário lê o histórico, guarda como a tela visível estava:
-        # nem todo output muda o que está na tela (o `pi` manda um
-        # "cursor pra coluna 1 + esconde cursor" a cada segundo, para sempre)
+        # enquanto o usuário lê o histórico, a visão fica ancorada na linha em
+        # que ele parou (P32): o app pode escrever à vontade que o texto lido
+        # não sai do lugar. Só tecla, rolar até o fim ou limpeza do histórico
+        # (aí o clamp devolve o vivo) tira ele de lá.
         scrolled_before = self.term.scrolled
-        seen = seen_sb = None
-        if self.view_off:
-            seen = self._view_signature()
-            seen_sb = len(self.term.scrollback)
         self.term.feed(self.decoder.decode(data))
         # respostas do núcleo (DA/CPR) voltam ao filho
         if self.term.child_out:
@@ -340,16 +338,8 @@ class TermView(Gtk.DrawingArea):
                         data[:600],
                     )
                 )
-        off = self.view_off
-        if self.view_off and self._view_signature() != seen:
-            self.view_off = 0
-        elif self.view_off:
-            self.view_off = min(
-                self.view_off + (len(self.term.scrollback) - seen_sb),
-                len(self.term.scrollback),
-            )
-        if self.view_off != off:
-            self.clear_selection()
+        if self.view_off:
+            self.view_off = self.term.anchored_view_off(self._anchor)
         self.request_draw()
         return True
 
@@ -557,10 +547,6 @@ class TermView(Gtk.DrawingArea):
     def visible_rows(self):
         return self.term.visible_rows(self.view_off)
 
-    def _view_signature(self):
-        """O que está na tela agora (texto + cor por célula), para comparar."""
-        return "".join("%s|%d|%d" % (c[0], c[1], c[2]) for row in self.visible_rows() for c in row)
-
     def scroll_view(self, delta):
         """Rola a visão no histórico. `delta` > 0 = pra trás no tempo."""
         t = self.term
@@ -569,6 +555,9 @@ class TermView(Gtk.DrawingArea):
         off = max(0, min(len(t.scrollback), self.view_off + delta))
         if off != self.view_off:
             self.view_off = off
+            # a âncora é absoluta (P32): o output que chegar depois não arranca
+            # o usuário daqui — só rolar até o fim, tecla ou limpeza do histórico
+            self._anchor = t.scrolled - off
             # a seleção vive em coordenadas de TELA: rolar deixaria o destaque
             # sobre outro texto e o copy seguinte copiaria o texto errado
             self.clear_selection()
@@ -585,6 +574,7 @@ class TermView(Gtk.DrawingArea):
     def back_to_live(self):
         if self.view_off:
             self.view_off = 0
+            self._anchor = 0
             self.queue_draw()
 
     # -- desenho ------------------------------------------------------

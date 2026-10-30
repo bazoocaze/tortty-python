@@ -245,6 +245,30 @@ def history():
     ]
 
 
+def scroll_anchor():
+    """P32: no histórico, o output não arranca a visão da linha que se lê."""
+    t = Term(cols=10, rows=3)
+    t.feed("".join("%d\r\n" % i for i in range(10)))
+    anchor = t.scrolled - 2  # o usuário subiu 2 linhas e parou aqui
+    topo = _row_text(t.visible_rows(2)[0]).rstrip()
+    t.feed("".join("%d\r\n" % i for i in range(10, 15)))  # app escreveu 5
+    assert _row_text(t.visible_rows(t.anchored_view_off(anchor))[0]).rstrip() == topo
+    # no teto do scrollback o `len()` para de crescer: a conta "por diferença
+    # de tamanho" deixaria o texto derrapar linha a linha; a absoluta não
+    t.feed("".join("%d\r\n" % i for i in range(15, 1100)))
+    assert len(t.scrollback) == 1000
+    anchor = t.scrolled - 3
+    topo = _row_text(t.visible_rows(3)[0]).rstrip()
+    t.feed("".join("%d\r\n" % i for i in range(1100, 1110)))
+    off = t.anchored_view_off(anchor)
+    assert (off, _row_text(t.visible_rows(off)[0]).rstrip()) == (13, topo)
+    # a conta antiga (offset fixo em 3) mostraria outra linha: 10 de deriva
+    assert _row_text(t.visible_rows(3)[0]).rstrip() != topo
+    # limpar o histórico (CSI 3J) destrói a âncora: não há o que ler, vivo
+    t.feed("\x1b[3J")
+    assert t.anchored_view_off(anchor) == 0
+
+
 # -- mouse, seleção e colagem (P1/P7) ----------------------------------
 def mouse_modes_and_sgr():
     """Modos de mouse e a codificação SGR/X10."""
@@ -394,6 +418,7 @@ ALL = (
     wrap_and_control,
     reflow,
     history,
+    scroll_anchor,
     mouse_modes_and_sgr,
     selection,
     paste_markers,
