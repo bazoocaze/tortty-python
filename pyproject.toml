@@ -39,12 +39,15 @@ pythonpath = ["."]
 testpaths = ["tests"]
 
 [tool.ruff]
-# 88 é o default do ruff; o código é escrito a ~79, o formatter compacta
-line-length = 88
+# 79 é a largura histórica do código (o default do ruff, 88, alarga)
+line-length = 79
 target-version = "py39"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
+# E501 é redundante com o formatter (que já quebra o código no limite);
+# comentário e docstring longos são texto, não código
+ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 # gui.py é o único ponto que importa Gtk/cairo e os reexporta: os nomes

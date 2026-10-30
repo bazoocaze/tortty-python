@@ -40,7 +40,9 @@ def apply_style():
     provider = Gtk.CssProvider()
     provider.load_from_data(style.css().encode())
     Gtk.StyleContext.add_provider_for_screen(
-        Gdk.Screen.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        Gdk.Screen.get_default(),
+        provider,
+        Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
     )
     _styled = True
 
@@ -108,7 +110,9 @@ class Workspace:
         self.info_label.get_style_context().add_class("info")
         vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
         vbox.set_border_width(6)
-        vbox.pack_start(self.name_label, False, True, 0)  # fill: truncar no 170
+        vbox.pack_start(
+            self.name_label, False, True, 0
+        )  # fill: truncar no 170
         vbox.pack_start(self.info_label, False, True, 0)
         self.card = Gtk.EventBox()
         # o EventBox é transparente no CSS: quem pinta o fundo é a ListBoxRow,
@@ -250,7 +254,9 @@ class Workspace:
             n = self.win.workspaces.index(self) + 1
         except ValueError:
             n = 0
-        self.name_label.set_markup(f"<b>{n}</b>  {GLib.markup_escape_text(self.name)}")
+        self.name_label.set_markup(
+            f"<b>{n}</b>  {GLib.markup_escape_text(self.name)}"
+        )
         v = self.view
         title = self.label_text(v) if v is not None else "-"
         k = len(self.views)
@@ -376,9 +382,13 @@ class BzmuxWindow(Gtk.Window):
         if quit_after:
             GLib.timeout_add_seconds(quit_after, self._on_quit_after)
         # SIGUSR1 dumpar as abas na hora (depuração: "kill -USR1 <pid>")
-        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1, self._on_dump_signal)
+        GLib.unix_signal_add(
+            GLib.PRIORITY_HIGH, signal.SIGUSR1, self._on_dump_signal
+        )
         # SIGTERM fecha como o --quit-after: o dump e o prof saem no fim
-        GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM, self._on_term_signal)
+        GLib.unix_signal_add(
+            GLib.PRIORITY_HIGH, signal.SIGTERM, self._on_term_signal
+        )
 
     # -- workspaces ----------------------------------------------------
     @property

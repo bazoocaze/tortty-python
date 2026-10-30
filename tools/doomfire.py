@@ -122,7 +122,10 @@ def main(argv):
         help="frames por segundo; 0 = sem limite (default 30)",
     )
     ap.add_argument(
-        "--frames", type=int, default=0, help="para depois de N frames; 0 = até Ctrl+C"
+        "--frames",
+        type=int,
+        default=0,
+        help="para depois de N frames; 0 = até Ctrl+C",
     )
     ap.add_argument(
         "--stats-to", default="-", help="arquivo das estatísticas; - = stderr"

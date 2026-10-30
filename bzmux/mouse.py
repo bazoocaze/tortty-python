@@ -53,7 +53,12 @@ def encode(button, col, row, pressed=True, sgr=False, mods=0, motion=False):
     if motion:
         b |= MOD_MOTION
     if sgr:
-        return "\x1b[<%d;%d;%d%s" % (b, col + 1, row + 1, "M" if pressed else "m")
+        return "\x1b[<%d;%d;%d%s" % (
+            b,
+            col + 1,
+            row + 1,
+            "M" if pressed else "m",
+        )
     # protocolo antigo: release é sempre 3 (o app sabe qual botão pelo
     # press anterior) e cada coordenada é um byte 32..255
     if not pressed:

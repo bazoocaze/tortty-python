@@ -92,7 +92,11 @@ def cell_rgb_f(c):
         elif c == DEF_BG:
             v = _BG_F
         elif c & TC:
-            v = (((c >> 16) & 0xFF) / 255, ((c >> 8) & 0xFF) / 255, (c & 0xFF) / 255)
+            v = (
+                ((c >> 16) & 0xFF) / 255,
+                ((c >> 8) & 0xFF) / 255,
+                (c & 0xFF) / 255,
+            )
         else:
             v = _PAL_F[c]
         if len(_F_CACHE) > 4096:

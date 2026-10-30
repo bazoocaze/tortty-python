@@ -15,7 +15,9 @@ WMCLASS = "Bzmux"  # casa com Gdk.set_program_class no cli
 
 def data_home():
     """Diretório XDG de dados do usuário (respeita XDG_DATA_HOME)."""
-    return os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
+    return os.environ.get("XDG_DATA_HOME") or os.path.expanduser(
+        "~/.local/share"
+    )
 
 
 def desktop_path():
@@ -104,7 +106,9 @@ def validate(path=None):
     exe = shutil.which("desktop-file-validate")
     if not exe:
         return ""
-    r = subprocess.run([exe, path or desktop_path()], capture_output=True, text=True)
+    r = subprocess.run(
+        [exe, path or desktop_path()], capture_output=True, text=True
+    )
     return r.stdout + r.stderr
 
 

@@ -59,7 +59,10 @@ def main(argv):
         help="amostra a coluna X a cada 19 px (altura da célula)",
     )
     ap.add_argument(
-        "--row", type=int, metavar="Y", help="amostra a linha Y em 6 pontos da largura"
+        "--row",
+        type=int,
+        metavar="Y",
+        help="amostra a linha Y em 6 pontos da largura",
     )
     a = ap.parse_args(argv)
 

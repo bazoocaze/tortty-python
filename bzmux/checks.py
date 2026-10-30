@@ -157,7 +157,9 @@ def graphics_image_and_offset():
     t.feed(f"\x1b_Ga=T,f=32,s=2,v=2,i=3;{rgba}\x1b\\")
     img = t.graphics.images.get(3)
     assert (img.width, img.height, img.fmt) == (2, 2, 32)
-    assert [(p.image_id, p.col, p.row) for p in t.graphics.placements] == [(3, 0, 1)]
+    assert [(p.image_id, p.col, p.row) for p in t.graphics.placements] == [
+        (3, 0, 1)
+    ]
     t.feed("\x1b[4;1H\r\n")
     assert [p.row for p in t.graphics.placements] == [0]
     t = Term(cols=20, rows=4)
@@ -223,7 +225,11 @@ def history():
     # off > rows devolvia off linhas e o desenho ficava mais lento ao subir)
     for off in (0, 1, t.rows, t.rows + 1, len(t.scrollback)):
         assert len(t.visible_rows(off)) == t.rows, off
-    assert [_row_text(r).rstrip() for r in t.visible_rows(99)] == ["a", "b", "c"]
+    assert [_row_text(r).rstrip() for r in t.visible_rows(99)] == [
+        "a",
+        "b",
+        "c",
+    ]
 
 
 # -- mouse, seleção e colagem (P1/P7) ----------------------------------
@@ -317,12 +323,17 @@ def desktop_shortcut():
     assert f"StartupWMClass={shortcut.WMCLASS}" in txt
     assert "Categories=System;TerminalEmulator;" in txt
     assert "Icon=bzmux" in txt
-    assert shortcut._icon_bytes().lstrip().startswith(b"<svg")  # o wheel tem o asset
+    assert (
+        shortcut._icon_bytes().lstrip().startswith(b"<svg")
+    )  # o wheel tem o asset
     # XDG_DATA_HOME manda nos caminhos (nada de ~/.local/share na mão)
     old = os.environ.get("XDG_DATA_HOME")
     os.environ["XDG_DATA_HOME"] = "/tmp/xdg-probe"
     try:
-        assert shortcut.desktop_path() == "/tmp/xdg-probe/applications/bzmux.desktop"
+        assert (
+            shortcut.desktop_path()
+            == "/tmp/xdg-probe/applications/bzmux.desktop"
+        )
         assert (
             shortcut.icon_path()
             == "/tmp/xdg-probe/icons/hicolor/scalable/apps/bzmux.svg"
@@ -339,9 +350,13 @@ def window_state():
     """Geometria salva: lixo e monitor desconectado são descartados."""
     mons = [(0, 0, 1920, 1080)]
     assert state.fit(300, 200, 900, 600, mons) == (300, 200, 900, 600)
-    assert state.fit(5000, 5000, 900, 600, mons) is None  # monitor desconectado
+    assert (
+        state.fit(5000, 5000, 900, 600, mons) is None
+    )  # monitor desconectado
     assert state.fit(300, 200, 100, 50, mons) is None  # tamanho lixo
-    assert state.fit("x", None, 900, 600, mons) is None  # arquivo editado à mão
+    assert (
+        state.fit("x", None, 900, 600, mons) is None
+    )  # arquivo editado à mão
     assert state.fit(300, 200, 900, 600, []) == (300, 200, 900, 600)
 
     old = os.environ.get("XDG_STATE_HOME")
@@ -350,7 +365,13 @@ def window_state():
         try:
             assert state.load() is None  # ausente não é erro
             state.save({"x": 1, "y": 2, "w": 3, "h": 4, "max": True})
-            assert state.load() == {"x": 1, "y": 2, "w": 3, "h": 4, "max": True}
+            assert state.load() == {
+                "x": 1,
+                "y": 2,
+                "w": 3,
+                "h": 4,
+                "max": True,
+            }
             with open(state.state_path(), "w") as f:
                 f.write("{quebrado")  # JSON pela metade
             assert state.load() is None

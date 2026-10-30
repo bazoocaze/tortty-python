@@ -124,7 +124,9 @@ def _encode(kv, shift, alt, ctrl, super_, flags, event=PRESS, text=""):
             return None
         if special and mods == 1 and not (dis or report_all):
             return None  # ESC, \r, \t, \x7f clássicos
-        return _csi(num, mods, trailer, event if ev_types else None, text_field)
+        return _csi(
+            num, mods, trailer, event if ev_types else None, text_field
+        )
 
     cp = _codepoint(kv)
     if cp is None:

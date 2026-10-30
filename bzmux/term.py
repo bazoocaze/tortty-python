@@ -174,7 +174,9 @@ class Term:
             if y < old_rows:
                 row = old_grid[y][:cols]
                 if len(row) < cols:
-                    row = row + [self._blank_cell_raw() for _ in range(cols - len(row))]
+                    row = row + [
+                        self._blank_cell_raw() for _ in range(cols - len(row))
+                    ]
                 new.append(row)
             else:
                 new.append([self._blank_cell_raw() for _ in range(cols)])
@@ -235,7 +237,11 @@ class Term:
         # (espaço com bg default) — fundo colorido de barra/status fica.
         for li, line in enumerate(lines):
             real = len(line)
-            while real and line[real - 1][0] == " " and line[real - 1][2] == DEF_BG:
+            while (
+                real
+                and line[real - 1][0] == " "
+                and line[real - 1][2] == DEF_BG
+            ):
                 real -= 1
             if li == line_idx and cur_off is not None and cur_off > real:
                 real = cur_off  # não perde a posição do cursor
@@ -312,7 +318,9 @@ class Term:
         # rolagem de tela cheia: a linha que sai pelo topo vai pro histórico,
         # então a imagem que estava nela continua existindo (com linha
         # negativa) e reaparece quando a visão sobe no scrollback
-        self.graphics.scroll(self.top, self.bottom, -1001 if self.top == 0 else None)
+        self.graphics.scroll(
+            self.top, self.bottom, -1001 if self.top == 0 else None
+        )
         if self.alt_grid is not None:
             self.grid.pop(self.top)
             self.grid.insert(self.bottom, self._blank_row())
@@ -414,14 +422,18 @@ class Term:
     def insert_lines(self, n):
         for _ in range(n):
             self.grid.pop(self.bottom)
-            self.grid.insert(self.cy, [self.blank_cell() for _ in range(self.cols)])
+            self.grid.insert(
+                self.cy, [self.blank_cell() for _ in range(self.cols)]
+            )
             self.row_wrapped.pop(self.bottom)
             self.row_wrapped.insert(self.cy, False)
 
     def delete_lines(self, n):
         for _ in range(n):
             self.grid.pop(self.cy)
-            self.grid.insert(self.bottom, [self.blank_cell() for _ in range(self.cols)])
+            self.grid.insert(
+                self.bottom, [self.blank_cell() for _ in range(self.cols)]
+            )
             self.row_wrapped.pop(self.cy)
             self.row_wrapped.insert(self.bottom, False)
 
@@ -577,7 +589,9 @@ class Term:
 
     def csi_dispatch(self, final, params, prefix=""):
         def get(i, d):
-            return params[i] if i < len(params) and params[i] is not None else d
+            return (
+                params[i] if i < len(params) and params[i] is not None else d
+            )
 
         private = prefix == "?"
 
@@ -586,9 +600,13 @@ class Term:
         elif final in "ABCDEFG":
             k = get(0, 1) or 1
             if final in "AE":
-                self.cursor_to(self.cy - k if final == "A" else self.cy + k, self.cx)
+                self.cursor_to(
+                    self.cy - k if final == "A" else self.cy + k, self.cx
+                )
             elif final in "CD":
-                self.cursor_to(self.cy, self.cx + k if final == "C" else self.cx - k)
+                self.cursor_to(
+                    self.cy, self.cx + k if final == "C" else self.cx - k
+                )
             elif final == "B":
                 self.cursor_to(self.cy + k, self.cx)
             elif final == "F":
@@ -775,7 +793,12 @@ class Term:
                 # e só então o byte final. Sem aceitar os intermediários, um
                 # `CSI * x` (DECSACE, que o icat manda) terminava no `*` e o
                 # `x` caía no ground — imprimia um "x" solto na tela.
-                if ch.isdigit() or ch in ";?: " or ch in "<=>" or " " <= ch <= "/":
+                if (
+                    ch.isdigit()
+                    or ch in ";?: "
+                    or ch in "<=>"
+                    or " " <= ch <= "/"
+                ):
                     self.csi += ch
                 else:
                     key = (self.csi, ch)
@@ -821,7 +844,9 @@ class Term:
         body, self.apc = self.apc, ""
         self.state = "ground"
         cw, ch = self.cell_size
-        resp, used, move = self.graphics.handle(body, (self.cx, self.cy), (cw, ch))
+        resp, used, move = self.graphics.handle(
+            body, (self.cx, self.cy), (cw, ch)
+        )
         for r in resp:
             self.child_out += b"\x1b_" + r.encode() + b"\x1b\\"
         if move and used:
@@ -837,7 +862,9 @@ class Term:
         elif o in ("10;?", "11;?"):
             # cor padrão de frente/fundo (X11: 4 dígitos por componente)
             r, g, b = FG_DEFAULT if o[0] == "1" and o[1] == "0" else BG_DEFAULT
-            resp = f"\x1b]{o[:2]};rgb:{r * 257:04x}/{g * 257:04x}/{b * 257:04x}"
+            resp = (
+                f"\x1b]{o[:2]};rgb:{r * 257:04x}/{g * 257:04x}/{b * 257:04x}"
+            )
             self.child_out += (resp + "\x1b\\").encode()
         elif o.startswith("4;"):
             # entrada da paleta: OSC 4 ; índice ; ? (pode vir em pares)

@@ -15,7 +15,9 @@ MIN_W, MIN_H = 320, 200  # abaixo disto é lixo de WM/restauração, não geomet
 
 def state_path():
     """.../bzmux/window.json em XDG_STATE_HOME (fallback ~/.local/state)."""
-    base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    base = os.environ.get("XDG_STATE_HOME") or os.path.expanduser(
+        "~/.local/state"
+    )
     return os.path.join(base, "bzmux", "window.json")
 
 

@@ -36,7 +36,12 @@ from Xlib.ext import xtest
 PIDFILE = "/tmp/bzmux.pid"
 ATOM_PID = "_NET_WM_PID"
 
-MODS = {"ctrl": "Control_L", "shift": "Shift_L", "alt": "Alt_L", "super": "Super_L"}
+MODS = {
+    "ctrl": "Control_L",
+    "shift": "Shift_L",
+    "alt": "Alt_L",
+    "super": "Super_L",
+}
 
 # layout US/ABNT: o símbolo que exige Shift aponta para a tecla base
 SHIFTED = {
@@ -180,7 +185,9 @@ class Injecao:
         self.sync()
 
     def botao(self, n, press):
-        xtest.fake_input(self.d, X.ButtonPress if press else X.ButtonRelease, n)
+        xtest.fake_input(
+            self.d, X.ButtonPress if press else X.ButtonRelease, n
+        )
         self.sync()
 
     def tap(self, keycode, mods=()):
@@ -217,8 +224,12 @@ class Injecao:
 # ------------------------------------------------------------------ main ----
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--pid", type=int, help="PID do bzmux (padrão: %s)" % PIDFILE)
-    ap.add_argument("--window", type=lambda s: int(s, 0), help="id X11 da janela")
+    ap.add_argument(
+        "--pid", type=int, help="PID do bzmux (padrão: %s)" % PIDFILE
+    )
+    ap.add_argument(
+        "--window", type=lambda s: int(s, 0), help="id X11 da janela"
+    )
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("id")
@@ -257,7 +268,11 @@ def main(argv):
     a = ap.parse_args(argv)
 
     d = display.Display()
-    want_pid = a.pid if a.pid is not None else (None if a.window else _pid_do_arquivo())
+    want_pid = (
+        a.pid
+        if a.pid is not None
+        else (None if a.window else _pid_do_arquivo())
+    )
     janela = achar_janela(d, want_pid, a.window)
     if janela is None:
         raise Erro("janela do bzmux não encontrada (PID %s)" % (want_pid,))
@@ -269,7 +284,13 @@ def main(argv):
         g = janela.get_geometry()
         print(
             json.dumps(
-                {"id": janela.id, "x": inj.ox, "y": inj.oy, "w": g.width, "h": g.height}
+                {
+                    "id": janela.id,
+                    "x": inj.ox,
+                    "y": inj.oy,
+                    "w": g.width,
+                    "h": g.height,
+                }
             )
         )
     elif a.cmd == "activate":
@@ -300,7 +321,8 @@ def main(argv):
         inj.botao(a.button, True)
         for i in range(1, a.steps + 1):
             inj.move(
-                a.x1 + (a.x2 - a.x1) * i // a.steps, a.y1 + (a.y2 - a.y1) * i // a.steps
+                a.x1 + (a.x2 - a.x1) * i // a.steps,
+                a.y1 + (a.y2 - a.y1) * i // a.steps,
             )
         inj.botao(a.button, False)
     elif a.cmd == "key":
