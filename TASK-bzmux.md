@@ -32,9 +32,10 @@ output) ignorado — o registro está no [`docs/HISTORY.md`](docs/HISTORY.md).
 
 ## Fila
 
-P32 em andamento: o output do app arranca quem está lendo o histórico. Decidido
-ancoragem até ação do usuário (o porquê, o que foi descartado e o que sai de
-código estão em [`docs/BACKLOG.md`](docs/BACKLOG.md)).
+P32 concluído: o output do app não arranca mais quem está lendo o histórico
+(âncora por linha absoluta; sem heurística de conteúdo). O porquê e o que foi
+descartado estão no [`docs/HISTORY.md`](docs/HISTORY.md) e em
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md).
 
 P30 em discussão: portabilidade gráfica (Windows/macOS) — manter GTK3 via
 conda-forge ou trocar por Qt/PySide6; dados levantados e custo de cada rota em

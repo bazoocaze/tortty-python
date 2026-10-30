@@ -1008,6 +1008,53 @@ cada repaint, então a rolagem acontece em qualquer terminal fiel (o `pyte` rola
 igual). O suspeito seguinte é widget do rodapé mudando de altura no meio do
 turno.
 
+### P32 — O histórico não segurava quem estava lendo (2026-10-29)
+
+Sintoma: lendo o histórico enquanto o `pi` escrevia devagar, a visão voltava
+sozinha para o rodapé a cada linha que chegava — impossível ler.
+
+Causa: `view.py` voltava ao vivo em **três** casos — tecla, rolar até o fim e
+"qualquer output que mude o conteúdo da tela visível" (`_view_signature()`
+compara texto+cor de todas as ~4658 células visíveis). A terceira nasceu no bug
+14 para o tique de 1 Hz do `pi` (cursor pra coluna 1 + esconde cursor a cada
+segundo) e passou a cobrar o preço no caso normal de uso. A conta que já
+existia logo abaixo (offset + crescimento do scrollback) segurava a posição,
+mas o `if` da assinatura rodava antes.
+
+Fix: âncora **absoluta** e nenhuma heurística de conteúdo —
+`Term.anchored_view_off(anchor)` devolve `clamp(scrolled - anchor, 0,
+len(scrollback))`, onde `anchor` é a linha absoluta que estava no topo quando o
+usuário parou de rolar. O usuário só sai do histórico por ação dele: rolar até
+o fim, uma tecla de verdade, ou a âncora ser destruída (limpeza de histórico com
+`CSI 3J` — o clamp devolve o vivo).
+
+Detalhes que a âncora absoluta resolve de graça:
+
+- **tique de 1 Hz** não muda `scrolled`, então não mexe na visão (bug 14 segue
+  protegido, sem assinatura);
+- **scrollback no teto de 1000 linhas**: o `len()` para de crescer, e a conta
+  "por diferença de tamanho" deixaria o texto derrapar linha a linha; a
+  absoluta não (check cobre: com 10 linhas escritas a linha lida continua no
+  topo, offset 3 → 13);
+- **seleção** deixa de morrer a cada linha escrita (o `clear_selection` só
+  roda em scroll do usuário, que é onde ela precisa morrer — vive em
+  coordenadas de tela);
+- sai o `_view_signature()`, que montava uma string de ~4658 células **por
+  chunk** justamente enquanto se lia o histórico.
+
+Descartados na discussão: **retorno por 5 s de inatividade de scroll** (mede a
+coisa errada — ler é silencioso, e um app que escreve a cada 1 s arranca o
+usuário assim que o prazo vence; fica imprevisível) e *sticky bottom* (voltar
+com a visão a ≤1 linha do fim), que continua possível sem mudar a âncora. Os
+dois estão registrados em `docs/LIMITATIONS.md`.
+
+Verificação: check `scroll_anchor` (20º, sem display — inclusive o caso do teto
+com a deriva de 10 linhas da conta antiga) e, no app de verdade, com gerador
+que enche o histórico e depois escreve devagar: rolar 25 linhas → `view_off`
+25 → 75 com **a mesma linha no topo** e seleção viva; tique de 1 Hz mantém
+`view_off` em 25; tecla volta ao vivo (`view_off` 0). Confirmado pelo usuário
+no uso real.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.

@@ -188,13 +188,17 @@ Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
   (`IL`/`DL`/`ICH`/`DCH`), região de scroll (`DECSTBM`), save/restore
   (`DECSC`/`DECRC`, `CSI s`/`u`), `DECAWM`, cursor on/off (`?25`),
   **alt-screen** (`?1047`/`?1049`), charset DEC (`ESC ( 0`) para molduras,
-  título por `OSC 0/2`, respostas `DA`/`CPR` de volta ao filho.
+  título por `OSC 0/2`, respostas `DA`/`DA2`/`CPR`/`DECRQM` de volta ao filho,
+  **transação de desenho** (`?2026`, synchronized output: o frame só sai no
+  fecho da transação).
 - **Scrollback** de 1000 linhas no buffer principal, **com tela de
   histórico**: `Shift+PgUp`/`PgDn` (e `Shift+Home`/`End`) deslizam a visão,
   o **wheel** rola a viewport — sem falar com o app quando ele não pediu
   mouse, e mandando `64`/`65` quando pediu. Volta ao vivo ao digitar, ao
-  clicar ou quando o filho escreve. Um `↑N` no canto mostra o quanto se
-  voltou; o cursor do app não é desenhado no histórico.
+  clicar, ao rolar até o fim — e **não** porque o filho escreveu: a visão fica
+  ancorada na linha que se está lendo enquanto o app continua escrevendo. Um
+  `↑N` no canto mostra o quanto se voltou; o cursor do app não é desenhado no
+  histórico.
 - **Teclado**: letras (incluindo UTF-8), setas, Home/End, PgUp/PgDn,
   Insert/Delete, F1–F12, Ctrl+letra, Alt+letra, Shift+Tab. Respeita
   **DECCKM (`?1`)**: com o modo aplicação ligado (o que `mc`, `vim` e `less`

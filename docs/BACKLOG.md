@@ -20,31 +20,6 @@ de memória (21 linhas ≈ 2,6 MB) e invalidação no resize/DPI. Ganho não
 mensurável pela carga atual — precisaria de uma segunda carga (scroll de log),
 o que é decisão à parte.
 
-P32 — Histórico: o output do app arranca quem está lendo (scroll-lock).
-**Decidido e implementado** (2026-10-29); falta só o uso real. Hoje o `view.py`
-voltava ao vivo quando
-o usuário manda tecla, quando ele rola até o fim **e quando qualquer output muda
-o conteúdo da tela visível** (`_view_signature()`): o `pi` escrevendo uma linha
-já arranca a visão do histórico. A terceira regra nasceu para o tique de 1 Hz
-(bug 14) e passou a cobrar o preço no caso normal de uso — ler o que o app
-acabou de escrever enquanto ele continua escrevendo.
-
-Decisão: ancoragem pura — depois do scroll o histórico fica preso até ação do
-usuário (rolar até o fim, tecla, ou a âncora ser destruída por limpeza de
-histórico, `CSI 3J`). Retorno automático por tempo (5 s de inatividade de
-scroll) foi descartado: mede a coisa errada (ler é silencioso) e o `pi` escreve
-a cada ~1 s, então o arranque só ficaria adiado e imprevisível. Se algum dia
-quiser retorno automático, o critério é geométrico — *sticky bottom*: volta
-quando a visão está a ≤1 linha do fim —, não relógio.
-
-A âncora tem de ser absoluta (`Term.scrolled`), não "linhas a partir do fim":
-com o scrollback no teto de 1000 linhas o crescimento não muda `len()`, e a
-conta antiga deixaria o texto derrapar linha a linha. Consequências: sai o
-`_view_signature()` (que monta uma string com todas as ~4658 células visíveis
-**por chunk** justamente enquanto se lê o histórico) e a seleção passa a ser
-desfeita só em scroll do usuário, não em output. Teste sem display: a conta de
-âncora/clamp é pura.
-
 P30 — Portabilidade gráfica: rodar no Linux, Windows e macOS. **Discussão,
 decisão pendente** (2026-10-28). Hoje o app "não tem dependência" no sentido de
 não ter nada no `pyproject.toml` — mas tem dependência **de sistema** (GTK3 +

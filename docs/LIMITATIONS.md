@@ -94,6 +94,12 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
   exótico dependem do que o Gdk entrega.
 - **Sem remapeamento de teclas**: os atalhos são fixos em `bzmux/window.py`,
   consequência de não haver arquivo de configuração.
+- **Congelar o output (`Ctrl+S`/`Ctrl+Q`) é do tty, não do terminal**: quem
+  para e retoma a entrega de bytes é a *line discipline* do kernel (`IXON` no
+  termios). O app só entrega `0x13`/`0x11` ao filho — e é por isso que não
+  funciona em app em modo raw (`vim`, `mc`, `pi`): eles limpam `IXON`, e todo
+  terminal se comporta assim. Um "pause" nosso (parar de ler o pty) mudaria a
+  semântica e não é feito.
 
 ## Gráficos (protocolo de imagens)
 
@@ -113,6 +119,13 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 - **Histórico limitado**: o scrollback tem teto de linhas; o que sai não volta.
 - **Imagem no histórico é podada** quando a linha a que pertence sai do
   scrollback.
+- **O histórico não volta sozinho ao vivo**: depois de rolar, a visão fica
+  ancorada na linha (absoluta) que você parou de ler até uma ação sua — rolar
+  até o fim, uma tecla, ou o app limpar o histórico (`CSI 3J`). Descartados por
+  decisão: retorno por tempo (5 s sem rolar mede a coisa errada: ler é
+  silencioso, e um app que escreve a cada 1 s arrancaria o usuário assim que o
+  prazo vencesse) e *sticky bottom* (voltar quando a visão está a ≤1 linha do
+  fim) — este último cabe no futuro sem mudar a âncora.
 
 ## Interface
 
