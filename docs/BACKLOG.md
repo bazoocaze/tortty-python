@@ -20,6 +20,16 @@ quando um widget do rodapé muda de altura (o observer do `pi-blackhole` escreve
 "Observational memory…" no meio da conversa); (b) `CSI 2J` + reimpressão; (c)
 resize/reflow entrando no meio do turno.
 
+Estado da investigação (2026-10-29): sonda **conferida** — `PYTERM_SCROLLLOG` só
+grava o chunk que rola mais de `max(2, rows // 2)` linhas (teste: `seq 1 5000` →
+3 entradas de 33 linhas; `seq 1 200` → nenhuma, porque o salto não passava de
+meia tela num chunk). Os dois arquivos (`SCROLLLOG` e `RAWLOG`) são abertos em
+append por chunk, então dá para apagar com o app rodando — o `RAWLOG` só passa a
+gravar daí pra frente. Falta só a captura do caso real (logs + hora + etapa do
+turno). Se o `scroll.log` sair **vazio** e o pulo acontecer, o suspeito vira
+`on_resize`/reflow: instrumentar `on_resize` antes de mexer em qualquer outra
+coisa.
+
 P26 — Desenho: `cr.show_glyphs` com glifos pré-computados. **Experimento, não
 compromisso.** É o único caminho que ataca de verdade o custo de emissão:
 2,43 → 0,76 µs (-69%, ~24% do desenho). O preço é sair do Pango: sem fallback
