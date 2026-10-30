@@ -33,11 +33,7 @@ GDK_WHEEL = {4: WHEEL_UP, 5: WHEEL_DOWN, 6: WHEEL_LEFT, 7: WHEEL_RIGHT}
 
 def mods_from_state(shift, alt, ctrl):
     """Monta os bits de modificador do protocolo."""
-    return (
-        (MOD_SHIFT if shift else 0)
-        | (MOD_ALT if alt else 0)
-        | (MOD_CTRL if ctrl else 0)
-    )
+    return (MOD_SHIFT if shift else 0) | (MOD_ALT if alt else 0) | (MOD_CTRL if ctrl else 0)
 
 
 def encode(button, col, row, pressed=True, sgr=False, mods=0, motion=False):

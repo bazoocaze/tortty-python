@@ -92,12 +92,8 @@ class Graphics:
 
     def _place(self, img, kv, cursor, cell):
         cw, ch = cell
-        cols = (
-            int(kv["c"]) if kv.get("c") else max(1, math.ceil(img.width / cw))
-        )
-        rows = (
-            int(kv["r"]) if kv.get("r") else max(1, math.ceil(img.height / ch))
-        )
+        cols = int(kv["c"]) if kv.get("c") else max(1, math.ceil(img.width / cw))
+        rows = int(kv["r"]) if kv.get("r") else max(1, math.ceil(img.height / ch))
         col, row = cursor
         dx = int(kv.get("X") or 0)
         dy = int(kv.get("Y") or 0)
@@ -134,9 +130,7 @@ class Graphics:
         kv, b64 = self._buf["kv"], self._buf["b64"]
         self._buf = None
         try:
-            data = (
-                base64.b64decode(b64 + "=" * (-len(b64) % 4)) if b64 else b""
-            )
+            data = base64.b64decode(b64 + "=" * (-len(b64) % 4)) if b64 else b""
         except Exception:
             return ["G" + self._err(kv, "EINVAL:base64")], 0, False
         if kv.get("o") == "z" and data:
@@ -168,9 +162,7 @@ class Graphics:
             how = kv.get("d", "a")
             if how == "i":
                 self.images.pop(ident, None)
-                self.placements = [
-                    p for p in self.placements if p.image_id != ident
-                ]
+                self.placements = [p for p in self.placements if p.image_id != ident]
             else:
                 self.placements.clear()
                 if how == "a":

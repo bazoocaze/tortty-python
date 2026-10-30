@@ -96,12 +96,8 @@ def main(argv):
         w, h = img["w"], img["h"]
         print(f"  centro           -> {cor(img, w // 2, h // 2)}")
         print(f"  topo (y=2)       -> {cor(img, 5, 2)}")
-        print(
-            f"  pé (y=h-3)       -> {[cor(img, x, h - 3) for x in (5, w // 2, w - 5)]}"
-        )
-        print(
-            f"  direita (x=w-3)  -> {[cor(img, w - 3, y) for y in (5, h // 2, h - 5)]}"
-        )
+        print(f"  pé (y=h-3)       -> {[cor(img, x, h - 3) for x in (5, w // 2, w - 5)]}")
+        print(f"  direita (x=w-3)  -> {[cor(img, w - 3, y) for y in (5, h // 2, h - 5)]}")
     return 0
 
 

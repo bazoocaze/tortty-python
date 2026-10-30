@@ -31,12 +31,8 @@ from .palette import (
 from .term import Term
 
 _PROF = bool(os.environ.get("PYTERM_PROF"))  # mede o custo de draw e de pty
-_NODRAW = bool(
-    os.environ.get("PYTERM_NODRAW")
-)  # sonda: só pty -> grade, sem desenho
-_NOPARSE = bool(
-    os.environ.get("PYTERM_NOPARSE")
-)  # sonda: só lê o pty e descarta
+_NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem desenho
+_NOPARSE = bool(os.environ.get("PYTERM_NOPARSE"))  # sonda: só lê o pty e descarta
 
 
 def _tick(prof, name, t0):
@@ -72,9 +68,7 @@ def surface_from_image(img, cairo):
             buf[oi + 3] = src[si + 3] if n == 4 else 255
             si += n
             oi += 4
-    surf = cairo.ImageSurface.create_for_data(
-        buf, cairo.FORMAT_ARGB32, w, h, stride
-    )
+    surf = cairo.ImageSurface.create_for_data(buf, cairo.FORMAT_ARGB32, w, h, stride)
     return surf, buf
 
 
@@ -271,9 +265,7 @@ class TermView(Gtk.DrawingArea):
             with open(os.environ["PYTERM_RAWLOG"], "ab") as f:
                 f.write(data)
         if _PROF:
-            self._prof_bytes += len(
-                data
-            )  # tem que casar com o que o filho escreveu
+            self._prof_bytes += len(data)  # tem que casar com o que o filho escreveu
         if _NOPARSE:  # sonda: mede só read do pty, sem decode/parse/grade
             return True
         # enquanto o usuário lê o histórico, guarda como a tela visível estava:
@@ -376,9 +368,7 @@ class TermView(Gtk.DrawingArea):
                 for k, (n, t) in self._prof.items()
                 if n
             ]
-            parts.append(
-                f"bytes {self._prof_bytes / 1e6:.2f}MB eagain {self._prof_eagain}"
-            )
+            parts.append(f"bytes {self._prof_bytes / 1e6:.2f}MB eagain {self._prof_eagain}")
             print("prof:", " | ".join(parts), file=sys.stderr)
         self._closing = True
         if self.pty_watch:
@@ -500,11 +490,7 @@ class TermView(Gtk.DrawingArea):
         al = Pango.AttrList()
         # letter_spacing vale entre glifos (o último não recebe): run de N fecha
         # N*cw com erro menor que 1 px
-        al.insert(
-            Pango.attr_letter_spacing_new(
-                round((cw - self._advance) * Pango.SCALE)
-            )
-        )
+        al.insert(Pango.attr_letter_spacing_new(round((cw - self._advance) * Pango.SCALE)))
         if bold:
             al.insert(Pango.attr_weight_new(Pango.Weight.BOLD))
             self._attrs_bold = al
@@ -541,11 +527,7 @@ class TermView(Gtk.DrawingArea):
 
     def _view_signature(self):
         """O que está na tela agora (texto + cor por célula), para comparar."""
-        return "".join(
-            "%s|%d|%d" % (c[0], c[1], c[2])
-            for row in self.visible_rows()
-            for c in row
-        )
+        return "".join("%s|%d|%d" % (c[0], c[1], c[2]) for row in self.visible_rows() for c in row)
 
     def scroll_view(self, delta):
         """Rola a visão no histórico. `delta` > 0 = pra trás no tempo."""
@@ -675,9 +657,7 @@ class TermView(Gtk.DrawingArea):
                     # quebra): aí é show_layout, que desenha todas. A decisão
                     # fica no cache — get_line_count() por run custa o ganho.
                     base = lay.get_baseline() / Pango.SCALE
-                    line = (
-                        lay.get_line(0) if lay.get_line_count() == 1 else None
-                    )
+                    line = lay.get_line(0) if lay.get_line_count() == 1 else None
                     ent = (lay, line, base)
                     self._layouts[key] = ent
                 lay, line, base = ent
@@ -718,20 +698,13 @@ class TermView(Gtk.DrawingArea):
             cr.rectangle(x0, y0, w, h)
             cr.clip()
             cr.translate(x0, y0)
-            cr.scale(
-                w / max(1, surf.get_width()), h / max(1, surf.get_height())
-            )
+            cr.scale(w / max(1, surf.get_width()), h / max(1, surf.get_height()))
             cr.set_source_surface(surf, 0, 0)
             cr.paint()
             cr.restore()
 
         # cursor bloco — só no vivo: no histórico o cursor do app não está ali
-        if (
-            self.view_off == 0
-            and t.cursor_visible
-            and t.cy < t.rows
-            and t.cx < t.cols
-        ):
+        if self.view_off == 0 and t.cursor_visible and t.cy < t.rows and t.cx < t.cols:
             cr.set_source_rgb(*cell_rgb_f(DEF_FG))
             cr.rectangle(t.cx * cw, t.cy * ch, cw, ch)
             cr.fill()
@@ -841,15 +814,11 @@ class TermView(Gtk.DrawingArea):
                 self.queue_draw()
             return True
         if t.mouse_mode == 2 and self._held is not None:
-            self.report_mouse(
-                self._held, *self.cell_at(ev.x, ev.y), motion=True
-            )
+            self.report_mouse(self._held, *self.cell_at(ev.x, ev.y), motion=True)
             return True
         if t.mouse_mode == 3:
             # movimento sem botão: código 35 (32 + "botão 3")
-            self.report_mouse(
-                mouse.RELEASE, *self.cell_at(ev.x, ev.y), motion=True
-            )
+            self.report_mouse(mouse.RELEASE, *self.cell_at(ev.x, ev.y), motion=True)
             return True
         return False
 

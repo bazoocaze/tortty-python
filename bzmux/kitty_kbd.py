@@ -56,13 +56,7 @@ PRESS, REPEAT, RELEASE = 1, 2, 3
 
 def _mods(shift, alt, ctrl, super_):
     # valor do campo de modificadores: 1 = nenhum, +1 shift, +2 alt, +4 ctrl
-    return (
-        1
-        + (1 if shift else 0)
-        + (2 if alt else 0)
-        + (4 if ctrl else 0)
-        + (8 if super_ else 0)
-    )
+    return 1 + (1 if shift else 0) + (2 if alt else 0) + (4 if ctrl else 0) + (8 if super_ else 0)
 
 
 def _csi(key, mods, trailer, event=None, text=""):
@@ -124,9 +118,7 @@ def _encode(kv, shift, alt, ctrl, super_, flags, event=PRESS, text=""):
             return None
         if special and mods == 1 and not (dis or report_all):
             return None  # ESC, \r, \t, \x7f clássicos
-        return _csi(
-            num, mods, trailer, event if ev_types else None, text_field
-        )
+        return _csi(num, mods, trailer, event if ev_types else None, text_field)
 
     cp = _codepoint(kv)
     if cp is None:

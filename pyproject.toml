@@ -39,8 +39,8 @@ pythonpath = ["."]
 testpaths = ["tests"]
 
 [tool.ruff]
-# 79 é a largura histórica do código (o default do ruff, 88, alarga)
-line-length = 79
+# largura escolhida: o código foi escrito a 79, mas o terminal tem 137
+line-length = 100
 target-version = "py39"
 
 [tool.ruff.lint]

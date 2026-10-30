@@ -127,9 +127,7 @@ def main(argv):
         default=0,
         help="para depois de N frames; 0 = até Ctrl+C",
     )
-    ap.add_argument(
-        "--stats-to", default="-", help="arquivo das estatísticas; - = stderr"
-    )
+    ap.add_argument("--stats-to", default="-", help="arquivo das estatísticas; - = stderr")
     a = ap.parse_args(argv)
 
     cols, lines = shutil.get_terminal_size((80, 24))

@@ -185,9 +185,7 @@ class Injecao:
         self.sync()
 
     def botao(self, n, press):
-        xtest.fake_input(
-            self.d, X.ButtonPress if press else X.ButtonRelease, n
-        )
+        xtest.fake_input(self.d, X.ButtonPress if press else X.ButtonRelease, n)
         self.sync()
 
     def tap(self, keycode, mods=()):
@@ -224,12 +222,8 @@ class Injecao:
 # ------------------------------------------------------------------ main ----
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument(
-        "--pid", type=int, help="PID do bzmux (padrão: %s)" % PIDFILE
-    )
-    ap.add_argument(
-        "--window", type=lambda s: int(s, 0), help="id X11 da janela"
-    )
+    ap.add_argument("--pid", type=int, help="PID do bzmux (padrão: %s)" % PIDFILE)
+    ap.add_argument("--window", type=lambda s: int(s, 0), help="id X11 da janela")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     sub.add_parser("id")
@@ -268,11 +262,7 @@ def main(argv):
     a = ap.parse_args(argv)
 
     d = display.Display()
-    want_pid = (
-        a.pid
-        if a.pid is not None
-        else (None if a.window else _pid_do_arquivo())
-    )
+    want_pid = a.pid if a.pid is not None else (None if a.window else _pid_do_arquivo())
     janela = achar_janela(d, want_pid, a.window)
     if janela is None:
         raise Erro("janela do bzmux não encontrada (PID %s)" % (want_pid,))
