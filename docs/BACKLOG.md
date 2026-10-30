@@ -1,46 +1,5 @@
 # bzmux — backlog (pendente)
 
-P19 — Interagindo com o `pi`, a cada algumas etapas do turno a tela reescreve
-várias telas de uma vez. **Investigação aberta** (2026-10-25).
-
-Já descartado, com dados: parser/grade. Três turnos reais do `pi` capturados num
-pty próprio (respondendo as mesmas queries do bzmux) e replayados em `Term` e
-`pyte`: rolagens iguais (32×32, 79×79) e tela final idêntica; o TUI do `pi` não
-usa DECSTBM (`CSI r`), IL/DL (`CSI L/M`), SU/SD (`CSI S/T`) nem autowrap-off
-(`?7l`) — só `CSI nA/nB/nG`, `CSI 2K`, `CSI 1G`, sync output (`?2026`) e
-hyperlinks OSC 8. Também já corrigido o que mascarava sintoma parecido: tique de
-1 Hz do `pi` (bug 14) e desenho em resolução errada (bug 13).
-
-Falta o caso real (transcrição longa). Sonda pronta: `PYTERM_SCROLLLOG=ARQ
-./run.sh` grava cada chunk que rola mais de meia tela com `jump=N`, `top/bottom`
-da região, alt-screen e os 600 primeiros bytes crus. Ler o log e isolar a
-sequência; se o log sair vazio, logar `on_resize` (reflow no meio do turno passa
-a ser o suspeito). Hipóteses na fila: (a) reimpressão da transcrição inteira
-quando um widget do rodapé muda de altura (o observer do `pi-blackhole` escreve
-"Observational memory…" no meio da conversa); (b) `CSI 2J` + reimpressão; (c)
-resize/reflow entrando no meio do turno.
-
-Estado da investigação (2026-10-29 23:00): capturado o caso real (1163
-entradas, 12 MB de stream preservados em ~/dados/temp/p19-evidence-2026-10-29/).
-O stream tem ~10 mil repaints, cada um **dentro de uma transação `?2026`**
-(synchronized output), e 99% das leituras do pty terminam no meio de uma
-transação — como o app ignorava `?2026`, todo desenho caía com a tela
-meio-repintada. Feito: `?2026` (desenho adiado até o fecho, teto de 200 ms),
-DA2 respondido no formato certo (`CSI > c` respondia DA1) e DECRQM (`CSI ? Ps $ p`)
-para os modos que existem. Falta validar no uso real: se o pulo **continuar**
-idêntico, a conta é do `pi` (ele sobe 4 linhas e escreve ~13 por repaint, então
-o scroll existe em qualquer terminal fiel — o `pyte` rola igual).
-
-Estado da investigação (2026-10-29 22:42): sonda **conferida** — `PYTERM_SCROLLLOG` só
-grava o chunk que rola mais de `max(2, rows // 2)` linhas (teste: `seq 1 5000` →
-3 entradas de 33 linhas; `seq 1 200` → nenhuma, porque o salto não passava de
-meia tela num chunk). Os dois arquivos (`SCROLLLOG` e `RAWLOG`) são abertos em
-append por chunk, então dá para apagar com o app rodando — o `RAWLOG` só passa a
-gravar daí pra frente. Falta só a captura do caso real (logs + hora + etapa do
-turno). Se o `scroll.log` sair **vazio** e o pulo acontecer, o suspeito vira
-`on_resize`/reflow: instrumentar `on_resize` antes de mexer em qualquer outra
-coisa.
-
 P26 — Desenho: `cr.show_glyphs` com glifos pré-computados. **Experimento, não
 compromisso.** É o único caminho que ataca de verdade o custo de emissão:
 2,43 → 0,76 µs (-69%, ~24% do desenho). O preço é sair do Pango: sem fallback
@@ -60,6 +19,30 @@ grade não muda entre draws: uma linha cacheada vira 1 blit (1,15 µs) em vez de
 de memória (21 linhas ≈ 2,6 MB) e invalidação no resize/DPI. Ganho não
 mensurável pela carga atual — precisaria de uma segunda carga (scroll de log),
 o que é decisão à parte.
+
+P32 — Histórico: o output do app arranca quem está lendo (scroll-lock).
+**Decidido, a implementar** (2026-10-29). Hoje o `view.py` volta ao vivo quando
+o usuário manda tecla, quando ele rola até o fim **e quando qualquer output muda
+o conteúdo da tela visível** (`_view_signature()`): o `pi` escrevendo uma linha
+já arranca a visão do histórico. A terceira regra nasceu para o tique de 1 Hz
+(bug 14) e passou a cobrar o preço no caso normal de uso — ler o que o app
+acabou de escrever enquanto ele continua escrevendo.
+
+Decisão: ancoragem pura — depois do scroll o histórico fica preso até ação do
+usuário (rolar até o fim, tecla, ou a âncora ser destruída por limpeza de
+histórico, `CSI 3J`). Retorno automático por tempo (5 s de inatividade de
+scroll) foi descartado: mede a coisa errada (ler é silencioso) e o `pi` escreve
+a cada ~1 s, então o arranque só ficaria adiado e imprevisível. Se algum dia
+quiser retorno automático, o critério é geométrico — *sticky bottom*: volta
+quando a visão está a ≤1 linha do fim —, não relógio.
+
+A âncora tem de ser absoluta (`Term.scrolled`), não "linhas a partir do fim":
+com o scrollback no teto de 1000 linhas o crescimento não muda `len()`, e a
+conta antiga deixaria o texto derrapar linha a linha. Consequências: sai o
+`_view_signature()` (que monta uma string com todas as ~4658 células visíveis
+**por chunk** justamente enquanto se lê o histórico) e a seleção passa a ser
+desfeita só em scroll do usuário, não em output. Teste sem display: a conta de
+âncora/clamp é pura.
 
 P30 — Portabilidade gráfica: rodar no Linux, Windows e macOS. **Discussão,
 decisão pendente** (2026-10-28). Hoje o app "não tem dependência" no sentido de

@@ -27,13 +27,14 @@ sair do Pango — experimento com validação por pixel, não compromisso; P27
 (dirty-rect / linha em surface) é estrutural e o doom-fire não mede. A
 decomposição por etapa e o método estão em
 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) (seção "Decomposição do desenho").
-O P19 (telas reescritas dentro do `pi`) segue aberto e independente.
+O P19 (telas reescritas dentro do `pi`) fechou: era `?2026` (synchronized
+output) ignorado — o registro está no [`docs/HISTORY.md`](docs/HISTORY.md).
 
 ## Fila
 
-P19 aberto: dentro do `pi`, a cada algumas etapas do turno a tela reescreve
-várias telas de uma vez (investigação e sonda em
-[`docs/BACKLOG.md`](docs/BACKLOG.md)).
+P32 em andamento: o output do app arranca quem está lendo o histórico. Decidido
+ancoragem até ação do usuário (o porquê, o que foi descartado e o que sai de
+código estão em [`docs/BACKLOG.md`](docs/BACKLOG.md)).
 
 P30 em discussão: portabilidade gráfica (Windows/macOS) — manter GTK3 via
 conda-forge ou trocar por Qt/PySide6; dados levantados e custo de cada rota em

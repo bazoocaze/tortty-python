@@ -968,6 +968,46 @@ certa a tecla abre menu de sistema em vez de testar o app. Teste de teclado
 manual: `tools/xtest.py key ...` (fixa o foco por `_NET_WM_PID`) e evitar as
 combinações de `Mod1` que o WM usa.
 
+### P19 — `pi` "reescrevia várias telas" durante o turno (2026-10-29)
+
+Sintoma: a cada algumas etapas do turno dentro do `pi`, a tela dava um salto de
+várias telas. **Não era o parser.** Três turnos reais replayados em `Term` e em
+`pyte`: tela final idêntica, rolagens iguais (32×32, 79×79) e quebra preguiçosa
+correta (linha de exatamente 137 colunas + `\r\r\n` consome 1 linha, não 2) — o
+`pi` não usa DECSTBM (`CSI r`), IL/DL (`CSI L/M`), SU/SD (`CSI S/T`) nem
+autowrap-off (`?7l`).
+
+O que o stream tem (1163 entradas de scroll, 12 MB preservados em
+`~/dados/temp/p19-evidence-2026-10-29/`): ~10 mil repaints, **cada um dentro de
+uma transação `?2026`** (synchronized output), e **99% das leituras do pty
+terminam no meio de uma transação** (19058 de 19182 leituras de 4095 B). Como o
+app ignorava `?2026`, todo desenho caía com a tela meio-repintada: o scroll
+existia de verdade (o `pi` sobe 4 linhas com `CSI 4A` e escreve ~13 por repaint,
+terminando cada uma com `\r\r\n`), mas ninguém devia ver o caminho.
+
+Feito:
+
+- `?2026` honrado — `Term.sync_output` e o desenho adiado até o fecho da
+  transação, com teto de 200 ms para app que esquece de fechar (a tela não
+  congela; o estado parcial é desenhado uma vez);
+- dois erros de resposta achados na comparação com o kitty: DA2 (`CSI > c`)
+  respondia no formato do **DA1** (`\e[?62c`), deixando o app sem saber com quem
+  falava; e DECRQM (`CSI ? Ps $ p`) não era respondido porque o parser
+  descartava o intermediário — agora responde 1/2/0 para os modos que existem
+  (inclusive `?2026`).
+
+Verificação: desenhos no meio de transação caíram de "praticamente todos" para
+**0** (app instrumentado por fora, gerador de 120 repaints: 91 desenhos, 0 no
+meio, 0 estouro do teto); vazão do doom-fire intacta (112 fps full, 161 NODRAW,
+512 IO); suíte 19 checks + 19 pytest OK. No uso real o enchimento de 1000 linhas
+na abertura deixou de "subir em pedaços" (conferido pelo usuário, já com o
+build novo — PID iniciado depois do commit `f918dbe`).
+
+Se o salto voltar, a conta é do `pi`: ele escreve mais linhas do que sobe em
+cada repaint, então a rolagem acontece em qualquer terminal fiel (o `pyte` rola
+igual). O suspeito seguinte é widget do rodapé mudando de altura no meio do
+turno.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.
