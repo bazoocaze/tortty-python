@@ -33,6 +33,7 @@ from .term import Term
 _PROF = bool(os.environ.get("PYTERM_PROF"))  # mede o custo de draw e de pty
 _NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem desenho
 _NOPARSE = bool(os.environ.get("PYTERM_NOPARSE"))  # sonda: só lê o pty e descarta
+_SYNC_MS = 200  # teto da transação ?2026: app que esquece de fechar não congela
 DRAG_SLOP = 3  # px de folga: abaixo disso o mouse não "arrastou"
 
 
@@ -156,6 +157,7 @@ class TermView(Gtk.DrawingArea):
         self.child_exited = False  # waitpid já chegou?
         self.exit_code = None
         self._draw_pending = False
+        self._sync_timer = 0  # teto da transação de synchronized output
         self._prof = {}
         self._prof_bytes = 0  # bytes lidos do master (o que o filho escreveu)
         self._prof_eagain = 0  # BlockingIOError: watch sem byte disponível
@@ -226,13 +228,37 @@ class TermView(Gtk.DrawingArea):
         """
         if _NODRAW:  # sonda de medição: mede só o caminho pty -> grade
             return
+        if self.term.sync_output:
+            # ?2026 aberto: o app ainda vai redesenhar. Desenhar agora mostra
+            # o meio de cada repaint (é o que faz a tela parecer pular
+            # várias telas); segura até o fecho, com teto de segurança.
+            self._defer_draw()
+            return
+        if self._sync_timer:
+            GLib.source_remove(self._sync_timer)
+            self._sync_timer = 0
         if self._draw_pending:
             return
         self._draw_pending = True
         GLib.timeout_add(16, self._flush_draw)
 
+    def _sync_flush(self):
+        """Estourou o teto do ?2026: desenha assim mesmo."""
+        self._sync_timer = 0
+        self._draw_pending = False
+        self.queue_draw()
+        return False
+
+    def _defer_draw(self):
+        """Adia o desenho até o fecho do ?2026 (ou até o teto de segurança)."""
+        if not self._sync_timer:
+            self._sync_timer = GLib.timeout_add(_SYNC_MS, self._sync_flush)
+
     def _flush_draw(self):
         self._draw_pending = False
+        if self.term.sync_output:
+            self._defer_draw()  # a transação abriu depois do agendamento
+            return False
         self.queue_draw()
         return False  # um tiro só
 

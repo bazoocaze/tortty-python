@@ -79,6 +79,21 @@ def charset_and_replies():
     t.feed("\x1b[c")
     assert bytes(t.child_out) == b"\x1b[?62c"
     t.child_out = bytearray()
+    # DA2 tem de responder no formato DA2 ('>'); o DA1 ficou com o dele
+    t.feed("\x1b[>c")
+    assert bytes(t.child_out).startswith(b"\x1b[>")
+    t.child_out = bytearray()
+    # DECRQM: modo conhecido desligado = 2, ligado = 1, desconhecido = 0
+    t.feed("\x1b[?2026$p")
+    assert bytes(t.child_out) == b"\x1b[?2026;2$y"
+    t.child_out = bytearray()
+    t.feed("\x1b[?2026h\x1b[?2026$p")
+    assert t.sync_output
+    assert bytes(t.child_out) == b"\x1b[?2026;1$y"
+    t.child_out = bytearray()
+    t.feed("\x1b[?2026l\x1b[?9999$p")
+    assert bytes(t.child_out) == b"\x1b[?9999;0$y"
+    t.child_out = bytearray()
     t.feed("\x1b[5;9H\x1b[6n")
     assert bytes(t.child_out) == b"\x1b[5;9R"
     t = Term()

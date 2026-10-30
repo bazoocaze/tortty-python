@@ -41,9 +41,11 @@ _CSI_RE = re.compile(r"\x1b\[([0-9;:?]*)([\x40-\x7e])")
 
 
 def _csi_parse(body, final):
-    """Corpo do CSI (sem ESC[ e sem final) -> (nums, prefixo privado)."""
+    """Corpo do CSI (sem ESC[ e sem final) -> (nums, prefixo, intermediários)."""
+    inter = ""
     while body and " " <= body[-1] <= "/":
-        body = body[:-1]  # intermediários: não usamos nenhum
+        inter = body[-1] + inter  # DECRQM (`$p`) e afins: o intermediário importa
+        body = body[:-1]
     prefix = ""
     while body and body[0] in "?<=>":
         prefix += body[0]
@@ -61,7 +63,7 @@ def _csi_parse(body, final):
                 parts.append(int(tok))
             except ValueError:
                 parts.append(None)
-    return tuple(p if p is not None else 0 for p in parts), prefix
+    return tuple(p if p is not None else 0 for p in parts), prefix, inter
 
 
 def _parse_truecolor(key):
@@ -105,6 +107,7 @@ class Term:
         self.mouse_sgr = False  # ?1006: coordenadas SGR
         self.focus_report = False  # ?1004: avisar foco in/out
         self.bracketed_paste = False  # ?2004: colar com marcadores
+        self.sync_output = False  # ?2026: transação de desenho aberta
         # protocolo de teclado do kitty (P5): flags atuais + pilha para
         # push/pop (CSI > flags u / CSI < n u / CSI = flags ; modo u)
         self.kbd_flags = 0
@@ -568,8 +571,35 @@ class Term:
                 # bracketed paste: o app pede pra saber que o texto colado não
                 # foi digitado. Sem isso, colar 3 linhas no shell executa 3.
                 self.bracketed_paste = on
+            elif private and p == 2026:
+                # synchronized output: o app abre uma transação, redesenha
+                # várias vezes e fecha. Quem desenha segura o frame até o
+                # fecho — senão a tela mostra o meio de cada repaint.
+                self.sync_output = on
 
-    def csi_dispatch(self, final, params, prefix=""):
+    def mode_state(self, p, private):
+        """DECRQM: 1 = ligado, 2 = desligado, 0 = modo desconhecido."""
+        if private:
+            if p == 1:
+                return 1 if self.app_cursor else 2
+            if p == 25:
+                return 1 if self.cursor_visible else 2
+            if p in (47, 1047, 1049):
+                return 1 if self.alt_grid is not None else 2
+            if p in (1000, 1002, 1003):
+                return 1 if self.mouse_mode == {1000: 1, 1002: 2, 1003: 3}[p] else 2
+            if p == 1006:
+                return 1 if self.mouse_sgr else 2
+            if p == 1004:
+                return 1 if self.focus_report else 2
+            if p == 2004:
+                return 1 if self.bracketed_paste else 2
+            if p == 2026:
+                return 1 if self.sync_output else 2
+            return 0
+        return 0  # modos ANSI (IRM, LNM...): nenhum implementado
+
+    def csi_dispatch(self, final, params, prefix="", inter=""):
         def get(i, d):
             return params[i] if i < len(params) and params[i] is not None else d
 
@@ -629,8 +659,18 @@ class Term:
                 self.cx, self.cy = self.saved
         elif final in "hl":
             self.set_mode(params or [0], private, final == "h")
-        elif final == "c" and not params and not private:
-            self.child_out += b"\x1b[?62c"  # DA: VT102
+        elif final == "c" and prefix == ">":
+            # DA2: identificação secundária — a resposta TEM de começar com
+            # '>'. Responder no formato do DA1 (o que acontecia antes) deixa o
+            # app sem saber com quem está falando.
+            self.child_out += b"\x1b[>1;100;0c"
+        elif final == "c" and not prefix and params in ((), (0,)):
+            self.child_out += b"\x1b[?62c"  # DA1: VT102
+        elif final == "p" and inter == "$":
+            # DECRQM: o app pergunta se um modo existe/suporta
+            ps = get(0, 0)
+            st = self.mode_state(ps, private)
+            self.child_out += f"\x1b[{'?' if private else ''}{ps};{st}$y".encode()
         elif final == "t" and params:
             # 16 = tamanho da célula em px; 18 = área de texto em chars. Apps
             # de TUI (pi, neovim) perguntam para calcular layout em pixels e
@@ -703,7 +743,7 @@ class Term:
             if len(_CSI_CACHE) > _CSI_MAX:
                 _CSI_CACHE.clear()
             _CSI_CACHE[key] = parsed
-        self.csi_dispatch(key[1], parsed[0], parsed[1])
+        self.csi_dispatch(key[1], parsed[0], parsed[1], parsed[2])
         return m.end()
 
     def feed(self, text):
@@ -779,7 +819,7 @@ class Term:
                         if len(_CSI_CACHE) > _CSI_MAX:
                             _CSI_CACHE.clear()
                         _CSI_CACHE[key] = parsed
-                    self.csi_dispatch(ch, parsed[0], parsed[1])
+                    self.csi_dispatch(ch, parsed[0], parsed[1], parsed[2])
                     self.state = "ground"
             elif st == "osc":
                 if ch == "\x07":

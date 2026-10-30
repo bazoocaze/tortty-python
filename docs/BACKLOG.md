@@ -20,7 +20,18 @@ quando um widget do rodapé muda de altura (o observer do `pi-blackhole` escreve
 "Observational memory…" no meio da conversa); (b) `CSI 2J` + reimpressão; (c)
 resize/reflow entrando no meio do turno.
 
-Estado da investigação (2026-10-29): sonda **conferida** — `PYTERM_SCROLLLOG` só
+Estado da investigação (2026-10-29 23:00): capturado o caso real (1163
+entradas, 12 MB de stream preservados em ~/dados/temp/p19-evidence-2026-10-29/).
+O stream tem ~10 mil repaints, cada um **dentro de uma transação `?2026`**
+(synchronized output), e 99% das leituras do pty terminam no meio de uma
+transação — como o app ignorava `?2026`, todo desenho caía com a tela
+meio-repintada. Feito: `?2026` (desenho adiado até o fecho, teto de 200 ms),
+DA2 respondido no formato certo (`CSI > c` respondia DA1) e DECRQM (`CSI ? Ps $ p`)
+para os modos que existem. Falta validar no uso real: se o pulo **continuar**
+idêntico, a conta é do `pi` (ele sobe 4 linhas e escreve ~13 por repaint, então
+o scroll existe em qualquer terminal fiel — o `pyte` rola igual).
+
+Estado da investigação (2026-10-29 22:42): sonda **conferida** — `PYTERM_SCROLLLOG` só
 grava o chunk que rola mais de `max(2, rows // 2)` linhas (teste: `seq 1 5000` →
 3 entradas de 33 linhas; `seq 1 200` → nenhuma, porque o salto não passava de
 meia tela num chunk). Os dois arquivos (`SCROLLLOG` e `RAWLOG`) são abertos em
