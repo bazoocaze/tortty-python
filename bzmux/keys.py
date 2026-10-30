@@ -113,6 +113,31 @@ def is_modifier(kv):
     return kv in MODIFIER_KEYS
 
 
+def _mod_param(ctrl, alt, shift):
+    """Parâmetro de modificador do xterm: 1 + shift(1) + alt(2) + ctrl(4)."""
+    return 1 + (1 if shift else 0) + (2 if alt else 0) + (4 if ctrl else 0)
+
+
+def _special(seq, ctrl, alt, shift):
+    """Sequência de tecla especial com modificadores, no formato do xterm.
+
+    Tecla de controle (\\r, \\x7f, \\t, ESC) só ganha o prefixo ESC do Alt; as
+    que já são CSI/SS3 levam o modificador como parâmetro (`\\e[1;3A`,
+    `\\e[2;3~`), que é o que xterm, kitty e ghostty mandam.
+    """
+    if not (ctrl or alt or shift):
+        return seq
+    mod = _mod_param(ctrl, alt, shift)
+    if seq.startswith("\x1b["):
+        body = seq[2:]
+        if body.endswith("~"):
+            return "\x1b[%s;%d~" % (body[:-1], mod)
+        return "\x1b[1;%d%s" % (mod, body)
+    if seq.startswith("\x1bO"):
+        return "\x1b[1;%d%s" % (mod, seq[2:])
+    return ("\x1b" + seq) if alt else seq
+
+
 def encode_key(
     kv,
     state,
@@ -155,19 +180,23 @@ def encode_key(
     if kv == Gdk.KEY_ISO_Left_Tab:
         out = "\x1b[Z"
     elif kv in SIMPLE:
-        out = SIMPLE[kv]
-        if app_cursor:
-            out = APP_CURSOR.get(kv, out)
+        out = APP_CURSOR.get(kv, SIMPLE[kv]) if app_cursor else SIMPLE[kv]
         if kv == Gdk.KEY_Tab and shift:
+            # Shift+Tab é backtab (\e[Z); o shift já está codificado na forma
+            # canônica, então só alt/ctrl entram como parâmetro
             out = "\x1b[Z"
+            if alt or ctrl:
+                out = "\x1b[1;%dZ" % _mod_param(ctrl, alt, False)
+        else:
+            out = _special(out, ctrl, alt, shift)
     elif ctrl and Gdk.KEY_a <= kv <= Gdk.KEY_z:
-        out = chr(kv & 0x1F)
+        out = ("\x1b" if alt else "") + chr(kv & 0x1F)
     elif ctrl and Gdk.KEY_A <= kv <= Gdk.KEY_Z:
-        out = chr((kv + 32) & 0x1F)
+        out = ("\x1b" if alt else "") + chr((kv + 32) & 0x1F)
     elif ctrl and kv in (Gdk.KEY_space, Gdk.KEY_2):
-        out = "\x00"
+        out = ("\x1b" if alt else "") + "\x00"
     elif ctrl and kv == Gdk.KEY_minus:
-        out = "\x1f"
+        out = ("\x1b" if alt else "") + "\x1f"
     elif kv in DEAD_MARKS and not (ctrl or alt):
         # dead key: guarda a marca e não manda nada agora
         return None, DEAD_MARKS[kv], True

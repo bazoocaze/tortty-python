@@ -33,6 +33,7 @@ from .term import Term
 _PROF = bool(os.environ.get("PYTERM_PROF"))  # mede o custo de draw e de pty
 _NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem desenho
 _NOPARSE = bool(os.environ.get("PYTERM_NOPARSE"))  # sonda: só lê o pty e descarta
+DRAG_SLOP = 3  # px de folga: abaixo disso o mouse não "arrastou"
 
 
 def _tick(prof, name, t0):
@@ -114,6 +115,8 @@ class TermView(Gtk.DrawingArea):
         # seleção local (quando o app NÃO pediu mouse): âncora e ponta
         self.sel_start = None
         self.sel_end = None
+        self.press_cell = None  # célula do press: a seleção nasce no arrasto
+        self.press_at = None  # pixel do press: a folga de arrasto é medida nele
         self.dragging = False
         self._held = None  # botão do protocolo apertado agora
         self._state = 0  # modificadores do último evento
@@ -311,6 +314,7 @@ class TermView(Gtk.DrawingArea):
                         data[:600],
                     )
                 )
+        off = self.view_off
         if self.view_off and self._view_signature() != seen:
             self.view_off = 0
         elif self.view_off:
@@ -318,6 +322,8 @@ class TermView(Gtk.DrawingArea):
                 self.view_off + (len(self.term.scrollback) - seen_sb),
                 len(self.term.scrollback),
             )
+        if self.view_off != off:
+            self.clear_selection()
         self.request_draw()
         return True
 
@@ -537,8 +543,18 @@ class TermView(Gtk.DrawingArea):
         off = max(0, min(len(t.scrollback), self.view_off + delta))
         if off != self.view_off:
             self.view_off = off
+            # a seleção vive em coordenadas de TELA: rolar deixaria o destaque
+            # sobre outro texto e o copy seguinte copiaria o texto errado
+            self.clear_selection()
             self.queue_draw()
         return True
+
+    def clear_selection(self):
+        if self.sel_start is not None or self.sel_end is not None:
+            self.sel_start = self.sel_end = None
+            self.press_cell = None
+            self.press_at = None
+            self.queue_draw()
 
     def back_to_live(self):
         if self.view_off:
@@ -778,9 +794,12 @@ class TermView(Gtk.DrawingArea):
             self.report_mouse(btn, col, row, True)
             return True
         if ev.button == 1:
-            self.sel_start = self.sel_end = (row, col)
+            # seleção só nasce com arrasto: um clique não pode pintar a célula
+            # nem sobrescrever o PRIMARY com 1 caractere
+            self.clear_selection()
+            self.press_cell = (row, col)
+            self.press_at = (ev.x, ev.y)
             self.dragging = True
-            self.queue_draw()
             return True
         if ev.button == 2:
             self.paste(Gdk.SELECTION_PRIMARY)
@@ -797,10 +816,14 @@ class TermView(Gtk.DrawingArea):
             return True
         if ev.button == 1 and self.dragging:
             self.dragging = False
+            sel = self.sel_range()
+            # só copia o que foi realmente selecionado (press + arrasto em
+            # outra célula); sem arrasto, o PRIMARY do usuário fica intacto
+            if sel and sel[:2] != sel[2:]:
+                self.copy(Gdk.SELECTION_PRIMARY)
+            else:
+                self.clear_selection()
             self.queue_draw()
-            # convenção X11: seleção também vai pro PRIMARY (colar com o
-            # botão do meio), sem precisar do Ctrl+Shift+C
-            self.copy(Gdk.SELECTION_PRIMARY)
             return True
         return False
 
@@ -809,6 +832,13 @@ class TermView(Gtk.DrawingArea):
         self._state = ev.state
         if self.dragging:
             col, row = self.cell_at(ev.x, ev.y)
+            if self.sel_start is None:
+                # folga de arrasto: tremer o mouse com o botão apertado não
+                # pode pintar uma célula em reverso (era a "seleção de 1")
+                px, py = self.press_at or (ev.x, ev.y)
+                if max(abs(ev.x - px), abs(ev.y - py)) <= DRAG_SLOP:
+                    return True
+                self.sel_start = self.press_cell  # arrasto começa no press
             if (row, col) != self.sel_end:
                 self.sel_end = (row, col)
                 self.queue_draw()

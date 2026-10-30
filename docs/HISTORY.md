@@ -899,6 +899,75 @@ application/vnd.github.raw" /repos/.../contents/install.sh | bash`, porque repo
 privado faz o `raw.githubusercontent` responder **404** — o `curl | bash`
 clássico só passa a valer quando o repositório abrir.
 
+### P28 — Seleção com o mouse: clique de 1 char e âncora no scroll (2026-10-29)
+
+Dois sintomas com a mesma raiz: a seleção vivia em coordenadas de **tela**
+(`y` de `visible_rows()`), não de conteúdo.
+
+1. Clicar numa célula (sem arrastar) criava `sel_start = sel_end` e o release
+   copiava isso para o PRIMARY — um clique qualquer sobrescrevia a seleção do
+   usuário com 1 caractere e estragava o "colar com o botão do meio".
+2. Rolar o histórico mantinha o destaque na mesma linha física, agora por cima
+   de **outro** texto; o `copy()` seguinte usava `view_off` novo e copiava o
+   texto errado.
+
+Fix (opção B, decidida no item): `scroll_view()` desfaz a seleção quando
+`view_off` muda — e o ajuste automático de `view_off` no `on_pty` (saída nova
+com histórico aberto) faz o mesmo. A seleção passou a nascer no **arrasto**:
+`on_button_press` só guarda a célula e o pixel do press, e `clear_selection()`
+limpa a anterior; `on_motion` cria a âncora quando o ponteiro anda mais de
+`DRAG_SLOP = 3` px; `on_button_release` copia para o PRIMARY **só** quando houve
+arrasto para outra célula. Selecionar histórico com o mouse deixou de ser
+possível (o press chama `back_to_live()`) — consequência aceita da opção B.
+
+Bug no caminho: a primeira versão não tinha folga de arrasto. Segurar o botão
+sem mover fechava uma seleção de 1 célula, porque o Gtk entrega `motion` com o
+botão apertado por qualquer tremidinha. Foi o usuário que viu, testando à mão.
+A folga é medida em **pixels** (3), não em células: `cell_at` já arredonda, e
+1 célula é larga demais (14 px) para separar clique de arrasto.
+
+Verificação: manual, com display — clique-segura-solta em `cat -v` (nenhum
+reverso na tela, `xclip -o -selection primary` inalterado), arrasto curto
+(seleção + PRIMARY), wheel com seleção viva (destaque some) e arrasto novo
+depois do wheel (seleciona o texto certo). `selection_text` puro continua
+coberto em `checks.py`. A bateria não cobre o estado da view (precisa de Gtk).
+
+### P29 — `Alt` não prefixava `ESC` nas teclas especiais (2026-10-29)
+
+`Alt+Backspace` apagava **1 caractere** em vez de uma palavra no `zsh`, e o
+mesmo valia para `Alt+Tab`, `Alt+setas`, `Alt+Home/End`, `Alt+F1..F12` e
+`Ctrl+Alt+letra`. Causa: em `encode_key()` o ramo `kv in SIMPLE` devolvia a
+sequência **sem olhar o `alt`** — o prefixo `ESC` só existia no ramo dos
+imprimíveis e das dead keys.
+
+Fix genérico, no formato do xterm (não um `if` para o Backspace):
+
+- teclas de controle (`\r`, `\x7f`, `\t`, ESC) ganham prefixo `ESC` quando há
+  `Alt` — `Alt+Backspace` = `\x1b\x7f` (`^[^?`, o `backward-kill-word` do zsh);
+- teclas que já são CSI/SS3 levam o modificador como **parâmetro**
+  (`\e[1;3A` em `Alt+Up`, `\e[3;3~` em `Alt+Delete`, `\e[15;3~` em
+  `Alt+F5`, `\e[1;3P` em `Alt+F1`), com `_mod_param` = 1 + shift(1) +
+  alt(2) + ctrl(4);
+- `Ctrl+Alt+letra` = `ESC` + o caractere de controle;
+- preservados: `Shift+Tab` = `\e[Z` (com Alt vira `\e[1;3Z`) e DECCKM
+  (`\eOA` continua para seta sem modificador, `\e[1;3A` com Alt);
+- `Ctrl+Backspace` (sem Alt) continua `\x7f`: só `Alt` prefixa `ESC` nas
+  teclas de controle.
+
+Verificação: tabela de 16 casos (`Alt+Backspace`, `Backspace`, `Ctrl+Backspace`,
+`Alt+Tab`, `Shift+Tab`, `Alt+Shift+Tab`, `Alt+Up`, `Ctrl+Up`, `Up`,
+`Alt+Delete`, `Alt+F1`, `Alt+F5`, `Ctrl+Alt+a`, `Alt+a`, `Alt+Escape`,
+`Alt+Return`) conferida contra o esperado do xterm, e `Alt+Backspace` testado
+no app pelo usuário (funcionou). `keys.py` fica fora do `--selftest` por
+depender das constantes do Gdk; a tabela foi conferida à mão com `gi` e não
+virou check.
+
+Quirk de X11 registrado no caminho: injetar teclas com `xdotool key alt+F1` é
+armadilha — no MATE isso é o atalho do **menu do painel**, e sem foco na janela
+certa a tecla abre menu de sistema em vez de testar o app. Teste de teclado
+manual: `tools/xtest.py key ...` (fixa o foco por `_NET_WM_PID`) e evitar as
+combinações de `Mod1` que o WM usa.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.

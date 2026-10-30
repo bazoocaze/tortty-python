@@ -1,13 +1,14 @@
 # TASK-bzmux — status
 
-Status (2026-10-27): aplicação real, em uso diário. Roda shell, `mc` e `vim`;
+Status (2026-10-29): aplicação real, em uso diário. Roda shell, `mc` e `vim`;
 tem mouse com seleção/cópia, histórico com wheel, reflow, truecolor, protocolos
 de teclado e de imagens do kitty, bracketed paste, abas e workspaces. O que
 funciona, os limites aceitos e o resultado da medição estão no `README.md`;
-não é produto distribuído: sem empacotamento, release nem suporte.
+instala com `pipx`/`install.sh`, mas não é produto distribuído: sem release
+publicado nem suporte.
 
-Verificado nesta data: `./run-tests.sh` (bateria sem display) e a interação à
-mão com `tools/xtest.py`.
+Verificado nesta data: `./run-tests.sh` (ruff + bateria sem display) e a
+interação à mão com `tools/xtest.py`.
 
 ## Por onde retomar
 
