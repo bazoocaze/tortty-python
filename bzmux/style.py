@@ -18,6 +18,10 @@ CARD_SEL_INFO_FG = "#cfe3d5"  # linha de baixo sobre o verde
 TAB_BAR_BG = "#000000"  # barra de abas (o vazio ao lado das abas)
 TAB_ACTIVE_BG = "#1f4d2e"  # aba ativa: mesmo verde do workspace ativo
 TAB_SEP = "#333333"  # linha de 1 px entre as abas
+TOAST_BG = "#1f4d2e"  # fundo do toast de aviso (mesmo verde do cartão ativo)
+TOAST_FG = "#ffffff"  # texto do toast
+TOAST_ERR_BG = "#5c1f1f"  # toast de erro de configuração
+TOAST_ERR_FG = "#ffffff"
 
 CSS = """
 #sidebar { background-color: %(SIDEBAR_BG)s; }
@@ -38,6 +42,11 @@ notebook > header > tabs > tab {
 notebook > header > tabs > tab:first-child { border-left-width: 0; }
 notebook > header > tabs > tab:hover { background-color: %(CARD_HOVER_BG)s; }
 notebook > header > tabs > tab:checked { background-color: %(TAB_ACTIVE_BG)s; }
+#toast {
+  background-color: %(TOAST_BG)s; color: %(TOAST_FG)s; border-radius: 6px;
+  padding: 8px 16px; }
+#toast.erro { background-color: %(TOAST_ERR_BG)s; color: %(TOAST_ERR_FG)s; }
+#toast label { color: inherit; }
 """
 
 

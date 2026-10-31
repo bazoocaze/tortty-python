@@ -158,9 +158,11 @@ bzmux/
 ├── style.py     # tokens de cor do cromo + CSS gerado + contraste WCAG
 ├── view.py      # TermView: uma sessão (pty, desenho cairo+Pango, eventos)
 ├── window.py    # Workspace (Gtk.Notebook + cartão) e BzmuxWindow
+├── config.py    # configuração (chave valor) — puro; merge com o default
 ├── checks.py    # a bateria de testes
 ├── selftest.py  # runner sem dependências (--selftest)
-└── cli.py       # argv, -h/--help, arranque e entry point do console script
+├── cli.py       # argv, -h/--help, arranque e entry point do console script
+└── data/        # bzmux.svg (ícone) e bzmux.conf (opções default)
 tests/                   # runner pytest de bzmux/checks.py
 tools/                   # xtest.py, pixel.py (manual, precisa de X),
                          # doomfire.py (carga de medição, roda em qualquer um)
@@ -178,6 +180,28 @@ pelo `run.sh`, que é quem escolhe o interpretador (venv do uv ou o python do
 sistema) — por isso testar à mão e desenvolver usam o mesmo python.
 
 Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
+
+## Configuração
+
+Um arquivo no formato do kitty (`chave valor`, `#` comenta), em
+`~/.config/bzmux/bzmux.conf` (ou o que `-c ARQUIVO` apontar). O que você não
+escrever vem do default que embarca com o programa (`bzmux/data/bzmux.conf`) —
+o seu arquivo é **mesclado** por cima dele, não o substitui.
+
+```sh
+./run.sh -c /tmp/meu.conf     # usa outro arquivo (merge com o default)
+```
+
+Hoje há uma opção:
+
+```
+# programa aberto em cada aba nova (o --cmd da linha de comando vence)
+shell /bin/bash
+```
+
+Editar o arquivo com o app aberto aplica na hora; configuração inválida **não
+é aplicada** — continua valendo a anterior e o erro aparece num aviso de 10 s na
+base da janela. `Ctrl+Shift+F2` abre o seu arquivo no `vim`, numa aba nova.
 
 ## O que funciona
 

@@ -9,9 +9,11 @@ O que é de sessão mora na `view.py`; aqui só há ciclo de vida e atalhos.
 """
 
 import os
+import shlex
 import signal
 import sys
 
+from . import config as config_mod
 from . import state, style
 from .gui import Gdk, GdkX11, GLib, Gtk, Pango
 from .view import TermView
@@ -133,10 +135,10 @@ class Workspace:
             return self.views[i]
         return self.views[0] if self.views else None
 
-    def new_tab(self):
+    def new_tab(self, cmd=None):
         """Aba nova, herdando o cwd da aba corrente."""
         v = TermView(
-            cmd=self.win.cmd,
+            cmd=cmd if cmd is not None else self.win.cmd,
             cwd=self.win.current_cwd(self),
             font_size=self.win.font_size,
             on_exit=self.on_view_exit,
@@ -317,12 +319,14 @@ class Workspace:
 
 
 class BzmuxWindow(Gtk.Window):
-    def __init__(self, cmd=None, quit_after=0, dump_to=None):
+    def __init__(self, cmd=None, quit_after=0, dump_to=None, config_path=None):
         super().__init__(title="bzmux")
         # O comando dado na linha de comando é replicado em cada aba nova
         # (decisão do P11): `run.sh --cmd ...` e os testes continuam
-        # previsíveis. Sem `--cmd`, cada aba nasce com $SHELL.
-        self.cmd = cmd
+        # previsíveis. Sem `--cmd`, cada aba nasce com o `shell` da configuração.
+        self.config = config_mod.load(config_path)
+        self._cmd_fixo = cmd is not None  # --cmd não é sobrescrito pela config
+        self.cmd = cmd if cmd is not None else self.config.shell
         self.dump_to = dump_to
         self.quit_after = quit_after
         self.workspaces = []
@@ -349,7 +353,29 @@ class BzmuxWindow(Gtk.Window):
         hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         hbox.pack_start(self.sidebar, False, False, 0)
         hbox.pack_start(self.stack, True, True, 0)
-        self.add(hbox)
+        # toast (P33): aviso que aparece por 10 s sobre a grade, estilo Android.
+        # Fica num Gtk.Overlay para não tirar espaço de nada.
+        self.overlay = Gtk.Overlay()
+        self.overlay.add(hbox)
+        self.toast = Gtk.Revealer()
+        self.toast.set_valign(Gtk.Align.END)
+        self.toast.set_halign(Gtk.Align.CENTER)
+        self.toast.set_margin_bottom(28)
+        # EventBox e não Label: o #toast precisa de um widget que pinte o
+        # fundo do CSS (label não pinta de forma confiável no GTK3)
+        self.toast_box = Gtk.EventBox()
+        self.toast_box.set_name("toast")
+        self.toast_label = Gtk.Label()
+        self.toast_label.set_line_wrap(True)
+        self.toast_label.set_max_width_chars(80)
+        self.toast_box.add(self.toast_label)
+        self.toast.add(self.toast_box)
+        # show_all() não pode revelá-lo: quem mostra é o show_toast
+        for w in (self.toast, self.toast_box, self.toast_label):
+            w.set_no_show_all(True)
+        self.overlay.add_overlay(self.toast)
+        self._toast_timer = 0
+        self.add(self.overlay)
         # 680x420 casava com a fonte de 16 px; com 13 pontos (23 px nesta tela)
         # a grade caía para 48x14. 980x640 devolve ~70x20.
         geom = state.fit(
@@ -375,12 +401,71 @@ class BzmuxWindow(Gtk.Window):
         self.connect("key-press-event", self.on_window_key)
 
         self.new_workspace()
+        # aviso de configuração (P33) só depois da janela existir
+        aviso = config_mod.message(self.config)
+        if aviso:
+            self.show_toast(aviso, erro=True)
+        # a referência tem de sobreviver: sem ela o Gio.FileMonitor é coletado
+        # e o auto-reload simplesmente não acontece (monitor mudo)
+        self._conf_monitor = config_mod.watch(self.reload_config, self.config.path)
         if quit_after:
             GLib.timeout_add_seconds(quit_after, self._on_quit_after)
         # SIGUSR1 dumpar as abas na hora (depuração: "kill -USR1 <pid>")
         GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1, self._on_dump_signal)
         # SIGTERM fecha como o --quit-after: o dump e o prof saem no fim
         GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM, self._on_term_signal)
+
+    # -- configuração (P33) --------------------------------------------
+    def show_toast(self, texto, erro=False, segundos=10):
+        """Aviso flutuante na base da janela, como no Android."""
+        self.toast_label.set_text(texto)
+        ctx = self.toast_box.get_style_context()
+        if erro:
+            ctx.add_class("erro")
+        else:
+            ctx.remove_class("erro")
+        # show(), não show_all(): com no_show_all ligado o show_all() não faz
+        # nada nem chamado direto no widget (a caixa ficava invisível)
+        self.toast_label.show()
+        self.toast_box.show()
+        self.toast.show()
+        self.toast.set_reveal_child(True)
+        if self._toast_timer:
+            GLib.source_remove(self._toast_timer)
+        self._toast_timer = GLib.timeout_add_seconds(segundos, self._hide_toast)
+
+    def _hide_toast(self):
+        self._toast_timer = 0
+        self.toast.set_reveal_child(False)
+        return False
+
+    def open_config(self):
+        """Ctrl+Shift+F2: editar o arquivo de configuração no vim, em aba nova."""
+        ws = self.current
+        if ws is None:
+            return
+        conf = str(self.config.path)
+        conf_path = os.path.dirname(conf)
+        try:
+            os.makedirs(conf_path, exist_ok=True)  # vim cria o arquivo ao salvar
+        except OSError:
+            pass
+        ws.new_tab(cmd="vim %s" % shlex.quote(conf))
+
+    def reload_config(self):
+        """Arquivo mudou: valida antes de aplicar; inválido mantém o anterior."""
+        novo = config_mod.load(self.config.path)
+        if not novo.ok:
+            self.show_toast(config_mod.message(novo), erro=True)
+            return
+        self.config = novo
+        if novo.shell != self.cmd and not getattr(self, "_cmd_fixo", False):
+            self.cmd = novo.shell  # vale para as próximas abas
+        if os.environ.get("PYTERM_CONFLOG"):
+            print("config recarregada: %r" % (novo.values,), file=sys.stderr)
+        aviso = config_mod.message(novo)
+        if aviso:
+            self.show_toast(aviso)
 
     # -- workspaces ----------------------------------------------------
     @property
@@ -466,6 +551,9 @@ class BzmuxWindow(Gtk.Window):
         kv = ev.keyval
         ws = self.current
         if ctrl and shift:
+            if kv == Gdk.KEY_F2:  # P33: editar a configuração no vim
+                self.open_config()
+                return True
             if kv in (Gdk.KEY_t, Gdk.KEY_T):
                 if ws is not None:
                     ws.new_tab()

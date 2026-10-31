@@ -124,15 +124,18 @@ def argv_parsing():
     """--help sai sem abrir janela; opção inválida é erro de uso (exit 2)."""
     from . import cli
 
-    assert cli.parse_args(["bzmux"]) == (None, 0, None, None)
+    assert cli.parse_args(["bzmux"]) == (None, 0, None, None, None)
     assert cli.parse_args(["bzmux", "--cmd", "mc", "--quit-after", "2"]) == (
         "mc",
         2,
         None,
         None,
+        None,
     )
-    assert cli.parse_args(["bzmux", "--cmd"])[3] == "--cmd"
-    assert cli.parse_args(["bzmux", "--nada"])[3] == "--nada"
+    assert cli.parse_args(["bzmux", "-c", "/tmp/x.conf"])[3] == "/tmp/x.conf"
+    assert cli.parse_args(["bzmux", "--config", "/tmp/x.conf"])[3] == "/tmp/x.conf"
+    assert cli.parse_args(["bzmux", "--cmd"])[4] == "--cmd"
+    assert cli.parse_args(["bzmux", "--nada"])[4] == "--nada"
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out):
         assert cli.main(["bzmux", "--help"]) == 0
@@ -140,6 +143,40 @@ def argv_parsing():
     with contextlib.redirect_stderr(err):
         assert cli.main(["bzmux", "--nada"]) == 2
     assert "--cmd" in err.getvalue()
+
+
+def config_file():
+    """P33: formato do kitty, merge com o default embutido e validação."""
+    from . import config
+
+    # o arquivo de padrões embarca no pacote (mesmo tratamento do ícone)
+    assert config.DATA.exists()
+    assert config.parse(config.DATA.read_text())["shell"] == config.DEFAULT_SHELL
+    # comentário de linha inteira e no fim da linha, espaço, chave repetida
+    vals = config.parse("# cabeçalho\n  shell   /bin/sh   # inline\n\nfoo bar\nshell /bin/bash\n")
+    assert vals == {"shell": "/bin/bash", "foo": "bar"}
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "bzmux.conf")
+    # merge: o usuário só sobrescreve o que escreveu
+    with open(p, "w") as f:
+        f.write("shell /bin/sh\n")
+    cfg = config.load(p)
+    assert (cfg.shell, cfg.errors, cfg.warnings) == ("/bin/sh", [], [])
+    assert cfg.exists
+    # sem arquivo do usuário: valem os padrões, sem erro
+    cfg = config.load(os.path.join(d, "nao-existe.conf"))
+    assert (cfg.shell, cfg.ok, cfg.exists) == (config.DEFAULT_SHELL, True, False)
+    # chave desconhecida é aviso (o resto do arquivo vale)
+    with open(p, "w") as f:
+        f.write("foo bar\nshell /bin/sh\n")
+    cfg = config.load(p)
+    assert (cfg.shell, cfg.ok, len(cfg.warnings)) == ("/bin/sh", True, 1)
+    # valor inválido não aplica NADA: fica o padrão e o erro vai pro toast
+    with open(p, "w") as f:
+        f.write("shell /nao/existe/xyz\n")
+    cfg = config.load(p)
+    assert (cfg.shell, cfg.ok) == (config.DEFAULT_SHELL, False)
+    assert "não executável" in config.message(cfg)
 
 
 # -- protocolo de teclado do kitty (P5) --------------------------------
@@ -334,6 +371,8 @@ def style_contrast():
         (style.CARD_SEL_INFO_FG, style.CARD_SEL_BG),
         (style.CARD_FG, style.TAB_BAR_BG),
         (style.CARD_FG, style.TAB_ACTIVE_BG),
+        (style.TOAST_FG, style.TOAST_BG),
+        (style.TOAST_ERR_FG, style.TOAST_ERR_BG),
     ):
         assert style.contrast(fg, bg) >= 4.5, (fg, bg, style.contrast(fg, bg))
     # e o CSS tem que realmente usar os tokens, não uma cópia à mão
@@ -413,6 +452,7 @@ ALL = (
     csi_with_intermediate,
     argv_parsing,
     kitty_keyboard,
+    config_file,
     graphics_image_and_offset,
     graphics_follow_history,
     wrap_and_control,

@@ -71,6 +71,8 @@ nenhum arquivo solto na raiz. O código:
       cli.py       argv e arranque (e o entry point do console script)
       shortcut.py  atalho do sistema (.desktop + ícone) — puro, roda antes do gi
       state.py     geometria da janela entre execuções (JSON em XDG_STATE_HOME)
+      config.py    configuração (chave/valor do kitty) — puro; merge com o default
+      data/        bzmux.svg (ícone) e bzmux.conf (opções default embarcadas)
     tests/         runner pytest de bzmux/checks.py
     tools/         xtest.py, pixel.py — teste manual, exige X11 (só eles);
                    doomfire.py — carga de medição
@@ -151,7 +153,9 @@ o teto de vazão é o preço aceito e se ataca em Python, não reescrevendo em C
   PYTERM_PROF=1 o resumo ainda traz bytes lidos e eagain. Com
   PYTERM_GEOMLOG=1 cada configure imprime posição do cliente, da moldura e os
   frame extents — foi o que mostrou a janela descendo 30 px por execução (o
-  título contado duas vezes). A escada com os números fica em
+  título contado duas vezes). Com PYTERM_CONFLOG=1 cada reload de configuração
+  aprovado imprime os valores no stderr (prova que o monitor disparou sem
+  depender de olhar o toast). A escada com os números fica em
   docs/BENCHMARKS.md.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
@@ -176,11 +180,20 @@ App:
   porque o repositório é privado; `curl | bash` só passa a valer quando ele
   abrir.
 - bzmux — o terminal (console script instalado, `python3 -m bzmux` na árvore,
-  ou ./run.sh). Opções: --cmd COMANDO, --quit-after SEG,
+  ou ./run.sh). Opções: --cmd COMANDO, -c/--config ARQUIVO, --quit-after SEG,
   --dump-to ARQUIVO, --selftest (roda os checks e sai), --install-shortcut /
   --remove-shortcut (atalho no menu: .desktop + ícone em XDG_DATA_HOME), -h/--help
   (ajuda sem abrir janela; opção inválida também sai, com exit 2). Sem PyGObject
   no ambiente, a mensagem diz o que instalar em vez de estourar traceback.
+- Configuração (P33): `chave valor` no formato do kitty, `#` comenta. O arquivo
+do usuário é `$XDG_CONFIG_HOME/bzmux/bzmux.conf` (o `-c` troca o caminho) e é
+**sempre mesclado** sobre `bzmux/data/bzmux.conf`, que é o default embarcado.
+v1 tem uma opção: `shell` (default `/bin/bash`, usado em cada aba nova; o
+`--cmd` vence). Editar o arquivo com o app aberto aplica na hora
+(`Gio.FileMonitor` com debounce de 250 ms) e config inválida **não aplica
+nada** — fica a anterior e o erro vira um toast de 10 s na base da janela.
+`Ctrl+Shift+F2` abre o arquivo do usuário no `vim`, em aba nova. Com
+`PYTERM_CONFLOG=1` cada reload aprovado imprime os valores no stderr.
 - pipx install --system-site-packages git+ssh://git@github.com/bazoocaze/pybzmux.git
   — instala na máquina (Linux; build feito do clone pelo hatchling, o comando
   bzmux fica no PATH). Os detalhes e as armadilhas ficam em docs/BACKLOG.md

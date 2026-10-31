@@ -32,10 +32,10 @@ output) ignorado — o registro está no [`docs/HISTORY.md`](docs/HISTORY.md).
 
 ## Fila
 
-P33 na fila: arquivo de configuração (fonte, paleta, shell, atalhos) com
-`-c`, default embarcado, formato do kitty, `Ctrl+Shift+F2` abrindo no `vim` e
-auto-reload validado — o escopo e as decisões estão em
-[`docs/BACKLOG.md`](docs/BACKLOG.md).
+P33 v1 implementado: arquivo de configuração (só `shell` por enquanto) com
+`-c`, default embarcado e mesclado, formato do kitty, `Ctrl+Shift+F2` abrindo no
+`vim` e auto-reload validado. Falta o uso real; as próximas opções (fonte,
+scrollback, paleta, atalhos) estão em [`docs/BACKLOG.md`](docs/BACKLOG.md).
 
 P32 concluído: o output do app não arranca mais quem está lendo o histórico
 (âncora por linha absoluta; sem heurística de conteúdo). O porquê e o que foi

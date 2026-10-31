@@ -171,6 +171,43 @@ uma célula só, protocolo de teclado do kitty parcial, sequências não
 interpretadas, sem configuração/tema — tudo em
 [LIMITATIONS.md](LIMITATIONS.md).
 
+P33 — Arquivo de configuração: **v1 implementado** (2026-10-29), falta o uso
+real. A decisão de escopo foi "começar só com `shell`": nada de cores, fonte ou
+atalhos ainda. O que existe:
+
+- `bzmux/config.py` puro (sem `gi`): parse do formato do kitty (`chave valor`,
+  `#` comenta até o fim da linha, espaço nas pontas, chave repetida vale a
+  última), validação por chave e merge **sempre** com o default;
+- default embarcado em `bzmux/data/bzmux.conf` (vai no wheel como o ícone);
+- arquivo do usuário em `$XDG_CONFIG_HOME/bzmux/bzmux.conf`, e `-c ARQ` /
+  `--config ARQ` troca só esse caminho (o merge com o default continua);
+- `shell` (default `/bin/bash`) vira o comando de cada aba nova; `--cmd` vence.
+  **Mudança de comportamento**: `$SHELL` não é mais consultado;
+- auto-reload por `Gio.FileMonitor` com debounce de 250 ms; config inválida
+  **não aplica nada** (mantém a anterior) e o erro vai para um toast de 10 s na
+  base da janela (estilo Android, `Gtk.Revealer` + `#toast` no `style.py`);
+- `Ctrl+Shift+F2` abre o arquivo do usuário no `vim`, em aba nova.
+
+O que fica para depois, na ordem em que faz sentido: `font_family`/`font_size`
+(exige re-medir a célula e `Term.resize`, o reflow já existe), `scrollback`,
+paleta (`color0..15`, `foreground`, `background`, `cursor`) e só então
+remapeamento de atalhos. Cores com `#rrggbb` no formato do kitty; fonte em
+**pontos** (é o que o Pango usa hoje).
+
+Dois bugs achados no caminho, registrados no `docs/HISTORY.md`: o
+`Gio.FileMonitor` era coletado pelo GC (sem referência guardada o reload nunca
+disparava) e `no_show_all` bloqueia até o `show_all()` chamado direto no widget
+(a caixa do toast ficava invisível).
+
+Os demais itens (P1–P25, P19, P28, P29, P31 e P32) estão concluídos. Histórico, bugs e quirks:
+[HISTORY.md](HISTORY.md). Status e por onde retomar:
+[../TASK-bzmux.md](../TASK-bzmux.md).
+
+O que sobra é limite conhecido, não item — caractere largo (CJK/emoji) ocupando
+uma célula só, protocolo de teclado do kitty parcial, sequências não
+interpretadas, sem configuração/tema — tudo em
+[LIMITATIONS.md](LIMITATIONS.md).
+
 P33 — Arquivo de configuração (fonte, paleta, shell, atalhos). **A implementar**
 (2026-10-29). Hoje tudo é fixo no código e quem quiser mudar edita o módulo:
 família `Monospace` e `font_size=13` (`view.py:101`, `:463`), paleta de 256 cores
