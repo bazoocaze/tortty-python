@@ -162,7 +162,7 @@ seleção com botão do meio e `./bench.sh` — este último só onde houver lei
 de governor/frequência (no mac e no Windows vira outro protocolo, não uma
 linha da escada atual).
 
-Os itens P1–P25, P28, P29 e P31 estão concluídos. Histórico, bugs e quirks:
+Os demais itens (P1–P25, P19, P28, P29, P31 e P32) estão concluídos. Histórico, bugs e quirks:
 [HISTORY.md](HISTORY.md). Status e por onde retomar:
 [../TASK-bzmux.md](../TASK-bzmux.md).
 
