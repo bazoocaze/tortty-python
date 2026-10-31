@@ -109,6 +109,8 @@ o teto de vazão é o preço aceito e se ataca em Python, não reescrevendo em C
 - Nomes de arquivo e símbolos no código (funções, variáveis, classes, constantes)
   em inglês.
 - Docstrings e comentários no código: no máximo uma linha.
+- Dados com campos nomeados (NamedTuple/dataclass), não tuplas cruas: posição
+  não diz o que é, nome diz.
 - Formato pensado para agente, não precisa ser agradável para humano.
 - Cor de interface só em bzmux/style.py (tokens + CSS gerado); nenhum hex solto
   no código. Cor de célula do terminal é palette.py — não misturar as duas.

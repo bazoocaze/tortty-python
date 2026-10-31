@@ -353,28 +353,67 @@ class BzmuxWindow(Gtk.Window):
         hbox = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
         hbox.pack_start(self.sidebar, False, False, 0)
         hbox.pack_start(self.stack, True, True, 0)
-        # toast (P33): aviso que aparece por 10 s sobre a grade, estilo Android.
-        # Fica num Gtk.Overlay para não tirar espaço de nada.
+        # toast (P33): aviso sobre a grade, estilo Android. Fica num
+        # Gtk.Overlay para não tirar espaço de nada. Dura 3 s quando é ok e
+        # 10 s nos outros; clique dispensa (no erro abre a configuração); com
+        # um visível o novo espera na fila em vez de perder o anterior.
         self.overlay = Gtk.Overlay()
         self.overlay.add(hbox)
         self.toast = Gtk.Revealer()
         self.toast.set_valign(Gtk.Align.END)
         self.toast.set_halign(Gtk.Align.CENTER)
         self.toast.set_margin_bottom(28)
+        self.toast.set_transition_type(Gtk.RevealerTransitionType.SLIDE_UP)
+        self.toast.set_transition_duration(220)
         # EventBox e não Label: o #toast precisa de um widget que pinte o
         # fundo do CSS (label não pinta de forma confiável no GTK3)
         self.toast_box = Gtk.EventBox()
         self.toast_box.set_name("toast")
-        self.toast_label = Gtk.Label()
-        self.toast_label.set_line_wrap(True)
-        self.toast_label.set_max_width_chars(80)
-        self.toast_box.add(self.toast_label)
+        self.toast_box.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        self.toast_box.connect("button-press-event", self._on_toast_click)
+        # o EventBox ignora padding do CSS no tamanho: quem respira é a
+        # caixa interna, com meia altura da fonte em todos os lados
+        self.toast_corpo = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        self.toast_barra = Gtk.EventBox()
+        self.toast_barra.get_style_context().add_class("barra")
+        self.toast_barra.set_size_request(4, -1)
+        self.toast_textos = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        textos = self.toast_textos
+        # a mesma fonte da grade: Monospace 13 pontos (era a do tema, ~11)
+        fonte = Pango.FontDescription()
+        fonte.set_family("Monospace")
+        fonte.set_size(13 * Pango.SCALE)
+        self.toast_titulo = Gtk.Label()
+        self.toast_titulo.override_font(fonte)
+        self.toast_titulo.set_xalign(0)
+        self.toast_detalhe = Gtk.Label()
+        self.toast_detalhe.override_font(fonte)
+        self.toast_detalhe.get_style_context().add_class("detalhe")
+        self.toast_detalhe.set_xalign(0)
+        self.toast_detalhe.set_line_wrap(True)
+        # sem teto de largura: o detalhe cresce até a borda e quebra
+        textos.pack_start(self.toast_titulo, False, False, 0)
+        textos.pack_start(self.toast_detalhe, False, False, 0)
+        self.toast_corpo.pack_start(self.toast_barra, False, False, 0)
+        self.toast_corpo.pack_start(textos, False, False, 0)
+        self.toast_box.add(self.toast_corpo)
         self.toast.add(self.toast_box)
         # show_all() não pode revelá-lo: quem mostra é o show_toast
-        for w in (self.toast, self.toast_box, self.toast_label):
+        for w in (
+            self.toast,
+            self.toast_box,
+            self.toast_corpo,
+            self.toast_barra,
+            self.toast_textos,
+            self.toast_titulo,
+            self.toast_detalhe,
+        ):
             w.set_no_show_all(True)
         self.overlay.add_overlay(self.toast)
         self._toast_timer = 0
+        self._toast_queue = []  # (titulo, detalhe, erro, aviso, segs) à espera
+        self._toast_erro = False  # o visível é erro? (clique abre a config)
+        self._toast_pad = None  # meia altura da fonte, medida no 1º show
         self.add(self.overlay)
         # 680x420 casava com a fonte de 16 px; com 13 pontos (23 px nesta tela)
         # a grade caía para 48x14. 980x640 devolve ~70x20.
@@ -404,7 +443,10 @@ class BzmuxWindow(Gtk.Window):
         # aviso de configuração (P33) só depois da janela existir
         aviso = config_mod.message(self.config)
         if aviso:
-            self.show_toast(aviso, erro=True)
+            if self.config.ok:
+                self.show_toast("Aviso na configuração", aviso, aviso=True)
+            else:
+                self.show_toast("Erro na configuração", aviso, erro=True)
         # a referência tem de sobreviver: sem ela o Gio.FileMonitor é coletado
         # e o auto-reload simplesmente não acontece (monitor mudo)
         self._conf_monitor = config_mod.watch(self.reload_config, self.config.path)
@@ -416,17 +458,42 @@ class BzmuxWindow(Gtk.Window):
         GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM, self._on_term_signal)
 
     # -- configuração (P33) --------------------------------------------
-    def show_toast(self, texto, erro=False, segundos=10):
+    def show_toast(self, titulo, detalhe="", erro=False, aviso=False, segundos=None):
         """Aviso flutuante na base da janela, como no Android."""
-        self.toast_label.set_text(texto)
+        if segundos is None:
+            segundos = 3 if not (erro or aviso) else 10
+        if self.toast.get_reveal_child():  # um visível: entra na fila
+            self._toast_queue.append((titulo, detalhe, erro, aviso, segundos))
+            return
+        self._show_toast(titulo, detalhe, erro, aviso, segundos)
+
+    def _show_toast(self, titulo, detalhe, erro, aviso, segundos):
+        if self._toast_pad is None:  # meia altura da fonte do toast
+            lay = self.toast_titulo.create_pango_layout("Xg")
+            self._toast_pad = max(1, round(lay.get_pixel_size()[1] / 2))
+            self.toast_corpo.set_border_width(self._toast_pad)
+        self.toast_titulo.set_text(titulo)
+        self.toast_detalhe.set_text(detalhe)
+        if detalhe:
+            self.toast_detalhe.show()
+        self._toast_erro = erro
         ctx = self.toast_box.get_style_context()
         if erro:
             ctx.add_class("erro")
+            ctx.remove_class("aviso")
+        elif aviso:
+            ctx.add_class("aviso")
+            ctx.remove_class("erro")
         else:
             ctx.remove_class("erro")
+            ctx.remove_class("aviso")
         # show(), não show_all(): com no_show_all ligado o show_all() não faz
         # nada nem chamado direto no widget (a caixa ficava invisível)
-        self.toast_label.show()
+        self.toast_corpo.show()
+        self.toast_barra.show()
+        self.toast_textos.show()
+        self.toast_titulo.show()
+        self.toast_detalhe.set_visible(bool(detalhe))
         self.toast_box.show()
         self.toast.show()
         self.toast.set_reveal_child(True)
@@ -436,11 +503,28 @@ class BzmuxWindow(Gtk.Window):
 
     def _hide_toast(self):
         self._toast_timer = 0
-        self.toast.set_reveal_child(False)
+        self._toast_next()
         return False
 
+    def _toast_next(self):
+        """Timer estourou ou clique dispensou: próximo da fila ou esconde."""
+        if self._toast_queue:
+            self._show_toast(*self._toast_queue.pop(0))
+        else:
+            self.toast.set_reveal_child(False)
+
+    def _on_toast_click(self, _w, _ev):
+        """Clique dispensa o aviso; no erro abre a configuração."""
+        if self._toast_erro:
+            self.open_config()
+        if self._toast_timer:
+            GLib.source_remove(self._toast_timer)
+            self._toast_timer = 0
+        self._toast_next()
+        return True
+
     def open_config(self):
-        """Ctrl+Shift+F2: editar o arquivo de configuração no vim, em aba nova."""
+        """Editar o arquivo de configuração no vim, em aba nova."""
         ws = self.current
         if ws is None:
             return
@@ -456,7 +540,7 @@ class BzmuxWindow(Gtk.Window):
         """Arquivo mudou: valida antes de aplicar; inválido mantém o anterior."""
         novo = config_mod.load(self.config.path)
         if not novo.ok:
-            self.show_toast(config_mod.message(novo), erro=True)
+            self.show_toast("Erro na configuração", config_mod.message(novo), erro=True)
             return
         self.config = novo
         if novo.shell != self.cmd and not getattr(self, "_cmd_fixo", False):
@@ -465,7 +549,9 @@ class BzmuxWindow(Gtk.Window):
             print("config recarregada: %r" % (novo.values,), file=sys.stderr)
         aviso = config_mod.message(novo)
         if aviso:
-            self.show_toast(aviso)
+            self.show_toast("Aviso na configuração", aviso, aviso=True)
+        else:
+            self.show_toast("Configuração aplicada", "shell %s" % novo.shell)
 
     # -- workspaces ----------------------------------------------------
     @property

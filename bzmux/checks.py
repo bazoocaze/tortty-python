@@ -151,10 +151,15 @@ def config_file():
 
     # o arquivo de padrões embarca no pacote (mesmo tratamento do ícone)
     assert config.DATA.exists()
-    assert config.parse(config.DATA.read_text())["shell"] == config.DEFAULT_SHELL
+    emb = {e.key: e.value for e in config.parse(config.DATA.read_text())}
+    assert emb["shell"] == config.DEFAULT_SHELL
     # comentário de linha inteira e no fim da linha, espaço, chave repetida
     vals = config.parse("# cabeçalho\n  shell   /bin/sh   # inline\n\nfoo bar\nshell /bin/bash\n")
-    assert vals == {"shell": "/bin/bash", "foo": "bar"}
+    assert [(e.key, e.value, e.line) for e in vals] == [
+        ("shell", "/bin/sh", 2),
+        ("foo", "bar", 4),
+        ("shell", "/bin/bash", 5),
+    ]
     d = tempfile.mkdtemp()
     p = os.path.join(d, "bzmux.conf")
     # merge: o usuário só sobrescreve o que escreveu
@@ -163,20 +168,28 @@ def config_file():
     cfg = config.load(p)
     assert (cfg.shell, cfg.errors, cfg.warnings) == ("/bin/sh", [], [])
     assert cfg.exists
+    # repetida: aviso com as linhas, vale a última, o resto aplica
+    with open(p, "w") as f:
+        f.write("shell /bin/sh\nshell /bin/bash\n")
+    cfg = config.load(p)
+    assert (cfg.shell, cfg.ok, len(cfg.warnings)) == ("/bin/bash", True, 1)
+    assert "linha 2: shell repetido" in config.message(cfg)
+    assert "linha 1 ignorada" in config.message(cfg)
     # sem arquivo do usuário: valem os padrões, sem erro
     cfg = config.load(os.path.join(d, "nao-existe.conf"))
     assert (cfg.shell, cfg.ok, cfg.exists) == (config.DEFAULT_SHELL, True, False)
-    # chave desconhecida é aviso (o resto do arquivo vale)
+    # chave desconhecida é erro (linha lixo invalida o arquivo, vale o padrão)
     with open(p, "w") as f:
         f.write("foo bar\nshell /bin/sh\n")
     cfg = config.load(p)
-    assert (cfg.shell, cfg.ok, len(cfg.warnings)) == ("/bin/sh", True, 1)
+    assert (cfg.shell, cfg.ok) == (config.DEFAULT_SHELL, False)
+    assert "linha 1: chave desconhecida: foo" in config.message(cfg)
     # valor inválido não aplica NADA: fica o padrão e o erro vai pro toast
     with open(p, "w") as f:
-        f.write("shell /nao/existe/xyz\n")
+        f.write("# nada aqui\nshell /nao/existe/xyz\n")
     cfg = config.load(p)
     assert (cfg.shell, cfg.ok) == (config.DEFAULT_SHELL, False)
-    assert "não executável" in config.message(cfg)
+    assert "linha 2: shell não executável" in config.message(cfg)
 
 
 # -- protocolo de teclado do kitty (P5) --------------------------------
@@ -372,7 +385,11 @@ def style_contrast():
         (style.CARD_FG, style.TAB_BAR_BG),
         (style.CARD_FG, style.TAB_ACTIVE_BG),
         (style.TOAST_FG, style.TOAST_BG),
+        (style.TOAST_DETAIL_FG, style.TOAST_BG),
+        (style.TOAST_WARN_FG, style.TOAST_WARN_BG),
+        (style.TOAST_DETAIL_FG, style.TOAST_WARN_BG),
         (style.TOAST_ERR_FG, style.TOAST_ERR_BG),
+        (style.TOAST_DETAIL_FG, style.TOAST_ERR_BG),
     ):
         assert style.contrast(fg, bg) >= 4.5, (fg, bg, style.contrast(fg, bg))
     # e o CSS tem que realmente usar os tokens, não uma cópia à mão
@@ -384,6 +401,11 @@ def style_contrast():
         style.TAB_BAR_BG,
         style.TAB_ACTIVE_BG,
         style.TAB_SEP,
+        style.TOAST_ACCENT,
+        style.TOAST_DETAIL_FG,
+        style.TOAST_WARN_BG,
+        style.TOAST_WARN_ACCENT,
+        style.TOAST_ERR_ACCENT,
     ):
         assert token in css
     assert style.CARD_INFO_FG in css

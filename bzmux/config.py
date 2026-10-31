@@ -12,6 +12,7 @@ estava funcionando.
 import os
 import shutil
 from pathlib import Path
+from typing import NamedTuple
 
 # Só para pacote mal montado (o `data/bzmux.conf` é a fonte normal dos padrões).
 FALLBACK = {"shell": "/bin/bash"}
@@ -19,6 +20,14 @@ DEFAULT_SHELL = "/bin/bash"
 DATA = Path(__file__).with_name("data") / "bzmux.conf"
 
 KNOWN = ("shell",)
+
+
+class Entry(NamedTuple):
+    """Uma linha `chave valor` com o número da linha (para o erro citar)."""
+
+    key: str
+    value: str
+    line: int
 
 
 def default_path():
@@ -36,15 +45,16 @@ def _sem_comentario(linha):
 
 
 def parse(text):
-    """Texto -> {chave: valor}. Chave repetida: o último valor vence."""
-    vals = {}
-    for linha in text.splitlines():
+    """Texto -> [Entry] em ordem; repetida aparece duas vezes, vence a última."""
+    saidas = []
+    for n, linha in enumerate(text.splitlines(), 1):
         linha = _sem_comentario(linha).strip()
         if not linha:
             continue
         partes = linha.split(None, 1)
-        vals[partes[0]] = partes[1].strip() if len(partes) > 1 else ""
-    return vals
+        valor = partes[1].strip() if len(partes) > 1 else ""
+        saidas.append(Entry(partes[0], valor, n))
+    return saidas
 
 
 def check_shell(valor):
@@ -93,18 +103,25 @@ def _read(path):
 def _validated(vals, base):
     """Valida chave a chave sobre `base`; erro mantém o valor de `base`.
 
-    Chave desconhecida é **aviso**, não erro: o resto do arquivo continua valendo.
+    Chave desconhecida é **erro**: linha lixo é config inválida, nada vale.
     """
     out, errors, warnings = dict(base), [], []
-    for chave, valor in vals.items():
-        if chave not in KNOWN:
-            warnings.append("chave desconhecida: %s" % chave)
+    vistos = {}  # chave -> linha da primeira ocorrência (repetida avisa)
+    for e in vals:
+        if e.key not in KNOWN:
+            errors.append("linha %d: chave desconhecida: %s" % (e.line, e.key))
             continue
-        err = CHECKS[chave](valor)
+        if e.key in vistos:
+            warnings.append(
+                "linha %d: %s repetido, vale este (linha %d ignorada)"
+                % (e.line, e.key, vistos[e.key])
+            )
+        vistos[e.key] = e.line
+        err = CHECKS[e.key](e.value)
         if err:
-            errors.append(err)
+            errors.append("linha %d: %s" % (e.line, err))
         else:
-            out[chave] = valor
+            out[e.key] = e.value
     return out, errors, warnings
 
 

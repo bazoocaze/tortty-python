@@ -19,9 +19,15 @@ TAB_BAR_BG = "#000000"  # barra de abas (o vazio ao lado das abas)
 TAB_ACTIVE_BG = "#1f4d2e"  # aba ativa: mesmo verde do workspace ativo
 TAB_SEP = "#333333"  # linha de 1 px entre as abas
 TOAST_BG = "#1f4d2e"  # fundo do toast de aviso (mesmo verde do cartão ativo)
-TOAST_FG = "#ffffff"  # texto do toast
+TOAST_FG = "#ffffff"  # título do toast
+TOAST_DETAIL_FG = "#dddddd"  # segunda linha do toast
+TOAST_ACCENT = "#4c9e67"  # barra e borda do toast de ok
+TOAST_WARN_BG = "#5c4a12"  # fundo do toast de aviso
+TOAST_WARN_FG = "#ffffff"  # título do toast de aviso
+TOAST_WARN_ACCENT = "#b3912e"  # barra e borda do toast de aviso
 TOAST_ERR_BG = "#5c1f1f"  # toast de erro de configuração
 TOAST_ERR_FG = "#ffffff"
+TOAST_ERR_ACCENT = "#c05252"  # barra e borda do toast de erro
 
 CSS = """
 #sidebar { background-color: %(SIDEBAR_BG)s; }
@@ -43,10 +49,18 @@ notebook > header > tabs > tab:first-child { border-left-width: 0; }
 notebook > header > tabs > tab:hover { background-color: %(CARD_HOVER_BG)s; }
 notebook > header > tabs > tab:checked { background-color: %(TAB_ACTIVE_BG)s; }
 #toast {
-  background-color: %(TOAST_BG)s; color: %(TOAST_FG)s; border-radius: 6px;
-  padding: 8px 16px; }
-#toast.erro { background-color: %(TOAST_ERR_BG)s; color: %(TOAST_ERR_FG)s; }
+  background-color: %(TOAST_BG)s; color: %(TOAST_FG)s; border-radius: 14px;
+  border: 1px solid %(TOAST_ACCENT)s;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.75); }
+#toast.erro { background-color: %(TOAST_ERR_BG)s; color: %(TOAST_ERR_FG)s;
+  border-color: %(TOAST_ERR_ACCENT)s; }
+#toast.aviso { background-color: %(TOAST_WARN_BG)s; color: %(TOAST_WARN_FG)s;
+  border-color: %(TOAST_WARN_ACCENT)s; }
 #toast label { color: inherit; }
+#toast .detalhe { color: %(TOAST_DETAIL_FG)s; }
+#toast .barra { background-color: %(TOAST_ACCENT)s; border-radius: 2px; }
+#toast.aviso .barra { background-color: %(TOAST_WARN_ACCENT)s; }
+#toast.erro .barra { background-color: %(TOAST_ERR_ACCENT)s; }
 """
 
 
