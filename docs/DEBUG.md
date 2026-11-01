@@ -3,9 +3,15 @@
 Manual operacional para quem mexe no app (agente ou humano). Ler a primeira
 seção **antes de rodar qualquer ferramenta na sessão gráfica**.
 
-O que não mora aqui: número de medição (docs/BENCHMARKS.md), narrativa datada de
-item/bug (docs/HISTORY.md), decisão de não fazer algo (docs/LIMITATIONS.md).
-Armadilha nova entra aqui, não no HISTORY.
+Diretivas deste arquivo:
+
+- **Formato simplificado, feito para agente**: título, lista e `código`. Sem
+  tabela, sem enfeite, sem prosa corrida — o texto é para ser varrido, não lido.
+- **Conciso**: uma armadilha por item; sintoma e como evitar em poucas linhas.
+  Detalhe longo fica no código ou no doc dono do assunto.
+- **Sem data e sem número de medição** (números: docs/BENCHMARKS.md). Narrativa
+  datada de item/bug: docs/HISTORY.md. Decisão de não fazer algo:
+  docs/LIMITATIONS.md. Armadilha nova entra aqui, não no HISTORY.
 
 ## Sessão real: o que pode travar tudo
 
@@ -108,18 +114,18 @@ workspace e de aba aparecem só quando há mais de um; o da viewport diz
 
 ## Sondas do app (`PYTERM_*`)
 
-Todas são variável de ambiente na execução do app (não mudam código).
+Variável de ambiente na execução do app (não muda código):
 
-| sonda | o que faz |
-|---|---|
-| `PROF=1` | ao fechar a sessão, imprime custo de parse (`on_pty`) e desenho (`on_draw`), bytes lidos e `eagain` |
-| `NODRAW=1` | desliga o desenho (sobra pty → grade) |
-| `NOPARSE=1` | lê o pty e descarta (isola o IO) |
-| `GEOM=980x640` | trava o tamanho da janela (sem isso o WM às vezes abre 80x24 e o número muda) |
-| `GEOMLOG=1` | cada configure imprime posição do cliente, da moldura e os frame extents |
-| `DIAG=1` | no primeiro draw imprime avanço da fonte, célula da grade, resolução e colunas |
-| `SCROLLLOG=ARQ` | grava cada chunk que rola mais de meia tela (jump/top/bottom/alt-screen + bytes crus) |
-| `CONFLOG=1` | cada reload de configuração aprovado imprime os valores no stderr |
+- `PROF=1` — ao fechar a sessão, custo de parse (`on_pty`) e desenho
+  (`on_draw`), bytes lidos e `eagain`.
+- `NODRAW=1` — desliga o desenho (sobra pty → grade).
+- `NOPARSE=1` — lê o pty e descarta (isola o IO).
+- `GEOM=980x640` — trava o tamanho da janela (senão o WM às vezes abre 80x24).
+- `GEOMLOG=1` — cada configure imprime cliente, moldura e frame extents.
+- `DIAG=1` — no primeiro draw, avanço da fonte, célula, resolução e colunas.
+- `SCROLLLOG=ARQ` — grava chunk que rola mais de meia tela (jump/top/bottom/
+  alt-screen + bytes crus).
+- `CONFLOG=1` — cada reload de configuração aprovado imprime os valores.
 
 `DIAG` é o par que tem que bater (avanço × célula) — divergência ali é grade
 medida numa resolução e desenhada em outra (bug 13 do HISTORY). As sondas de
