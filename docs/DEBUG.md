@@ -3,24 +3,15 @@
 Manual operacional para quem mexe no app (agente ou humano). Ler a primeira
 seção antes de rodar qualquer ferramenta na sessão gráfica.
 
-Diretivas deste arquivo:
+Diretivas do arquivo:
 
-- Formato simplificado, feito para agente: título, lista, `code` e uma cerca
-  de código para sequência de comandos. Sem tabela, sem prosa corrida, sem
-  enfeite: o texto é para ser varrido, não lido.
-- Conciso: uma armadilha por item; sintoma e como evitar em poucas linhas.
-  Detalhe longo fica no código ou no doc dono do assunto.
-- Negrito só para risco: apenas os itens de "Sessão real" (o que trava a
-  máquina). No resto o começo do item já é o termo — negrito em três de cada
-  quatro itens não distingue nada.
-- Sem itálico: ênfase não passa informação para quem lê em varredura.
-- Backtick só em literal: o que se digita ou o que o código aceita (comando,
-  opção, caminho, variável, símbolo, valor). Nome de programa usado como
-  substantivo (mc, cairo, gi, xdotool) vai em texto puro, e `code` não
-  atravessa quebra de linha.
-- Sem data e sem número de medição (números: docs/BENCHMARKS.md). Narrativa
-  datada de item/bug: docs/HISTORY.md. Decisão de não fazer algo:
-  docs/LIMITATIONS.md. Armadilha nova entra aqui, não no HISTORY.
+- Formato: título, item de lista, `code` e cerca para sequência de comandos.
+  Sem tabela, sem itálico, sem prosa corrida.
+- Um item = uma armadilha: sintoma e como evitar. Detalhe fica no código.
+- Negrito só nos itens de "Sessão real": ali a ênfase marca risco.
+- Backtick só em literal (comando, opção, caminho, variável, símbolo, valor),
+  numa linha só; nome de programa como substantivo vai em texto puro.
+- Sem data e sem número de medição: moram no HISTORY e no BENCHMARKS.
 
 ## Sessão real: o que pode travar tudo
 
