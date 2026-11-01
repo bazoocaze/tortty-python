@@ -921,6 +921,31 @@ todo frame); diff de pixels depois de trocar um caractere mostra 12x15 px
 alterados, só a célula. Check `draw_damage` cobre as linhas por caminho (escrita,
 EL, ED, ICH/DCH/ECH, rolagem, resize, RIS).
 
+### P37 — Desenho: cortar trabalho Python e agrupar por tipo de operação (2026-11-01)
+
+A poda Python do laço rendeu pouco: `bg_def` içado (era `cell_rgb_f(DEF_BG)` por
+run), char do run de uma célula tirado do unpack em vez de slice+join, list comp
+no `join`, duas tabelas de layout (normal/negrito) em vez de chave-tupla e
+limites de clip em linha/coluna inteiros. Medido no doom-fire em 61x18: 13,45 →
+13,17 ms, ~2%. A estimativa de 25% veio do `cProfile`, que infla custo por
+chamada Python — a armadilha já estava em BENCHMARKS e foi reconfirmada.
+
+O que valeu foi o que a medição mostrou no lugar: no pior caso o custo não é o
+Python, é **alternar `fill` e glifo**. Suprimir só os fundos: 13,03 → 3,03 ms;
+suprimir só o `show_layout_line`: 13,03 → 2,61 ms; os dois juntos não somam
+(2,9 ms) — o caro é a troca de estado do X a cada run.
+
+Feito: o laço monta os runs da linha e desenha em **duas passadas por frame** —
+todos os fundos, depois todo o texto (e sublinhado). Doom-fire: 13,0 → 7,9 ms;
+cena de texto realista (18 linhas, 8 cores, fundo default) 1,05 → 0,93 ms; o
+spinner de um caractere 1,07 → 0,81 ms.
+
+Verificado com o mesmo probe nas duas versões: 480 células com fundo idêntico e
+mesma quantidade de tinta (pixels de glifo); diferença só de antialiasing,
+dentro do ruído que a mesma versão já tem entre execuções (o layout fica em
+cache criado com as opções de fonte do primeiro draw, e o toast do socket
+atrapalha capturas — usar tela sem toast ao comparar).
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.

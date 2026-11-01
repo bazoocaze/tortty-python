@@ -26,16 +26,6 @@ overflow protection" e volta `[]`. Se for tentar, o desenho precisa escolher por
 run (ASCII sem `.notdef` → cairo; senão Pango) e a validação é comparação de
 pixels, não o fps.
 
-P37 — Desenho: cortar trabalho Python por run. O `cProfile` do P27
-(doom-fire, 61x18, 160 draws) mostrou que o custo do `_on_draw` é
-majoritariamente Python, não servidor: `cell_rgb_f` 368 mil chamadas (duas por
-run, e uma delas só para comparar com `DEF_BG`), `"".join(...)` com genexpr 298
-mil, um `dict.get` por run; as chamadas cairo somam ~40%. Candidatos: comparar
-`bg != DEF_BG` em vez de chamar `cell_rgb_f` de novo, list comp no lugar do
-genexpr do join e cache do par (fg, bg) → tuplas RGB por draw. Estimativa
-grosseira: 3–4 ms dos 13,7 num frame de tela cheia. Medir com o verbo `prof`
-antes e depois, e conferir que o doom-fire (pior caso) acompanha.
-
 P30 — Portabilidade gráfica: rodar no Linux, Windows e macOS. **Discussão,
 decisão pendente** (2026-10-28). O estudo (o que é plataforma hoje, os bloqueios
 no código, o custo de cada rota e a pergunta que precede o código) saiu para

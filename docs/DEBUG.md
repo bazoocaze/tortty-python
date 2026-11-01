@@ -182,6 +182,9 @@ caminho do socket.
   check `debug_socket` cobre ele com alvo falso.
 
 ## Armadilhas de implementação
+- Desenho do `_on_draw` é em duas passadas (fundos, depois texto) de propósito:
+  alternar `fill` e `show_layout_line` por run custa ~2x o frame inteiro. Não
+  "simplificar" de volta para um laço único.
 - Dano do desenho: `Term.take_damage()` é a única fonte do que a view repinta.
   Caminho novo que escreva célula sem `touch(y)` (ou sem `touch_all()`, se mover
   linhas) não aparece na tela até algo rolar — o bug parece de parse.

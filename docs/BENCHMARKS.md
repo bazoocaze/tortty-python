@@ -214,6 +214,30 @@ um terminal de cada vez, 3 tiros de cada em 2026-10-27, `schedutil` com turbo em
   fps. O mecanismo (ele não enxerga `gi.FunctionInfo`) está em
   [DEBUG.md](DEBUG.md).
 
+## Alternar fundo e glifo custa o frame (2026-11-01)
+
+- Medido com o verbo `prof` do socket e `tools/benchrun.py`, doom-fire em 61x18
+  no display real, supressão de um trecho por vez do `_on_draw` (patch
+  temporário, não ficou no código):
+
+| variante do laço | draw |
+|---|---|
+| cheio (fill + glifo por run, alternando) | 13,03 ms |
+| sem `cr.paint()` de fundo | 12,97 ms |
+| sem os `fill` de fundo | 3,03 ms |
+| sem `show_layout_line` | 2,61 ms |
+| sem os dois | 2,88 ms |
+
+- Os dois lados não somam: tirar qualquer um dos dois derruba o custo para ~2,7
+  ms, então o caro é a **alternância** (o X troca de estado por operação), não a
+  soma das operações. Agrupar resolve: duas passadas por frame (todos os fundos,
+  depois todo o texto) levam o mesmo frame de 13,0 para 7,9 ms.
+- Custo real fora do pior caso: 18 linhas de texto com 8 cores e fundo default
+  custam ~0,93 ms por frame cheio; um caractere trocado numa linha custa 0,81 ms.
+- `cProfile` de novo mentiu: apontou `cell_rgb_f` (368 mil chamadas) como alvo
+  grande, e podar aquilo rendeu 2% — a armadilha da seção "Onde o tempo vai"
+  vale para qualquer contagem de chamadas pequenas.
+
 ## A escada: IO, parse e desenho (2026-10-26)
 
 - `PYTERM_NODRAW=1` desliga o desenho (`request_draw` vira no-op) e

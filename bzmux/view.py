@@ -206,7 +206,9 @@ class TermView(Gtk.DrawingArea):
         self._attrs_bold = None  # idem + negrito
         self._advance = None  # avanço real da fonte, em px (float)
         self._dpi = None  # resolução do display (Xft.dpi)
-        self._layouts = {}  # (texto, negrito) -> (layout, linha, base)
+        # cache de layout: texto -> (layout, linha, base), uma tabela por
+        # peso — evita alocar a tupla (texto, negrito) em cada run (P37)
+        self._layouts = ({}, {})
 
         self.master = None
         self.child_pid = None
@@ -782,7 +784,8 @@ class TermView(Gtk.DrawingArea):
         self._advance = None
         self._attrs_plain = None
         self._attrs_bold = None
-        self._layouts.clear()
+        self._layouts[0].clear()
+        self._layouts[1].clear()
         self._ensure_blink()
         # direto (e não só queue_resize): o tamanho alocado pode não mudar e
         # o size-allocate nunca viria, aí a grade ficava com a célula antiga
@@ -906,6 +909,7 @@ class TermView(Gtk.DrawingArea):
         cur = cell_rgb_f(DEF_BG)  # a última cor posta no contexto
         cr.set_source_rgb(*cur)
         cr.paint()
+        cur_bg = cur_fg = cur  # última cor posta em cada passada
         if self.padding:
             # daqui pra baixo as coordenadas são da GRADE: o padding (P34)
             # vira só translação, inclusive para o mouse (cell_at desconta)
@@ -923,14 +927,28 @@ class TermView(Gtk.DrawingArea):
         og_w = max(0, self.get_allocated_width() - 2 * self.padding)
         og_h = max(0, self.get_allocated_height() - 2 * self.padding)
         last_y = len(rows) - 1
+        # limites do dano já em linha/coluna: comparar inteiro em vez de
+        # multiplicar por célula em todo run (P37)
+        row_lo = max(0, int(clip_y0 // ch))
+        row_hi = min(last_y, int(clip_y1 // ch))
+        col_lo = max(0, int(clip_x0 // cw))
+        col_hi = min(t.cols, int(clip_x1 // cw) + 1)
+        bg_def = cell_rgb_f(DEF_BG)  # uma vez por draw, não a cada run (P37)
+        rgb, in_sel, sel_on = cell_rgb_f, _in_sel, bool(sel)
+        quadro = []
         for y, row in enumerate(rows):
-            if y * ch >= clip_y1 or (y + 1) * ch <= clip_y0:
+            if y < row_lo or y > row_hi:
                 continue  # linha fora do dano
+            # Runs da linha em lista antes de desenhar: (x, j, cch, fgc, bgc,
+            # bold, ul). Duas passadas — todo o fundo, depois todo o texto —
+            # porque alternar `fill` e glifo custa muito mais que cada um
+            # sozinho (o X troca de estado por operação): medido, 13,0 ms
+            # alternando contra 2,6 ms de só fundo e 2,9 ms de só texto.
+            runs = []
             x = 0
             while x < t.cols:
-                cell = row[x]
-                fg, bg, fl = cell[1], cell[2], cell[3]
-                s0 = bool(sel) and _in_sel(y, x, sel)
+                cch, fg, bg, fl = row[x]
+                s0 = sel_on and in_sel(y, x, sel)
                 j = x + 1
                 while j < t.cols:
                     c2 = row[j]
@@ -938,48 +956,52 @@ class TermView(Gtk.DrawingArea):
                         c2[1] != fg
                         or c2[2] != bg
                         or c2[3] != fl
-                        or (bool(sel) and _in_sel(y, j, sel)) != s0
+                        or (sel_on and in_sel(y, j, sel)) != s0
                     ):
                         break
                     j += 1
-                if j * cw <= clip_x0 or x * cw >= clip_x1:
-                    x = j
-                    continue  # run fora do dano
-                # a cor vira RGB ANTES de inverter: trocar os índices e só
-                # depois converter transformava o texto default (256) em
-                # "cor 1" (vermelho), porque 256/257 são sentinelas e não
-                # índices da paleta.
-                # cell_rgb_f devolve a MESMA tupla para a mesma cor: dá para
-                # pular a chamada com `is` (app monocromático repete muito).
-                fgc = cell_rgb_f(fg)
-                bgc = cell_rgb_f(bg)
-                if (fl & INV) or s0:
-                    fgc, bgc = bgc, fgc  # inverso / seleção = reverso
-                if bgc is not cur:
+                if j > col_lo and x < col_hi:
+                    # a cor vira RGB ANTES de inverter: trocar os índices e só
+                    # depois converter transformava o texto default (256) em
+                    # "cor 1" (vermelho), porque 256/257 são sentinelas e não
+                    # índices da paleta
+                    fgc, bgc = rgb(fg), rgb(bg)
+                    if (fl & INV) or s0:
+                        fgc, bgc = bgc, fgc  # inverso / seleção = reverso
+                    runs.append((x, j, cch, fgc, bgc, bool(fl & BOLD), fl & UL))
+                x = j
+            if runs:
+                quadro.append((row, y * ch, max(ch, og_h - y * ch) if y == last_y else ch, runs))
+        for row, ypx, rh, runs in quadro:
+            for x, j, _cch, _fgc, bgc, _bold, _ul in runs:
+                if bgc is not cur_bg:
                     cr.set_source_rgb(*bgc)
-                    cur = bgc
-                if bgc is not cell_rgb_f(DEF_BG):
+                    cur_bg = bgc
+                if bgc is not bg_def:
                     rw = (og_w if j >= t.cols else j * cw) - x * cw
-                    rh = max(ch, og_h - y * ch) if y == last_y else ch
-                    cr.rectangle(x * cw, y * ch, rw, rh)
+                    cr.rectangle(x * cw, ypx, rw, rh)
                     cr.fill()
-                if fgc is not cur:
+        for row, ypx, _rh, runs in quadro:
+            for x, j, cch, fgc, _bgc, bold, ul in runs:
+                if fgc is not cur_fg:
                     cr.set_source_rgb(*fgc)
-                    cur = fgc
-                txt = "".join(c[0] for c in row[x:j])
+                    cur_fg = fgc
+                # run de uma célula é o caso comum (fundo por célula): pega
+                # o char do unpack em vez de montar slice + join (P37)
+                txt = cch if j == x + 1 else "".join([c[0] for c in row[x:j]])
                 # Pango (P9): layout de verdade, com shaping e fallback de
                 # fonte; `cr.move_to` na quina da célula e o layout desenha a
                 # partir dali (a linha de base sai do ascent do próprio layout)
-                # cache por (texto, negrito): `set_text` é o caro do layout, e
-                # um run se repete muito (fundo do mesmo tom, texto de app
-                # parado). Teto para não crescer sem limite em dump de texto.
-                key = (txt, bool(fl & BOLD))
-                ent = self._layouts.get(key)
+                # cache por texto e peso: `set_text` é o caro do layout, e um
+                # run se repete muito (fundo do mesmo tom, app parado). Teto
+                # para não crescer sem limite em dump de texto.
+                cache = self._layouts[bold]
+                ent = cache.get(txt)
                 if ent is None:
-                    if len(self._layouts) > 800:
-                        self._layouts.clear()
+                    if len(cache) > 800:
+                        cache.clear()
                     lay = self.new_layout(cr)
-                    lay.set_attributes(self.text_attrs(bool(fl & BOLD)))
+                    lay.set_attributes(self.text_attrs(bold))
                     lay.set_text(txt, -1)
                     # guardar a linha e a baseline junto: show_layout_line
                     # custa ~17% menos que show_layout e sai idêntico (P25).
@@ -989,18 +1011,17 @@ class TermView(Gtk.DrawingArea):
                     base = lay.get_baseline() / Pango.SCALE
                     line = lay.get_line(0) if lay.get_line_count() == 1 else None
                     ent = (lay, line, base)
-                    self._layouts[key] = ent
+                    cache[txt] = ent
                 lay, line, base = ent
                 if line is None:
-                    cr.move_to(x * cw, y * ch)
+                    cr.move_to(x * cw, ypx)
                     PangoCairo.show_layout(cr, lay)
                 else:
-                    cr.move_to(x * cw, y * ch + base)
+                    cr.move_to(x * cw, ypx + base)
                     PangoCairo.show_layout_line(cr, line)
-                if fl & UL:
-                    cr.rectangle(x * cw, y * ch + ch - 2, (j - x) * cw, 1)
+                if ul:
+                    cr.rectangle(x * cw, ypx + ch - 2, (j - x) * cw, 1)
                     cr.fill()
-                x = j
         # imagens do protocolo de gráficos (P6), por cima do texto e abaixo
         # do cursor — é onde o kitty põe
         for pl in t.graphics.placements:
