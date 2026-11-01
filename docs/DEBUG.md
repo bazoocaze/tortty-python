@@ -5,7 +5,7 @@ gráfica.
 
 Diretivas: título, item, `code`, cerca para sequência de comandos. Um item =
 uma armadilha (sintoma + como evitar). Negrito só em "Sessão real". Backtick
-só em literal, numa linha. Sem tabela, itálico, data ou número de medição.
+só se realmente relevante. Sem tabela, itálico, data ou número de medição.
 
 ## Sessão real: o que pode travar tudo
 
