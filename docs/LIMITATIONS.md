@@ -53,10 +53,6 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 - **Sem `DECAWM` desligado**: autowrap é sempre ligado; `CSI ? 7 l` é ignorado.
 - **Sem origem/margens especiais**: `DECSTBM` (região de scroll) funciona, mas
   `? 6` (origin mode), `? 3` (80/132), `DECDHL`/`DECDWL` (linha dupla) não.
-- **Sem saída sincronizada**: `CSI ? 2026 h/l` é ignorado. App que desenha por
-  partes (pi, Ink) pode mostrar frame pela metade; não corrompe nada porque o
-  desenho é coalescido, mas não há atomicidade garantida.
-- **Sem `DECSCUSR`** (`CSI Ps q`, forma do cursor): cursor é bloco, sempre.
 - **Sem `REP`** (`CSI b`), sem `DECSTR` (`CSI ! p`) e sem `HTS`/`TBC` (tab stop
   é fixo de 8 em 8).
 - **Sem double buffering de paleta**: `OSC 4` só responde consulta; não redefine
