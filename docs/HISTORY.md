@@ -174,48 +174,26 @@ Shift+Up → `\e[1;2A` + `\e[1;2:3A`, e digitar `x` continua sendo `x`.
 
 ### P6 — Protocolo de gráficos (kitty) — **feito**
 
-`core/graphics.py` (parse/decodificação/placements, sem cairo) +
-desenho na `TermView` (era `window.py`; o P11 separou em `view.py`). Parse do
-APC (`ESC _ G ... ESC \`) no parser do `Term`, com estado `apc`/`apc-esc`.
+`graphics.py` puro (parse, decodificação e placements) e desenho na `TermView`;
+APC `ESC _ G` no parser do `Term`. Cobre as ações e formatos do protocolo que o
+`icat` usa — inclusive `o=z` (payload zlib) e `X=`/`Y=`, que é o que o `--place`
+manda depois de escalar sozinho.
 
-- Ações: `a=t` (transmitir), `a=T` (transmitir e mostrar), `a=p` (mostrar),
-  `a=d` (apagar: `d=i,i=<id>` ou `d=A`), `a=q` (sonda).
-- Formatos: `f=24` (RGB), `f=32` (RGBA) e `f=100` (PNG, com tamanho lido do
-  IHDR); imagem em pedaços com `m=1`; `i` (id), `c`/`r` (tamanho em células),
-  `C=1` (não mexer o cursor), `q` (silêncio), `o=z` (payload zlib — é o que o
-  `icat --place` manda depois de escalar sozinho) e `X=`/`Y=` (offset em
-  pixels dentro da célula, como o `icat` centraliza).
-- Desenho: `ImageSurface` do cairo em cache por id; RGB/RGBA passam por troca
-  de canais (o ARGB32 do cairo é BGRA) e o `bytearray` fica vivo porque o
-  `create_for_data` **não copia**. Imagens sobem junto com o scroll.
-- **Histórico**: a colocação guarda a linha da GRADE e pode ficar negativa
-  quando a imagem sai pelo topo (`graphics.scroll(top, bottom, floor)`), indo
-  para o scrollback. O desenho soma `view_off`, então `Shift+PgUp`/wheel
-  mostram a imagem na posição certa; `drop_above()` poda o que saiu de vez do
-  scrollback (as 1000 linhas mais antigas) e o reflow poda o que virou
-  inalcançável. Limitação: a imagem não acompanha o reflow linha a linha (fica
-  na linha de tela, como no kitty).
+Decisão: a colocação guarda a linha da GRADE, não a da tela. Ela pode ficar
+negativa e ir para o scrollback, e o desenho soma `view_off`, então
+`Shift+PgUp`/wheel mostram a imagem na posição certa (`drop_above()` e o reflow
+podam o que saiu de vez). Descartado: fazer a imagem acompanhar o reflow linha a
+linha — ela fica na linha de tela, como no kitty (está em LIMITATIONS.md).
 
-Bug/pegadinha que custou tempo: **`a=q` é sonda de capacidade, não consulta de
-imagem**. Eu respondia `ENOENT` quando o id não existia, e o `kitten icat` usa
-exatamente isso de handshake (manda três sondas — direto, arquivo, memória — e
-só segue se receber `OK` na direta). Agora: `OK` quando o médium é `d` e o
-formato é 24/32/100, `EINVAL` caso contrário. Outra: `m=1` não pode ser
-acumulado no dicionário de controle — ele é do pedaço atual, e guardar o valor
-fazia a transmissão nunca terminar.
+Bugs do caminho: a sonda `a=q` é de capacidade, não consulta de imagem (o
+`icat` a usa de handshake e só segue com `OK`); `m=1` não pode ser acumulado no
+dicionário de controle, senão a transmissão nunca termina; e o `CSI * x`
+(DECSACE) que o `icat` manda antes de desenhar caía com o `*` como byte final,
+deixando um "x" solto por imagem — fix: aceitar intermediários 0x20–0x2f.
 
-Verificado: PNG 160x90 em 2 pedaços e RGBA cru 40x20 desenhados no lugar certo
-(screenshot), rolagem acompanhando, e `kitten icat /tmp/t.png` real saindo com
-código 0 e a imagem na tela. Depois, com a demo `/tmp/imgdemo/demo.sh` (PNG
-opaco, gradiente 1px/coluna, RGBA translúcido, checker 4px com barras de 1px e
-`--place 24x8@62x3`): as cinco imagens saem nos lugares certos e o mesmo script
-roda igual no kitty de verdade.
-
-Outro bug que só apareceu com imagem na tela: o `icat` manda `CSI * x`
-(DECSACE) antes de desenhar; o parser CSI tratava `*` como byte final (ele só
-aceitava params 0x30–0x3f) e o `x` caía no ground — aparecia um "x" solto na
-tela, um por imagem. Fix: aceitar intermediários 0x20–0x2f no estado `csi`
-(ECMA-48: params, intermediários, final) e descartá-los antes do dispatch.
+Verificado: PNG 160x90 em 2 pedaços, RGBA cru 40x20 e a demo de cinco imagens
+nos lugares certos (screenshot), rolagem acompanhando, e `kitten icat` real
+saindo com código 0; o mesmo script roda igual no kitty.
 
 ### P7 — Bracketed paste — **feito**
 
@@ -365,45 +343,21 @@ clique do meio, e conferir que `Ctrl+Shift+T` abre aba do workspace atual.
 
 ### P13 — Sistema de estilo da interface — **feito**
 
-Pedido: lateral preta, workspace selecionado em cor escura (verde) e texto
-claro. O que existia era o tema do sistema pintando tudo, com um hex solto
-(`#8a8a8a`) no `_card_info`.
+Pedido: lateral preta, workspace selecionado em verde escuro e texto claro. O
+que existia era o tema do sistema pintando tudo, com um hex solto no cartão.
 
-Agora `core/style.py` é a única fonte de cor do cromo: tokens
-(`SIDEBAR_BG`, `CARD_HOVER_BG`, `CARD_FG`, `CARD_INFO_FG`, `CARD_SEL_BG`,
-`CARD_SEL_FG`, `CARD_SEL_INFO_FG`), `css()` montando o texto a partir deles e
-`contrast()` em sRGB relativo (WCAG). Puro: sem Gtk, então o check roda no
-`--selftest`. A paleta do terminal (`palette.py`) continua separada — célula e
-cromo não se misturam.
+Decisão: `style.py` é a única fonte de cor do cromo — tokens (fundo, texto,
+hover e selecionado), `css()` montando o texto a partir deles e `contrast()` em
+sRGB relativo (WCAG). Puro, então o check roda no `--selftest`; a paleta do
+terminal continua separada, célula e cromo não se misturam.
 
-`apply_style()` em `window.py` registra o provider uma vez por processo
-(`add_provider_for_screen`, prioridade de aplicação) e o CSS alcança os
-widgets por nome e classe: `set_name("sidebar")` na `ListBox`, classe `.card`
-no `EventBox` do cartão e `.info` no rótulo da segunda linha.
+O check mede contraste, não gosto — `style_contrast` exige >= 4,5:1 nos quatro
+pares texto/fundo (normal e selecionado) e confere que o CSS usa os tokens, para
+não voltar a ter cópia à mão.
 
-Decisões que custaram alguma coisa:
-
-- **O `EventBox` do cartão é transparente no CSS.** Ele tem janela própria e
-  pintava por cima da `ListBoxRow`, escondendo o `:selected`; quem pinta o
-  fundo é a linha.
-- **A cor da segunda linha saiu do markup.** `_card_info` embrulhava o texto
-  num `<span foreground='#8a8a8a'>`, e atributo de markup ganha do CSS — a
-  linha não mudaria de cor no cartão selecionado. Agora é a classe `.info` e o
-  markup só carrega o `<small>`.
-- **`row`, `row:hover` e `row:selected` precisam estar no CSS**: sem o
-  `:selected` explícito o tema volta a mandar; sem o `:hover`, o cartão sob o
-  mouse fica com o realce claro do tema.
-- **O check mede contraste, não gosto**: `style_contrast` exige >= 4.5:1 nos
-  quatro pares texto/fundo (normal e selecionado) — "bem claro" virou número.
-  Também confere que o CSS usa os tokens, para não voltar a ter cópia à mão.
-
-Verificado com `import -window` + `tools/pixel.py`: lateral e cartão normal em
-`(0,0,0)`, cartão ativo em `(31,77,46)` (`CARD_SEL_BG`), hover em `(20,20,20)`
-(`CARD_HOVER_BG`), nome do ativo em branco e a segunda linha em verde claro.
-Contrastes: 15,9:1 (nome normal), 6,1:1 (info), 9,7:1 e 7,2:1 no selecionado.
-
-Fora: a barra de abas e a moldura da janela continuam com o tema do sistema —
-entram quando houver token de aba.
+Verificado com captura e `tools/pixel.py`: lateral e cartão normal em preto,
+ativo em verde escuro e hover em cinza-escuro, nome do ativo em branco e a
+segunda linha em verde claro; no dia, 15,9:1 no nome e 6,1:1 na informação.
 
 ### P14 — Largura da lateral não fica fixa — **feito**
 
@@ -552,47 +506,28 @@ release) e ao vivo no `pi` — digitar `abcabc` e ler a linha de entrada: sai
 
 ### P20 — Fast path de escape no parser — **feito**
 
-Motivo medido no doom-fire (70×21, 2 SGR truecolor por célula): 35 µs/célula de
-parse, e **91% disso era o fechamento do CSI** (`csi += ch`, `split`/`strip`/
-`int`, listas `parts`+`nums`, `sgr` com `flatten`), contra 0,97 de `put` e 0,11
-de decode UTF-8. O gargalo não era iterar caracteres: era o custo fixo de
-fechar e interpretar cada escape (~1 µs por byte de escape).
+Motivo medido: 35 µs/célula de parse no frame do doom-fire, e 91% disso era o
+fechamento do CSI (`split`/`int`, listas de params, `sgr` com `flatten`). O
+gargalo não era iterar caracteres: era o custo fixo de fechar e interpretar
+cada escape (~1 µs por byte de escape).
 
-Fix: em `Term.feed`, quando o estado é `ground`, consumir o prefixo que o
-caminho rápido entende — texto imprimível em bloco (um `slice` na linha) e
+Fix: em `Term.feed`, no estado `ground`, consumir o prefixo que o caminho rápido
+entende — texto imprimível em bloco (um `slice` na linha) e
 `CSI 38;2;r;g;b m`/`48;2;...m` resolvido por `dict[escape] -> cor` — e devolver
-o resto ao parser de sempre, que ficou **intacto** como fallback. Cache com teto
-de 1024 escapes; qualquer escape fora do padrão (`38;5;N`, subparâmetros `:`,
-intermediários, `\x1b[H` entre outros) cai no parser lento, que é dono de todos
-os estados.
-
-`feed` passou de `for ch in text` para índice (`while`) para poder pular o
-texto e os escapes já resolvidos; `ord(ch)` saiu do caminho quente do ground e
-do `csi` (comparação de string no lugar).
+o resto ao parser de sempre, que ficou intacto como fallback e é dono de todos
+os estados: escape fora do padrão (`38;5;N`, `:`, intermediários, `\x1b[H`) cai
+nele.
 
 Verificação: teste diferencial contra o parser do commit anterior (14 entradas:
-frame do doom-fire, SGR 4-bit/256/truecolor, subparâmetro `:`, `?2026h`,
-`\x1b(0`/`\x1b(B`, tab/backspace/rewrite, linha de 300 chars, `ED`/`EL`, RGB
-fora de 0–255, OSC de título, inverse) comparando grade, cursor, fg/bg, flags,
-wrap pendente, estado, título e scrollback — **0 divergências**. Mais
-`./run-tests.sh` (17 checks).
+frame do doom-fire, SGR 4-bit/256/truecolor, `:` sub, charset, `ED`/`EL`, OSC,
+RGB fora de 0–255, inverse) comparando grade, cursor, cores, flags, wrap
+pendente, estado e scrollback — 0 divergências.
 
-Ganho: micro 32,0 → 5,49 µs/célula no frame do doom-fire (5,8x) e 0,99 → 0,21
-em texto puro (4,7x); no app com `PYTERM_NODRAW=1`, **17,2 → 85 fps e 1,0 → 4,8
-MB/s** (4,9x), parse de 4,17 para 0,72 ms por leitura. Com desenho ligado deu
-10,4 fps / 0,6 MB/s, mas ali o desenho estava anômalo (101,8 ms por frame
-contra 22,7 registrados) e vira 87% do tempo. **Fechado depois:** era o governor
-`powersave` da CPU, não o código — ver o quirk do governor. O número com
-desenho está em BENCHMARKS.md.
-
-Carga real (2026-10-26), `dmesg` do sistema (1319 linhas), alimentado no `Term`
-sem GTK: sem cor (99,7 KB, 0 escapes) **168,3 → 45,7 ms** (3,7x, 7,01 → 1,90 ms
-por leitura de ~4 KB); com `--color=always` (122,9 KB, 5172 escapes) **187,8 →
-94,8 ms** (2,0x). É a pausa que se percebia ao digitar `dmesg`: o parse roda no
-thread do GTK, então cada leitura congela a UI — ~24–30 leituras de 4 KB por
-despejo. Com cor o ganho é menor porque os SGR do `dmesg` (`1`, `4`, `31`, `0`)
-não são truecolor e caem no parser lento; o cache de parâmetros virou o P22
-(abaixo).
+No dia: micro 32,0 → 5,49 µs/célula (5,8x; texto puro 4,7x); com
+`PYTERM_NODRAW=1`, 17,2 → 85 fps e 1,0 → 4,8 MB/s; `dmesg` real sem cor 168,3 →
+45,7 ms. Com cor o ganho é menor: os SGR do `dmesg` não são truecolor e caem no
+parser lento — foi o que virou o P22. O número com desenho parecia anômalo e era
+o governor `powersave`. Leitura corrente: BENCHMARKS.md.
 
 ### P21 — Linha em branco compartilhada no scroll — **feito**
 
@@ -683,42 +618,23 @@ grab), mas fica a nota no README: se o dash do GNOME capturar, use a variante
 ### P24/P25 — Desenho: cor em float e `show_layout_line` (2026-10-27)
 
 Motivo medido: com o parser resolvido (P20–P22), o desenho virou a maior fatia
-depois dele (34% do tempo). A decomposição por seção apontava 40% em
-`PangoCairo.show_layout`, 19% no par `rectangle`+`fill` e 24% em cor/estado —
-com 4 chamadas de contexto e 2 conversões de cor por run, ~1323 runs por draw no
-doom-fire. Duas delas não tinham motivo para custar o que custavam.
+depois dele (34% do tempo), com 4 chamadas de contexto e 2 conversões de cor por
+run em ~1323 runs por draw. Duas delas não tinham motivo para custar o que
+custavam.
 
-Fix (nenhuma mudança de aparência; a grade sai **pixel a pixel igual**):
-
-- `palette.cell_rgb_f(c)` devolve a cor já em float 0..1 e **cacheada** (tuplas
-  compartilhadas, teto de 4096 para o truecolor). O laço do desenho deixou de
-  montar `[c / 255 for c in rgb]` e de refazer 6 divisões por run; como a mesma
-  cor devolve a **mesma tupla**, dá para pular o `set_source_rgb` com `is` —
-  o que também ataca o caso de app monocromático, onde a cor se repete.
-- o cache de layout guarda `(layout, linha, baseline)` e o desenho usa
-  `PangoCairo.show_layout_line` em vez de `show_layout` (-17% no micro). A
-  baseline vem de `layout.get_baseline()`, não do ascent da fonte: CJK resolve
-  fallback com baseline 21 contra 17 do monoespaçado.
-
-Ganho medido (doom-fire 600 frames, `PYTERM_GEOM`, turbo, 5 tiros cada):
-`draw` **7,76 → 6,54 ms/call (-16%)** e 110,7 → 116,0 fps (+4,8%, coerente com
-desenho ser 34% do tempo). Na decomposição instrumentada: `cell_rgb` 0,69 → 0,37
-µs/run, estado+fundo 2,32 → 1,56, `move_to`+`show_layout_line` 2,83 → 2,44, soma
-7,11 → 5,71 µs/run. O bench de 1200 frames: 118,5 fps / 6,8 MB/s (draw 6,93 ms).
-
-**Armadilha que quase matou o ganho:** a primeira versão decidia entre
-`show_layout` e `show_layout_line` com `lay.get_line_count() > 1` **por run**.
-Uma chamada gi por run custa ~0,3 µs e anulou a diferença — o primeiro teste deu
-só -4%. A decisão passou para a criação da entrada do cache (`line = None`
-quando o texto tem quebra de linha), e o ganho apareceu. Chamada de binding por
-run é caro mesmo quando "parece grátis".
+Fix, sem mudança de aparência (a grade sai pixel a pixel igual): a cor passou a
+vir cacheada em float 0..1 (`palette.cell_rgb_f`), tuplas compartilhadas, e como
+a mesma cor devolve a mesma tupla dá para pular o `set_source_rgb` comparando
+por identidade — o que também ataca o caso de app monocromático, onde a cor se
+repete. E o cache de layout guarda a linha, desenhando com
+`PangoCairo.show_layout_line` em vez de `show_layout` (-17% no micro).
 
 Verificação: a bateria não cobre desenho (precisa de display), então a
-fidelidade foi conferida por captura em display isolado (`Xvfb :99`, para o
-mouse e a sessão do usuário não interferirem): tela com truecolor, negrito,
-sublinhado, inverso, acento, CJK e emoji, capturada no HEAD e no código novo —
-**0 pixels de diferença na grade** (`compare -metric AE`; os 448 que sobram são
-o título da aba, "bz-antigo" vs "pybzmux"). 17 testes seguem passando.
+fidelidade foi conferida por captura em `Xvfb :99` do código novo contra o HEAD
+— 0 pixel de diferença na grade (os 448 que sobram são o título da aba, que
+mudou de nome). No dia, `draw` 7,76 → 6,54 ms/call (-16%) e 110,7 → 116,0 fps
+(+4,8%, coerente com desenho ser 34% do tempo). Decomposição por seção:
+BENCHMARKS.md.
 
 ### P31 — Pacote instalável: `pipx install` direto do GitHub (2026-10-28)
 
@@ -864,49 +780,29 @@ turno.
 ### P32 — O histórico não segurava quem estava lendo (2026-10-29)
 
 Sintoma: lendo o histórico enquanto o `pi` escrevia devagar, a visão voltava
-sozinha para o rodapé a cada linha que chegava — impossível ler.
+sozinha para o rodapé a cada linha.
 
-Causa: `view.py` voltava ao vivo em **três** casos — tecla, rolar até o fim e
-"qualquer output que mude o conteúdo da tela visível" (`_view_signature()`
-compara texto+cor de todas as ~4658 células visíveis). A terceira nasceu no bug
-14 para o tique de 1 Hz do `pi` (cursor pra coluna 1 + esconde cursor a cada
-segundo) e passou a cobrar o preço no caso normal de uso. A conta que já
-existia logo abaixo (offset + crescimento do scrollback) segurava a posição,
-mas o `if` da assinatura rodava antes.
+Causa: `view.py` voltava ao vivo em três casos — tecla, rolar até o fim e
+"qualquer output que mude o conteúdo da tela visível". O terceiro nasceu no bug
+14 para o tique de 1 Hz do `pi` e passou a cobrar o preço no uso normal: a conta
+por offset e scrollback segurava a posição, mas o `if` da assinatura rodava
+antes.
 
-Fix: âncora **absoluta** e nenhuma heurística de conteúdo —
-`Term.anchored_view_off(anchor)` devolve `clamp(scrolled - anchor, 0,
-len(scrollback))`, onde `anchor` é a linha absoluta que estava no topo quando o
-usuário parou de rolar. O usuário só sai do histórico por ação dele: rolar até
-o fim, uma tecla de verdade, ou a âncora ser destruída (limpeza de histórico com
-`CSI 3J` — o clamp devolve o vivo).
+Fix: âncora absoluta, sem heurística de conteúdo. `Term.anchored_view_off` mede
+a distância entre a linha que estava no topo e o fim, e o usuário só sai do
+histórico por ação dele: rolar até o fim, uma tecla de verdade, ou a âncora ser
+destruída (limpeza com `CSI 3J`). Sai o `_view_signature()`, que montava uma
+string de todas as células visíveis a cada chunk justamente enquanto se lia; de
+graça, a âncora cobre também o tique de 1 Hz, o teto de 1000 linhas e a seleção.
 
-Detalhes que a âncora absoluta resolve de graça:
+Descartados: retorno por 5 s de inatividade de scroll (ler é silencioso, e um
+app que escreve a cada 1 s arranca o usuário quando o prazo vence) e sticky
+bottom (voltar a ≤1 linha do fim); os dois em LIMITATIONS.md.
 
-- **tique de 1 Hz** não muda `scrolled`, então não mexe na visão (bug 14 segue
-  protegido, sem assinatura);
-- **scrollback no teto de 1000 linhas**: o `len()` para de crescer, e a conta
-  "por diferença de tamanho" deixaria o texto derrapar linha a linha; a
-  absoluta não (check cobre: com 10 linhas escritas a linha lida continua no
-  topo, offset 3 → 13);
-- **seleção** deixa de morrer a cada linha escrita (o `clear_selection` só
-  roda em scroll do usuário, que é onde ela precisa morrer — vive em
-  coordenadas de tela);
-- sai o `_view_signature()`, que montava uma string de ~4658 células **por
-  chunk** justamente enquanto se lia o histórico.
-
-Descartados na discussão: **retorno por 5 s de inatividade de scroll** (mede a
-coisa errada — ler é silencioso, e um app que escreve a cada 1 s arranca o
-usuário assim que o prazo vence; fica imprevisível) e *sticky bottom* (voltar
-com a visão a ≤1 linha do fim), que continua possível sem mudar a âncora. Os
-dois estão registrados em `docs/LIMITATIONS.md`.
-
-Verificação: check `scroll_anchor` (20º, sem display — inclusive o caso do teto
-com a deriva de 10 linhas da conta antiga) e, no app de verdade, com gerador
-que enche o histórico e depois escreve devagar: rolar 25 linhas → `view_off`
-25 → 75 com **a mesma linha no topo** e seleção viva; tique de 1 Hz mantém
-`view_off` em 25; tecla volta ao vivo (`view_off` 0). Confirmado pelo usuário
-no uso real.
+Verificado: check `scroll_anchor` sem display, inclusive o caso do teto com a
+deriva de 10 linhas; no app real, rolar 25 linhas com o gerador escrevendo
+devagar manteve a mesma linha no topo e a seleção viva, o tique não mexeu no
+offset e uma tecla voltou ao vivo (confirmado no uso).
 
 ### P34 — Configuração v2: as oito opções comuns (2026-10-31)
 

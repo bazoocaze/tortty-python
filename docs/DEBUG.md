@@ -157,6 +157,20 @@ resolução e desenhada em outra, bug 13 do HISTORY). `PROF` decompõe a vazão,
   deixa de cortar com limite 0. Usar `del lista[:len(lista) - n]`.
 - `chr(kv)` só existe para `0x20–0x7e`, `0xa0–0xff` e `0x01000000+U`; o resto é
   modificador/função.
+- `create_for_data` do cairo não copia os bytes: o `bytearray` da imagem tem de
+  continuar vivo enquanto a surface existir, senão o desenho sai com lixo.
+- O `Gtk.EventBox` do cartão tem janela própria e pinta por cima da
+  `ListBoxRow`, escondendo o `:selected`: deixá-lo transparente no CSS e pintar
+  o fundo na linha.
+- Atributo de markup (`<span foreground=...>`) ganha do CSS e o rótulo não muda
+  de cor no selecionado: cor vai por classe, markup só com o `<small>`.
+- `row`, `row:hover` e `row:selected` têm de estar no CSS: sem o `:selected`
+  explícito o tema manda, e sem `:hover` o cartão sob o mouse pega o realce
+  claro do tema.
+- Chamada de binding do gi por run custa caro e anula o ganho de trocar a
+  chamada de desenho: decidir na criação da entrada do cache, nunca por run.
+- Baseline do layout vem de `get_baseline()`, não do ascent da fonte: com
+  fallback CJK o layout resolve outra baseline e o texto sobe.
 
 ## Instalação (pipx e shell)
 
