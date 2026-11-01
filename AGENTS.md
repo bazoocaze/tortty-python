@@ -108,6 +108,18 @@ vem de lá. Python puro não é limitação pendente: é a conclusão do experim
 (dá para fazer um terminal inteiro em Python, e ele é usado assim no dia a dia);
 o teto de vazão é o preço aceito e se ataca em Python, não reescrevendo em C.
 
+## Configuração
+
+Chave/valor no formato do kitty (`#` comenta). O arquivo do usuário é
+$XDG_CONFIG_HOME/bzmux/bzmux.conf (o -c ARQ troca) e é sempre mesclado sobre o
+default embarcado em bzmux/data/bzmux.conf.
+
+- Chaves, valores default e faixas válidas moram em bzmux/config.py (DEFAULTS).
+  As que mais mudam o uso do dia a dia: font_size (em pontos, não px),
+  scrollback e cursor_shape.
+- Editar com o app aberto aplica na hora. Erro é por linha: na carga inicial o
+  que validou vale (o toast mostra o primeiro erro), no reload nada muda.
+
 ## Convenções
 
 - Textos, descrições e comentários concisos; podem ser em português.
@@ -170,11 +182,5 @@ rodar. Aqui só cabe qual usar.
 - bzmux, python3 -m bzmux, uv run python -m bzmux — o app (opções: bzmux -h).
 - uv run pytest -q, uv run ruff check ., uv run ruff format . — bateria e lint
   pelo venv do uv.
-- Configuração: chave/valor no formato do kitty, em
-  $XDG_CONFIG_HOME/bzmux/bzmux.conf (o -c ARQ troca), mesclado sobre o default
-  embarcado em bzmux/data/bzmux.conf. Chaves, valores default e faixas válidas
-  moram em bzmux/config.py (DEFAULTS); as que mais mudam o uso do dia a dia são
-  font_size (em pontos, não px), scrollback e cursor_shape. Editar aplica na
-  hora; erro é por linha (inicial aproveita o resto, reload não aplica nada).
 
 Teste manual e verificação com janela: docs/DEBUG.md.
