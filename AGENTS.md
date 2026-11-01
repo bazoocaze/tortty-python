@@ -34,6 +34,9 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 - README.md — visão para humano: como rodar, ferramentas, ambiente, o que
   funciona, limites, medição, licença.
 
+Cada arquivo acima é indexado em uma linha (o que é, quando usar); o detalhe
+mora nele, não aqui.
+
 Regras da fila (registro, fechamento, para onde vai o que não é item) estão no
 topo de docs/BACKLOG.md.
 
@@ -154,83 +157,24 @@ o teto de vazão é o preço aceito e se ataca em Python, não reescrevendo em C
 
 ## Scripts e ferramentas
 
-App:
+Uso, opções e o porquê de cada script estão no cabeçalho dele — ler antes de
+rodar. Aqui só cabe qual usar.
 
-- ./install.sh — instala na máquina: confere/instala as dependências da distro
-  (apt/dnf/pacman/zypper), acha o python3 que enxerga gi+cairo, garante o pipx e
-  roda `pipx install --force --system-site-packages --python PY SPEC`; no fim
-  roda o `--selftest`. SPEC é a árvore local quando o script está num clone e
-  `git+ssh://git@github.com/bazoocaze/pybzmux.git` quando vem por pipe. Modos:
-  --dry-run, --no-deps, --no-shortcut, --uninstall, -h. Só Linux. No fim cria o
-  atalho do sistema chamando `bzmux --install-shortcut` (e o remove no
-  --uninstall, antes do pipx, senão o comando já não existe). Usa o pipx do
-  sistema quando existe e cai no `uvx --from pipx pipx` quando não — nesse caso
-  o `--python` é obrigatório, porque o interpretador do uv não vê o gi da
-  distro. Hoje o pipe exige `gh api`
-  porque o repositório é privado; `curl | bash` só passa a valer quando ele
-  abrir.
-- bzmux — o terminal (console script instalado, `python3 -m bzmux` na árvore,
-  ou ./run.sh). Opções: --cmd COMANDO, -c/--config ARQUIVO, --quit-after SEG,
-  --dump-to ARQUIVO, --selftest (roda os checks e sai), --install-shortcut /
-  --remove-shortcut (atalho no menu: .desktop + ícone em XDG_DATA_HOME), -h/--help
-  (ajuda sem abrir janela; opção inválida também sai, com exit 2). Sem PyGObject
-  no ambiente, a mensagem diz o que instalar em vez de estourar traceback.
-- Configuração (P33): `chave valor` no formato do kitty, `#` comenta. O arquivo
-do usuário é `$XDG_CONFIG_HOME/bzmux/bzmux.conf` (o `-c` troca o caminho) e é
-**sempre mesclado** sobre `bzmux/data/bzmux.conf`, que é o default embarcado.
-Opções (P33/P34): `shell` (`/bin/bash`; o `--cmd` vence), `font_family`
-(`Monospace`), `font_size` (`12`, em **pontos**, não px), `cursor_shape`
-(`block`/`beam`/`underline`), `cursor_blink` (`off`), `scrollback` (`1000`),
-`window_padding_width` (`0`, px), `bell` (`none`/`visual`/`audible`) e
-`copy_on_select` (`off`). O que é quente (fonte, padding, cursor) aplica em
-todas as abas abertas no reload; `shell` só vale na próxima aba. `CSI 6 q`
-(DECSCUSR) do app vence a config do cursor enquanto durar. Editar o arquivo com o app aberto aplica na hora
-(`Gio.FileMonitor` com debounce de 250 ms). Erro é por linha: na **carga
-inicial** o que validou vale e a chave inválida fica no padrão, com um toast de
-10 s mostrando o **primeiro** erro (`(+N)` para os outros); no **reload**
-qualquer erro mantém a configuração anterior (nada muda) e o toast lista os
-erros.
-`Ctrl+Shift+F2` abre o arquivo do usuário no `vim`, em aba nova. Com
-`PYTERM_CONFLOG=1` cada reload aprovado imprime os valores no stderr.
-- pipx install --system-site-packages git+ssh://git@github.com/bazoocaze/pybzmux.git
-  — instala na máquina (Linux; build feito do clone pelo hatchling, o comando
-  bzmux fica no PATH). Os detalhes e as armadilhas ficam em HISTORY.md.
-- ./run.sh — roda o app para testar rápido: passa os argumentos (--cmd,
-  --quit-after, --dump-to, -h) para o app, em foreground, e sai com o
-  código dele. Escolhe o interpretador: .venv/bin/python quando ele importa gi,
-  senão o python3 do sistema (com aviso). O venv precisa ser criado com
-  uv venv --system-site-packages, porque o PyGObject vem da distro e o uv sync
-  não passa essa flag. Exporta PYTHONPATH com a raiz do repositório (é `-m
-  bzmux`), sem mudar de diretório: o shell aberto herda o cwd de quem chamou.
-- ./debug.sh — o script do desenvolvimento: abre/fecha o app sem deixar
-  instância órfã. Modos: (nada) background com log em /tmp/bzmux.log, --fg
-  foreground, --kill, --status; o resto dos argumentos vai para o app. Sobe pelo
-  run.sh (mesmo interpretador) e controla por PID file (/tmp/bzmux.pid),
-  matando só o processo que ele mesmo subiu: use isto em vez de
-  pkill -f bzmux, que casa com a linha de comando de quem chama e mata o
-  shell errado. Reconhece as duas formas do processo (`python -m bzmux` e o
-  script do PATH).
-- ./bench.sh — roda a escada do doom-fire (full, `NODRAW`,
-  `NOPARSE+NODRAW` e o gerador isolado), espera cada etapa terminar e imprime
-  fps, MB/s, bytes/frame, custo de `draw`/`pty` e a frequência da CPU por
-  etapa. Com o padrão (300 frames) leva ~10 s; `--frames 1200` é o protocolo de
-  referência. Precisa de display e não guarda número: os valores ficam em
-  docs/BENCHMARKS.md. Fecha cada app com SIGTERM (o handler faz dump e imprime
-  o prof).
-- ./run-tests.sh — ruff (check + format --check), selftest (sem dependências)
-  e depois pytest; argumentos extras vão para o pytest (-k, -x).
-  --selftest-only pula o pytest, --no-lint pula o ruff. Sai != 0 se algo
-  falhar. Não precisa de display.
-- uv run pytest -q — só a parte pytest; uv sync instala o ambiente (pytest +
-  ruff).
-- uv run ruff check . / uv run ruff format . — lint (E, F, I, W; config em
-  pyproject.toml, line-length 88) e formatação. O run-tests só *verifica* o
-  formato; formatar é decisão de quem mexe, não do fluxo de teste.
-- uv run python -m bzmux — o app direto pelo uv (mesmo interpretador do venv).
+- ./install.sh — instalador Linux: deps da distro, pipx, --selftest no fim.
+- ./run.sh — roda o app aqui, em foreground; escolhe o python (venv do uv
+  quando ele enxerga o gi, senão o do sistema).
+- ./debug.sh — desenvolvimento: background com log, --kill/--status por PID
+  file (nunca pkill -f bzmux, que mata o shell de quem chama).
+- ./run-tests.sh — lint + selftest + pytest, sem display.
+- ./bench.sh — escada do doom-fire; precisa de display e não guarda número.
+- bzmux, python3 -m bzmux, uv run python -m bzmux — o app (opções: bzmux -h).
+- uv run pytest -q, uv run ruff check ., uv run ruff format . — bateria e lint
+  pelo venv do uv.
+- Configuração: chave/valor no formato do kitty, em
+  $XDG_CONFIG_HOME/bzmux/bzmux.conf (o -c ARQ troca), mesclado sobre o default
+  embarcado em bzmux/data/bzmux.conf. Chaves, valores default e faixas válidas
+  moram em bzmux/config.py (DEFAULTS); as que mais mudam o uso do dia a dia são
+  font_size (em pontos, não px), scrollback e cursor_shape. Editar aplica na
+  hora; erro é por linha (inicial aproveita o resto, reload não aplica nada).
 
-Teste manual e verificação com janela: **docs/DEBUG.md** (comandos do
-tools/xtest.py, coordenadas da grade, captura com import/pixel.py, fluxo do
-dump por SIGUSR1 e as armadilhas da sessão gráfica).
-
-O app roda no venv do uv, que enxerga o PyGObject do sistema via
---system-site-packages.
+Teste manual e verificação com janela: docs/DEBUG.md.
