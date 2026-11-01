@@ -14,9 +14,12 @@ outros docs citam o fato em uma frase e linkam.
 
 - Formato para agente: título, item de lista, `code` e cerca para comando.
   Tabela só para dado tabular (medição com colunas), nunca decorativa.
-- Conciso: cada seção responde uma pergunta. Sem narrativa de tentativa, sem
-  repetir método já descrito. Medida nova atualiza o número; não ganha parágrafo
-  de conclusão.
+- Conciso: cada seção responde uma pergunta, e um fato tem uma casa aqui dentro
+  também. Leitura repetida em duas seções é divergência esperando acontecer: a
+  outra seção cita em cinco palavras e aponta. Narrativa de tentativa fica no
+  HISTORY. A exceção é a condição da medição (data, governor, grade, comando),
+  que se repete em cada tabela. Medida nova atualiza o número; não ganha
+  parágrafo de conclusão.
 - Sem negrito de ênfase e sem itálico: aqui não há risco a sinalizar, e o número
   com a condição já é o destaque.
 - Uma grandeza por item: o número, a condição (data, governor, grade, comando) e
@@ -62,11 +65,10 @@ python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to /tmp/x.txt
   terminal, e o arquivo evita depender de ler a tela.
 - Grade = tamanho do terminal (`cols × lines`, buffer de `cols × 2·lines`
   pixels); o tool não redimensiona.
-- `bench.sh` abre e fecha a janela uma vez por etapa (full, `NODRAW`,
-  `NOPARSE+NODRAW`, gerador isolado), espera o doomfire terminar e imprime fps,
-  MB/s, bytes/frame, `draw ms/call`, `pty ms/call` e a frequência da CPU
-  (média/pico) de cada etapa. Precisa de display, avisa se outro bzmux estiver
-  desenhando e não guarda número: os de referência são os daqui.
+- `bench.sh` roda as quatro etapas (full, `NODRAW`, `NOPARSE+NODRAW`, gerador
+  isolado) e imprime fps, MB/s, bytes/frame, `draw ms/call`, `pty ms/call` e a
+  frequência da CPU por etapa. Precisa de display e não guarda número: os de
+  referência são os daqui.
 
 ### O número
 
@@ -92,16 +94,14 @@ um terminal de cada vez, 3 tiros de cada em 2026-10-27, `schedutil` com turbo em
   a frequência registrada.
 - A frequência efetiva decide o número: o mesmo código deu 107–121 fps com turbo
   em 4,3 GHz e 59–64 fps com a CPU em ~1,5 GHz (`draw` de 8,5 ms contra 22 ms);
-  com `powersave` (~1,4 GHz) as medições davam 3–5x menos que `schedutil`.
-  Controle independente: o gerador isolado fez 256 fps com `powersave` e 756–771
-  com `schedutil`.
+  com `powersave` as medições davam 3–5x menos que `schedutil`. O controle pelo
+  gerador isolado está em "Anomalia resolvida".
 - fps depende da grade (célula maior = menos frames com a mesma vazão); MB/s é o
-  número que compara. `--frames 1200` também importa: com 300 frames a janela
-  sobe no meio da conta e o fps sai 10–20% acima.
+  número que compara. Com 300 frames a janela sobe no meio da conta e o fps sai
+  10–20% acima, daí os 1200 do protocolo.
 - Os 6,1–6,9 MB/s ficam acima dos 0,7–1,9 MiB/s de "parse + grade" do README
-  porque aqui o desenho está ligado: desligado, o mesmo fogo dá 10,8–11,1 MB/s. O
-  README mede despejo de texto uniforme (escape curto, poucos runs); aqui a tela
-  troca de cor em toda célula, que é o pior caso também do parse.
+  porque aqui o desenho está ligado (desligado, o mesmo fogo dá 10,8–11,1 MB/s):
+  o README mede despejo uniforme, aqui a tela troca de cor em toda célula.
 - Este número é o depois do P9 (desenho por Pango), da fonte em pontos e do bug
   13: o desenho subiu de 12,8 para 22,7 ms por frame e a vazão caiu de 0,6 para
   0,5 MB/s. Parte é shaping e fallback de fonte, parte é tamanho de glifo — até o
@@ -111,11 +111,9 @@ um terminal de cada vez, 3 tiros de cada em 2026-10-27, `schedutil` com turbo em
 
 ### Onde o tempo vai
 
-- `PYTERM_PROF=1`, 1200 frames a 70×21, 113,5 fps / 6,5 MB/s: parse 44% (`pty`
-  0,28 ms por leitura, 16.301 leituras = 4,7 s de 10,6 s) e desenho 34% (`draw`
-  8,1 ms por draw, 448 draws = 3,6 s); o resto é o gerador esperando.
-- Com a CPU baixa a ordem se inverte (desenho 49%, parse 25%): desenho é mais
-  sensível à frequência que parse.
+- `PYTERM_PROF=1`, 1200 frames a 70×21, 113,5 fps / 6,5 MB/s: parse 44% e desenho
+  34% (o resto é o gerador esperando). Com a CPU baixa a ordem se inverte
+  (desenho 49%, parse 25%): desenho é mais sensível à frequência que parse.
 - Desenho roda ~40x/s e o fogo inteiro a ~110 frames/s: o desenho é coalescido a
   ~22–40 draws/s (teto de um a cada 16 ms), e desenhar menos é o que deixa o
   parse respirar.
@@ -145,9 +143,8 @@ um terminal de cada vez, 3 tiros de cada em 2026-10-27, `schedutil` com turbo em
 | `draw` sem instrumentação | 7,76 ms | 6,54 ms (-16%) | |
 
 - O resto do draw (métricas, `paint` do fundo, cursor, sub-célula) fica em ~0,6
-  ms.
-- Ganho no bench de ponta: +4,8% de fps (110,7 → 116,0), porque o desenho é ~34%
-  do tempo — cortar 16% dele rende ~5% na vazão total.
+  ms, e o ganho de ponta é +4,8% de fps (110,7 → 116,0): o desenho é ~34% do
+  tempo, então cortar 16% dele rende ~5% na vazão.
 - São ~1323 runs por draw para 1470 células (1,13 célula/run): o fogo troca a cor
   de quase toda célula, então agrupar não tem o que juntar (o laço de agrupamento
   é só 4%). Quase todo run pinta fundo (`bgpaint` = 99,99% dos runs).
@@ -165,14 +162,10 @@ um terminal de cada vez, 3 tiros de cada em 2026-10-27, `schedutil` com turbo em
   33% — 4 chamadas de contexto por run; cachear a cor (tupla float por índice da
   paleta evita 12 divisões por run), mas o par `rectangle`+`fill` por célula é
   intrínseco à cor por célula.
-- Armadilha de método: `cProfile` não enxerga `gi.FunctionInfo` —
-  `PangoCairo.show_layout` chamado 20.000 vezes num teste isolado não aparece e o
-  tempo cai no `self` do chamador (foi o que fez `_on_draw` medir 46% de "self" e
-  nenhuma chamada de Pango). Método de objeto cairo
-  (`fill`/`rectangle`/`move_to`) aparece; função de módulo do gi, não. Ele também
-  infla quem faz muita chamada Python: `join` apareceu com 21% ali e 12% na
-  medição real, e o app caiu de 59,8 para 5,6 fps. Use `cProfile` para descobrir
-  quais chamadas existem e `perf_counter` por seção para a proporção.
+- Armadilha de método: `cProfile` infla quem faz muita chamada Python. `join`
+  apareceu com 21% no perfil e 12% na medição real, e o app caiu de 59,8 para 5,6
+  fps. O mecanismo (ele não enxerga `gi.FunctionInfo`) está em
+  [DEBUG.md](DEBUG.md).
 
 ## A escada: IO, parse e desenho (2026-10-26)
 
@@ -197,17 +190,13 @@ um terminal de cada vez, 3 tiros de cada em 2026-10-27, `schedutil` com turbo em
 
 Custo da etapa que entrou:
 
-- read do pty é quase grátis (schedutil): sem parse o bzmux faz 448–582 fps
-  contra 742 do gerador puro — o IO custa uns 25–40% do tempo do gerador e não é
-  o limite.
-- parse custa ~3,5x (582 → 156 fps) e, no pior caso, entrega 8,5 MB/s. Com 38
-  bytes de escape por célula é o bloco mais caro do input depois do desenho — mas
-  já foi 14x antes do P20.
-- desenho custa ~2,5x (156 → 60 fps): com o parser rápido, virou a maior fatia
-  (49% do tempo no prof).
-- Os 0,7–1,9 MiB/s de "parse + grade" do README são de outra bancada
-  (`powersave`, despejo uniforme) e não servem de teto; o teto medido hoje, com
-  esta carga, é 8,5 MB/s.
+- read do pty é quase grátis (448–582 fps contra 742 do gerador puro): o IO custa
+  uns 25–40% do tempo do gerador e não é o limite.
+- parse custa ~3,5x. Com 38 bytes de escape por célula é o bloco mais caro do
+  input depois do desenho — mas já foi 14x antes do P20.
+- desenho custa ~2,5x: com o parser rápido, virou a maior fatia (49% do prof).
+- O teto medido hoje, com esta carga, é 8,5 MB/s; o número do README é de outra
+  bancada (ver "O número").
 
 ### Buffering do pty (por que o número vale)
 
@@ -260,10 +249,9 @@ Custo da etapa que entrou:
 | C (feita no P20) | `find` + fim por `find("m")` + cache de escape→cor | 5,49 medido no app | 5,8x |
 
 - Protótipos medem só o caminho feliz (wrap simples, sem reflow/charset/outros
-  CSI).
-- A opção C foi implementada no P20: 5,49 µs/célula no mesmo frame (32,0 → 5,49 =
-  5,8x; texto puro 0,99 → 0,21 = 4,7x), com o parser lento mantido como fallback
-  de tudo que não é texto ou SGR truecolor.
+  CSI). A opção C foi para o código no P20: 32,0 → 5,49 µs/célula = 5,8x (texto
+  puro 0,99 → 0,21 = 4,7x), com o parser lento como fallback de tudo que não é
+  texto ou SGR truecolor.
 - Por que C ganha: `regex.search` custa ~1,1 µs por escape e `int()`+`groups()`
   ~2,2; no doomfire só há 37 tons, então `dict[escape] → (r,g,b)` (~0,05 µs) mata
   os dois.
@@ -316,8 +304,8 @@ Ordem de ataque, do que rende mais:
 - Nuance medida: o desenho de texto uniforme não muda com o governor (1,41 ms com
   `powersave`, 1,45 ms com `schedutil`, 443–445 draws) — o que desaba é o caminho
   caro, de ~2000 runs de cor por frame.
-- Não era energia: bateria e tomada com `powersave` deram 10,52 e 10,89 ms no
-  scroll, dentro do ruído.
+- Não era energia: bateria e tomada deram 10,52 e 10,89 ms no scroll, dentro do
+  ruído.
 - Regra: registrar o governor, comparar só dentro do mesmo governor, desconfiar de
   desenho fora da faixa de ~20–22 ms/frame nesta carga e incluir um tiro do
   gerador isolado como controle.
@@ -330,17 +318,12 @@ PYTERM_NOPARSE=1 PYTERM_NODRAW=1 PYTERM_PROF=1 ./run.sh --cmd 'python3 \
 
 ## Perfil do bzmux
 
+- As sondas `PYTERM_*` estão em [DEBUG.md](DEBUG.md); aqui só o que elas produzem
+  como número.
 - `PYTERM_PROF=1` liga contadores no `TermView` (`bzmux/view.py`): tempo e número
-  de chamadas de `on_pty` (parse) e `on_draw` (desenho), impressos no stderr
-  (portanto no `/tmp/bzmux.log` do `debug.sh`) quando a sessão fecha.
-- Sem a variável o código não faz nada (só o `if not _PROF` na entrada).
-- `PYTERM_NODRAW=1` isola o parse: `request_draw` retorna sem agendar draw,
-  sobrando pty → grade (é a escada acima).
-- `PYTERM_NOPARSE=1` vai um degrau abaixo: lê o pty e descarta os bytes, sem
-  decode nem grade — mede o teto de IO.
-- `PYTERM_DIAG=1` é sonda de geometria, não de tempo: no primeiro draw imprime
-  avanço da fonte, célula da grade, resolução e colunas — os dois têm que casar,
-  senão o texto não cai nas células (bug 13 do HISTORY).
+  de chamadas de `on_pty` (parse) e `on_draw` (desenho), no stderr (logo, no
+  `/tmp/bzmux.log` do `debug.sh`) quando a sessão fecha. Sem a variável o código
+  não faz nada (só o `if not _PROF` na entrada).
 
 ```
 PYTERM_PROF=1 ./debug.sh --cmd 'python3 tools/doomfire.py --fps 0 \
@@ -367,9 +350,9 @@ grep prof: /tmp/bzmux.log
 - PyGObject nunca vem de wheel: o PyPI publica só sdist (3.58.1), então
   `pip install pygobject` é compilar contra headers. É o fato que faz o instalador
   depender do gerenciador de pacotes da distro, e não do pip.
-- Redação: a metadata do pacote não faz claim de desempenho (sem "leve", sem
-  "rápido"). Leve é verdade em pegada e falso em vazão, e a vazão é o teto das
-  seções acima — a decisão está em [LIMITATIONS.md](LIMITATIONS.md).
+- A metadata do pacote não faz claim de desempenho (sem "leve", sem "rápido"):
+  leve é verdade em pegada e falso em vazão. Decisão em
+  [LIMITATIONS.md](LIMITATIONS.md).
 
 ## Protocolo (para comparar dois terminais)
 
@@ -392,10 +375,9 @@ kitty --override remember_window_size=no --override initial_window_width=980 \
 
 ## Como saber que está desenhando
 
-- O dump do bzmux (`kill -USR1 $(cat /tmp/bzmux.pid)`) traz `▀` em todas as linhas
-  da viewport (1470 células em 70×21): prova que o parser está recebendo, não que
-  a tela está mudando.
-- O teste que prova são duas capturas com ~1,5 s de intervalo:
+- O dump traz `▀` em todas as linhas da viewport (1470 células em 70×21): prova
+  que o parser recebe, não que a tela muda. O que prova são duas capturas com
+  ~1,5 s de intervalo:
 
 ```
 import -window $(python3 tools/xtest.py id) /tmp/a.png; sleep 2
@@ -429,11 +411,10 @@ import -window $(python3 tools/xtest.py id) /tmp/b.png
 
 ## Para que serve
 
-- A carga existe para medir mudança no caminho quente: rodar a mesma carga antes e
-  depois da mudança, na mesma grade, e comparar com a linha de base acima.
-- Foi assim que o P9 (desenho por Pango) foi avaliado: desenho de 12,8 para 15,4
-  ms por frame, com e sem cache de layout (30,5 sem cache).
-- Aqueles números são anteriores ao bug 13 (desenho a 96 dpi, glifo menor): valem
-  como comparação entre si, não contra a tabela de cima.
-- O número vivo da tabela muda quando o desenho muda; o registro do antes/depois
-  fica no HISTORY.
+- A carga existe para medir mudança no caminho quente: rodar antes e depois, na
+  mesma grade, e comparar com a linha de base acima. Foi assim que o P9 (desenho
+  por Pango) foi avaliado: 12,8 → 15,4 ms por frame, 30,5 sem cache de layout.
+- Números anteriores ao bug 13 entram só entre si, nunca contra a tabela de cima
+  (o porquê está em "O número").
+- O número vivo da tabela muda quando o desenho muda; o antes/depois fica no
+  HISTORY.
