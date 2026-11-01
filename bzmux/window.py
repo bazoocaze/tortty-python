@@ -529,6 +529,7 @@ class BzmuxWindow(Gtk.Window):
         t = v.term if v is not None else None
         return {
             "pid": os.getpid(),
+            "xid": self._xid(),
             "cols": t.cols if t else 0,
             "rows": t.rows if t else 0,
             "cursor": [t.cy, t.cx] if t else None,
@@ -543,6 +544,14 @@ class BzmuxWindow(Gtk.Window):
             "config": str(self.config.path),
             "errors": list(self.config.errors),
         }
+
+    def _xid(self):
+        """XID da janela: quem vai capturar pixel pergunta ao app, não ao X."""
+        try:
+            gdkwin = self.get_window()
+            return int(GdkX11.X11Window.get_xid(gdkwin)) if gdkwin else 0
+        except (AttributeError, TypeError):
+            return 0
 
     def debug_text(self, where="view", start=0, count=40):
         """Linhas do que a tela mostra (`view`), da grade viva ou do histórico."""

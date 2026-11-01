@@ -23,7 +23,8 @@ só se realmente relevante. Sem tabela, itálico, data ou número de medição.
 - **`import` sem `-window`** põe o cursor em mira e agarra o ponteiro até o
   clique de seleção: outro jeito de travar. Sempre `import -window ID`.
 - **ID de janela nunca fixo:** o app reinicia e o ID muda (`Resource
-  temporarily unavailable` no `import`). Resolver na hora: `tools/xtest.py id`.
+  temporarily unavailable` no `import`). Resolver na hora: `state` do socket
+  devolve o `xid`, ou `tools/xtest.py id` sem socket.
 - **`pkill -f bzmux` mata o próprio shell** (o padrão casa com a linha de
   comando). Usar `./debug.sh --kill`, que confere o PID file contra
   `/proc/<pid>/cmdline`.
@@ -66,19 +67,24 @@ Em `tools/`, com o python3 do sistema (`python3-xlib` 0.33 e gi instalados).
 ## Verificação com janela
 
 ```
-./debug.sh                                  # log em /tmp/bzmux.log
-python3 tools/xtest.py key ctrl+shift+n     # workspace novo
+./debug.sh --debug-socket auto              # log em /tmp/bzmux.log + socket
+printf '{"cmd": "text"}\n' | nc -N -U /run/user/$UID/bzmux-*.sock  # a tela
+python3 tools/xtest.py key ctrl+shift+n     # workspace novo (o app consome)
 python3 tools/xtest.py dclick 60 28         # duplo clique no cartão 1
-python3 tools/xtest.py type 'echo ok'
-kill -USR1 $(cat /tmp/bzmux.pid)            # dumpar a grade
 ```
 
-Dump em `/tmp/bzmux-dump.txt` (`--dump-to ARQ` troca). Cabeçalho de workspace e
-de aba só com mais de um; o da viewport diz `(histórico +N)` quando rolada.
+Roteiro de teste termina com `{"cmd": "quit"}` em vez de `sleep` +
+`--quit-after` + `--kill`: espera-se a resposta que interessa (`state` com
+`scrolled` > 0, por exemplo) e fecha. Digitar texto é `{"cmd": "write", "data":
+"seq 1 200\r"}` — sem display, foco ou risco de grab.
 
-- O dump é da grade VIVA, não da visão rolada (`dump_text` lê `Term.row_text`):
-  conferir scroll por ele dá falso negativo. O offset só aparece no
-  `(histórico +N)` ou em captura.
+- Quem lê a tela é `text` com `where` = `view` (o que a tela mostra, com
+  `view_off`), `screen` (grade viva) ou `history` (scrollback por linha
+  absoluta). O dump do `SIGUSR1` e o `--dump-to` continuam existindo para
+  quando não há socket, e eles são da grade VIVA: conferir scroll por eles dá
+  falso negativo (o offset só aparece no cabeçalho `(histórico +N)`).
+- Pixel continua exigindo captura: `state` devolve o `xid` da janela, então
+  `import -window $(...)` não depende mais de caçar o ID pelo `_NET_WM_PID`.
 - Página oculta do `Gtk.Notebook` não é realocada: mantém o `size-allocate`
   antigo (lateral aberta estreita de 75 para 62 colunas só na visível) e
   corrige ao ser mapeada (`on_resize` → `TIOCSWINSZ`/`SIGWINCH`). Larguras
@@ -129,8 +135,9 @@ caminho do socket.
 
 - Um pedido JSON por linha, uma resposta JSON por linha; a mesma conexão aceita
   vários pedidos seguidos.
-- `{"cmd": "state"}` — grade, cursor, título, `view_off`, `pin`, `sync`,
-  `scrolled`, `scrollback`, abas, workspaces, configuração e erros.
+- `{"cmd": "state"}` — pid, `xid` da janela, grade, cursor, título, `view_off`,
+  `pin`, `sync`, `scrolled`, `scrollback`, abas, workspaces, configuração e
+  erros.
 - `{"cmd": "text", "where": "view", "start": 0, "count": 40}` — `view` é o que
   a tela mostra (segue `view_off`), `screen` é a grade viva (o que o dump do
   `SIGUSR1` mostra) e `history` indexa o scrollback por linha absoluta, 0 = a
@@ -142,6 +149,9 @@ caminho do socket.
   `debug_log` em execução.
 - `{"cmd": "quit"}` — fecha o app; o destroy vai num idle para a resposta sair
   antes (fazer direto fecha o socket no meio do pedido).
+- Cliente fecha a conexão, não o servidor: ele fica aberto para receber mais
+  pedidos. Sem `nc -N` (ou `-q 0`) o comando pendura esperando o fim da
+  conexão; EOF do cliente encerra do lado do app.
 - Pedido inválido responde `{"ok": false, "err": ...}`; o despacho é puro e o
   check `debug_socket` cobre ele com alvo falso.
 
