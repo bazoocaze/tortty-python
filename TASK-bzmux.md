@@ -19,6 +19,11 @@ interação à mão com `tools/xtest.py`.
 
 Nada pela metade: árvore limpa, tudo commitado.
 
+**Próximo alvo: B22** (repaint do app cai no topo do histórico). Já investigado
+até o estado final e a linha de cada quebra da invariante; o esperado, os
+achados e o conserto indicado estão no item B22 de
+[`docs/BACKLOG.md`](docs/BACKLOG.md). Código intocado.
+
 **Próximo alvo: o desenho.** O barato já foi feito (P24/P25: cor em float
 cacheada e `show_layout_line`, `draw` 7,76 → 6,54 ms, pixels idênticos). O que
 sobra está medido e no [`docs/BACKLOG.md`](docs/BACKLOG.md): P26 é o único que
