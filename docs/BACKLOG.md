@@ -52,10 +52,12 @@ decidir na execução: um widget com dano por região vs. widget por split, cach
 de layout e métricas de fonte compartilhados, blink só no visível, e o teto
 prático de splits — que vem da memória, não do frame.
 
-P30 — Portabilidade gráfica: rodar no Linux, Windows e macOS. **Discussão,
-decisão pendente** (2026-10-28). O estudo (o que é plataforma hoje, os bloqueios
-no código, o custo de cada rota e a pergunta que precede o código) saiu para
-[PORTABILITY.md](PORTABILITY.md); aqui fica só o item aberto.
+P30 — Portabilidade gráfica: rodar no Linux, Windows e macOS. **Aberto**
+(revisto em 2026-11-01): nem Python nem cairo/Pango são identidade — foram
+escolha inicial. Pontos em jogo, só registrados (não são requisitos): OS alvo,
+features do alvo (splits, aviso de atenção, CLI), vazão/latência, forma de
+instalar. O estudo, os bloqueios no código e o custo de cada rota (conda, Qt,
+FFI) estão em [PORTABILITY.md](PORTABILITY.md); nada disso está decidido.
 
 P33 — Arquivo de configuração: **v1 implementado** (2026-10-29), falta o uso
 real. A decisão de escopo foi "começar só com `shell`": nada de cores, fonte ou

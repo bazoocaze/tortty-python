@@ -113,9 +113,10 @@ de 1920 células para ~2 ms, e o Pango cobrou ~20% num frame de 1360 células co
 37 cores (números em docs/HISTORY.md, P9).
 
 Não objetivo: clonar o kitty/gtkterm ou derivar do núcleo C deles — nada daqui
-vem de lá. Python puro não é limitação pendente: é a conclusão do experimento
-(dá para fazer um terminal inteiro em Python, e ele é usado assim no dia a dia);
-o teto de vazão é o preço aceito e se ataca em Python, não reescrevendo em C.
+vem de lá. O experimento mostrou que dá para fazer um terminal inteiro em
+Python, e é assim que ele é usado; isso é resultado, não cota: linguagem e stack
+gráfico são escolha inicial, revisável por requisito
+(ver [docs/PORTABILITY.md](docs/PORTABILITY.md)).
 
 ## Configuração
 

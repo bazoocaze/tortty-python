@@ -132,14 +132,34 @@ buffer de um `QImage` (o projeto já faz isso para imagens do kitty em
 (~250 KB em 1920 células) e **não resolve distribuição**: Pango continuaria
 necessário. Só serve como estágio intermediário da rota B.
 
-## Decisão pendente
+## Decisão (revista em 2026-11-01)
 
-A pergunta que precede código: **cairo + Pango é identidade do projeto ou
-detalhe de implementação?** Identidade → rota A (conda) é a única que preserva.
-Implementação → rota B, e o caminho de menor risco é uma porta fina (backend
-GTK3 atual + backend Qt), porque aí dá para medir os dois lado a lado e o
-`bench.sh` continua valendo na transição — é ela que responde com número se o
-Qt é mais rápido que o cairo/Pango no caminho quente.
+- **Python é escolha inicial, não identidade.** O experimento provou que dá para
+  fazer um terminal inteiro em Python (foi assim que o app nasceu e é usado);
+  provou isso, não que a linguagem seja obrigatória. Núcleo nativo em Rust/C não
+  está descartado por princípio.
+- **cairo + Pango também é escolha inicial**, revisável por requisito
+  (distribuição, GPU, plataforma).
+- Pontos em jogo, só registrados (não são requisitos fixados): OS alvo;
+  features do alvo (splits, aviso de atenção, CLI); vazão/latência; forma de
+  instalar (pip/`uv tool`, sem conda). O alvo cmux é macOS sobre Ghostty (GPU):
+  se o alvo for ele, macOS e renderização acelerada entram na conversa e as
+  rotas hoje fora voltam ao páreo.
+
+Consequências que ficam valendo:
+
+- Rota A (conda) existe para quem quer preservar Pango; rota B é o caminho
+  quando o alvo é Windows/macOS, com porta fina (backend GTK3 atual + backend
+  Qt) para medir os dois lado a lado.
+- PyPy (P38) vira medição do caminho quente, não caminho de aplicação: sem
+  `gi`, só com bindings cffi.
+- GPU: o cairo desenha na CPU. Se renderização acelerada virar requisito (é o
+  que Ghostty/cmux usam), ela não sai do stack atual — é uma das rotas a pesar,
+  não um limite já aceito.
+- Alvo de produto, se for clone do cmux (abas verticais, splits, aviso quando o
+  agente pede atenção, CLI): abas verticais já existem como cartão de workspace,
+  a CLI já é o socket de introspecção, splits são o P39 e o aviso depende de
+  `OSC 9`/`OSC 777`, hoje não atendidos.
 
 Se a rota B acontecer, o BENCHMARKS passa a ter número por backend e o piso de
 comparação ganha dois parâmetros novos: família da fonte e scale factor
