@@ -26,6 +26,32 @@ overflow protection" e volta `[]`. Se for tentar, o desenho precisa escolher por
 run (ASCII sem `.notdef` → cairo; senão Pango) e a validação é comparação de
 pixels, não o fps.
 
+P38 — Runtime alternativo: PyPy e Cython no caminho quente. **Experimento, não
+compromisso.** Pedido: dá para medir o projeto sob PyPy e sob Cython? O app
+inteiro não: o `gi` só é importado em `bzmux/gui.py`, mas é por ele que passam
+view e window, e o PyGObject não roda no PyPy (o `cpyext` não cobre a API C que
+ele usa) — a janela não sobe. O que dá para medir é o caminho quente puro
+(`palette`, `term`, `graphics`, `kitty_kbd`, `mouse`): alimentar N MB no `Term`
+e comparar MB/s de parse+grade com o CPython, que é a régua do
+[BENCHMARKS.md](BENCHMARKS.md). Cython é viável no mesmo subconjunto (nenhum
+desses módulos importa `gi`), ao preço de um passo de build por versão de Python
+no `install.sh`/pipx e de tipar os laços quentes — compilar sem tipos C rende
+pouco. Cabe na mesma medição: mypyc (exige anotar o código) e Nuitka. Hoje
+`pypy3` e `cython` não estão instalados.
+
+P39 — Splits: mais de um terminal na mesma view. **Feature.** Pedido: dividir a
+view em vários terminais. Custo levantado de graça na conversa (2026-11-01,
+Xvfb, fonte 13, cena de texto com 8 cores): por frame há um fixo de ~0,4 ms mais
+~0,5 µs por célula — 61x18 dá 0,99 ms, 31x18 dá 0,68 ms, 16x9 dá 0,49 ms, então
+o desenho de N splits no mesmo widget custa praticamente o mesmo que a tela
+cheia de hoje, e um widget por split paga o fixo uma vez por split. Memória é o
+que escala de verdade: 90 KB a tela e **~5 MB por terminal** com `scrollback`
+1000 (84 B por célula). Não há thread no projeto: cada split é mais um stream de
+pty na mesma thread do desenho (como N abas hoje, mas com draw junto). O que
+decidir na execução: um widget com dano por região vs. widget por split, cache
+de layout e métricas de fonte compartilhados, blink só no visível, e o teto
+prático de splits — que vem da memória, não do frame.
+
 P30 — Portabilidade gráfica: rodar no Linux, Windows e macOS. **Discussão,
 decisão pendente** (2026-10-28). O estudo (o que é plataforma hoje, os bloqueios
 no código, o custo de cada rota e a pergunta que precede o código) saiu para
