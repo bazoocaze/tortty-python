@@ -103,6 +103,8 @@ class Term:
         # histórico (CSI 3J) invalidam âncoras velhas. O corte no teto NÃO
         # invalida: a linha absoluta continua a mesma (como no P32).
         self.abs_gen = 0
+        # `CSI 3J` apaga o histórico: quem está rolando precisa saber (B20)
+        self.hist_gen = 0
         self.scrollback = []
         self.scrollback_limit = 1000  # teto de linhas do histórico (P34)
         # reflow (P3): row_wrapped[i] = "esta linha continua na de baixo"
@@ -155,8 +157,10 @@ class Term:
         """RIS (ESC c): limpa tudo, mantém o tamanho e o teto do histórico."""
         cols, rows, gen = self.cols, self.rows, self.abs_gen + 1
         limit = self.scrollback_limit  # o teto é configuração, não estado do app
+        hist = self.hist_gen
         self.__init__(cols, rows)
         self.abs_gen = gen
+        self.hist_gen = hist
         self.scrollback_limit = limit
 
     def resize(self, cols, rows):
@@ -428,6 +432,7 @@ class Term:
                 self.sb_wrapped.clear()
                 self.graphics.clear()
                 self.abs_gen += 1  # o histórico sumiu: âncora antiga morreu
+                self.hist_gen += 1
             self.cursor_to(0, 0)
         elif n == 1:
             for x in range(self.cx + 1):
@@ -995,6 +1000,14 @@ class Term:
         Limpa o histórico (`CSI 3J`) e o clampe devolve o vivo: a âncora sumiu.
         """
         return max(0, min(self.scrolled - anchor, len(self.scrollback)))
+
+    def pinned_view_off(self, pin):
+        """`view_off` que segura `pin` linhas atrás do vivo depois do `CSI 3J`.
+
+        A âncora absoluta morre com o histórico, mas a distância do vivo não
+        precisa morrer: o app que limpou reescreve o mesmo texto (B20).
+        """
+        return min(pin, len(self.scrollback))
 
     def abs_row(self, line):
         """A fileira de células da linha absoluta, ou None se ela não existe."""

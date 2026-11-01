@@ -128,6 +128,10 @@ resolução e desenhada em outra, bug 13 do HISTORY). `PROF` decompõe a vazão,
   mapeada, o foco fica no notebook): agendar com `GLib.idle_add`.
 - `GLib.idle_add` de foco rouba o foco de um `Gtk.Entry`: checar `get_focus()`
   antes, senão o nome digitado vai para o terminal.
+- `CSI 3J` apaga o histórico: a âncora absoluta de rolagem morre com ele. O
+  repaint que limpa reescreve o mesmo texto, então o que vale é a distância do
+  vivo (`Term.hist_gen` marca a limpeza, `pinned_view_off` reconta); guardar a
+  linha absoluta faz a visão saltar pro topo da história nova.
 - `sh -c "<cmd>"` não faz exec quando o comando tem argumento: o programa é
   neto do pty e o cwd do `sh` nunca muda. Herdar cwd pelo último descendente
   (`/proc/<pid>/task/<pid>/children`).

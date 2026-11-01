@@ -137,6 +137,8 @@ class TermView(Gtk.DrawingArea):
         self._state = 0  # modificadores do último evento
         self.view_off = 0  # 0 = vivo; >0 = linhas de histórico
         self._anchor = 0  # linha absoluta no topo da visão quando no histórico
+        self._hist_gen = 0  # geração do histórico que a visão já viu
+        self._pin_off = 0  # distância do vivo a segurar depois de um `CSI 3J`
         self._img_cache = {}  # id da imagem -> (surface, keepalive)
 
         self.set_can_focus(True)
@@ -367,7 +369,20 @@ class TermView(Gtk.DrawingArea):
                         data[:600],
                     )
                 )
-        if self.view_off:
+        if self.term.hist_gen != self._hist_gen:
+            # `CSI 3J`: o histórico acabou (o repaint do pi começa assim). A
+            # âncora absoluta morre, mas a distância do vivo ainda vale — quem
+            # rolou quer continuar lendo, não voltar pro topo nem pro vivo
+            self._hist_gen = self.term.hist_gen
+            if self.view_off:
+                self._pin_off = self.view_off
+        if self._pin_off:
+            off = self.term.pinned_view_off(self._pin_off)
+            self.view_off = off
+            self._anchor = self.term.scrolled - off
+            if off >= self._pin_off:
+                self._pin_off = 0  # chegou na distância: volta ao modo âncora
+        elif self.view_off:
             self.view_off = self.term.anchored_view_off(self._anchor)
         if self.term.bells:  # BEL: a janela decide visual/audível (P34)
             self.term.bells = 0
@@ -596,6 +611,7 @@ class TermView(Gtk.DrawingArea):
             return False  # alt-screen não tem histórico que rolar
         off = max(0, min(len(t.scrollback), self.view_off + delta))
         if off != self.view_off:
+            self._pin_off = 0  # o usuário escolheu: a posição dele manda
             self.view_off = off
             # a âncora é absoluta (P32): o output que chegar depois não arranca
             # o usuário daqui — só rolar até o fim, tecla ou limpeza do histórico
@@ -613,6 +629,7 @@ class TermView(Gtk.DrawingArea):
             self.queue_draw()
 
     def back_to_live(self):
+        self._pin_off = 0
         if self.view_off:
             self.view_off = 0
             self._anchor = 0

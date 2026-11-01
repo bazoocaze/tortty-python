@@ -1011,6 +1011,17 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     `SHELL` no filho. Verificado em `Xvfb` com `echo $SHELL` na sessão: vazio
     + `$SHELL=zsh` dá zsh, `shell /bin/dash` dá dash.
 
+20. **Rolar o histórico e o repaint do app jogava a visão pro topo.** O `pi` em
+    modo regular redesenha com `?2026h` + `2J H 3J` + o buffer inteiro: o `3J`
+    zerava o histórico mas a âncora de rolagem continuava absoluta, então cada
+    linha reescrita aumentava `scrolled - anchor` e o clamp em
+    `len(scrollback)` escorava no topo da história nova. Fix: `Term.hist_gen`
+    avisa a limpeza e a view troca a âncora por "distância do vivo"
+    (`Term.pinned_view_off`), segurando até a distância voltar — quem rolou
+    continua lendo, sem cair no topo nem no vivo. Verificado no check
+    `redraw_keeps_history_position` (o caminho antigo dá o topo) e no app:
+    `histórico +9` antes e depois do repaint.
+
 ## Nota de documentação: número só em um lugar
 
 Até 2026-10-27 os números de vazão viviam repetidos em README, LIMITATIONS,

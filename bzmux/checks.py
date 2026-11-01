@@ -417,6 +417,35 @@ def scroll_anchor():
     assert t.anchored_view_off(anchor) == 0
 
 
+def redraw_keeps_history_position():
+    """B20: o repaint do app (`2J H 3J` dentro do 2026) não joga pro topo."""
+    t = Term(cols=12, rows=4)
+    t.set_scrollback(200)
+    for i in range(1, 41):
+        t.feed("l%02d\r\n" % i)
+    off = 12  # o usuário rolou 12 linhas para trás
+    anchor = t.scrolled - off
+    antes = _row_text(t.visible_rows(off)[0]).rstrip()
+    gen = t.hist_gen
+    # exatamente o começo do fullRender(clear) do pi
+    t.feed("\x1b[?2026h\x1b[2J\x1b[H\x1b[3J")
+    assert t.hist_gen == gen + 1  # é por aqui que a view descobre a limpeza
+    assert t.scrollback == []
+    # a âncora absoluta morreu: sem o pin, o clamp devolveria o vivo e, com o
+    # buffer reescrito, escoraria no topo (era o bug)
+    assert t.anchored_view_off(anchor) == 0
+    for i in range(1, 41):  # o app reescreve o mesmo buffer
+        t.feed("l%02d\r\n" % i)
+    t.feed("\x1b[?2026l")
+    assert len(t.scrollback) >= off
+    pin = t.pinned_view_off(off)  # distância do vivo, não âncora absoluta
+    assert pin == off
+    assert _row_text(t.visible_rows(pin)[0]).rstrip() == antes
+    # o caminho da âncora absoluta dá o topo do histórico novo — era o bug
+    assert t.anchored_view_off(anchor) == len(t.scrollback) != off
+    assert _row_text(t.visible_rows(len(t.scrollback))[0]).rstrip() != antes
+
+
 def selection_follows_history():
     """B17: a seleção vive no conteúdo — rolar e output não trocam o texto."""
     t = Term(cols=10, rows=5)
@@ -628,6 +657,7 @@ ALL = (
     history,
     scroll_anchor,
     selection_follows_history,
+    redraw_keeps_history_position,
     mouse_modes_and_sgr,
     selection,
     paste_markers,
