@@ -22,7 +22,7 @@ como testar: [../TASK-bzmux.md](../TASK-bzmux.md). Ferramentas e armadilhas:
   se o caminho ensina armadilha, ela vai para DEBUG.md.
 - Número de medição não mora aqui (vai para BENCHMARKS.md). Exceção: o número do
   dia em que o item fechou, como registro datado.
-- Item fechado cabe em ~15 linhas. Passou disso é sinal de que está recontando o
+- Item fechado cabe em ~10 linhas. Passou disso é sinal de que está recontando o
   código.
 - Formato: título `### Pn — assunto (data)`, parágrafos curtos ou lista, `code`
   para caminho, símbolo e valor. Negrito só no status do título; sem tabela.
