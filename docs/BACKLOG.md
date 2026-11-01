@@ -59,8 +59,7 @@ disparava) e `no_show_all` bloqueia até o `show_all()` chamado direto no widget
 (a caixa do toast ficava invisível).
 
 Os demais itens estão concluídos: histórico e bugs em [HISTORY.md](HISTORY.md),
-ferramentas e armadilhas em [DEBUG.md](DEBUG.md), status e por onde retomar em
-[../TASK-bzmux.md](../TASK-bzmux.md).
+ferramentas e armadilhas em [DEBUG.md](DEBUG.md).
 
 O que sobra é limite conhecido, não item — caractere largo (CJK/emoji) ocupando
 uma célula só, protocolo de teclado do kitty parcial, sequências não

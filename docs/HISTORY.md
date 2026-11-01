@@ -2,9 +2,8 @@
 
 Memória do projeto: backlog concluído, bugs corrigidos e git.
 Não é tarefa. Pendências: [BACKLOG.md](BACKLOG.md). O que não é feito e por quê:
-[LIMITATIONS.md](LIMITATIONS.md). Status, escopo, arquitetura, medições e
-como testar: [../TASK-bzmux.md](../TASK-bzmux.md). Ferramentas e armadilhas:
-[DEBUG.md](DEBUG.md).
+[LIMITATIONS.md](LIMITATIONS.md). Arquitetura e convenções: [../AGENTS.md](../AGENTS.md).
+Medições: [BENCHMARKS.md](BENCHMARKS.md). Ferramentas e armadilhas: [DEBUG.md](DEBUG.md).
 
 ## Convenções
 
@@ -829,6 +828,15 @@ Erro passou a ser por linha, revisto no mesmo dia a pedido: a carga inicial apli
 o que validou (a chave inválida fica no padrão) e um toast mostra o primeiro erro
 com `(+N)`; o reload continua tudo-ou-nada e mantém a configuração que estava
 valendo. O toast só aparece quando há erro.
+
+O toast foi desenhado à parte, sobre um mock GTK descartável (já apagado), não
+no app: pílula (raio 14), padding de meia altura da fonte medido no primeiro
+show, barra de acento de 4 px à esquerda, borda de 1 px com sombra, título em
+branco e detalhe em `#dddddd`, entrada por slide de baixo. Três tons por
+severidade (ok/aviso/erro, cada um com sua barra e borda) — o amarelo nasceu de
+chave repetida, que antes sumia em silêncio. Duração 3 s no ok e 10 s nos outros,
+clique dispensa, toast novo espera a vez, e no erro de config o clique abre o
+arquivo.
 
 Bugs do caminho: o flash do `bell` só cobriu a aba inteira depois de mover o
 padding do nó `tab` para o rótulo — e `background-color` sozinho não pintava sem

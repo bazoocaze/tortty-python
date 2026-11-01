@@ -229,6 +229,9 @@ caminho do socket.
   mentir quando o shell configurado é outro (ou quando o config está vazio e o
   `$SHELL` decide). Exportar o `SHELL` que `config.tab_command` devolve — o
   `--cmd` troca o comando, não o `SHELL`.
+- `Gtk.EventBox` ignora padding do CSS no tamanho: o fundo pinta, o widget não
+  cresce e o texto encosta na borda. Padding vai na caixa interna (`Gtk.Box`),
+  como no `#toast` atual.
 - `Gtk.EventBox` sem `add_events()` tem máscara vazia (`get_events() == 0`) e o
   clique nunca chega; e `notebook.set_tab_label_text()` troca o widget do
   rótulo (guardar o `Gtk.Label` e mudar o texto dele).

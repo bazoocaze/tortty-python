@@ -15,7 +15,6 @@ Divisão por tipo de conteúdo — cada fato mora em um só lugar, não duplicar
 Todos são escritos para leitura de agente; só o README.md é para humano.
 
 - AGENTS.md (este) — convenções, arquitetura, scripts, ferramentas.
-- TASK-bzmux.md — ficha magra: status, por onde retomar, fila.
 - docs/BACKLOG.md — backlog pendente e as regras da fila (registrar,
   fechar, para onde vai o que não é item).
 - docs/LIMITATIONS.md — o que não é feito e por quê (decisão/limite aceito, não
