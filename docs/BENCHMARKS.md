@@ -142,7 +142,7 @@ um terminal de cada vez, 3 tiros de cada em 2026-10-27, `schedutil` com turbo em
 | soma das seções | 7,11 | 5,71 | 5,0 µs/célula |
 | `draw` sem instrumentação | 7,76 ms | 6,54 ms (-16%) | |
 
-- O resto do draw (métricas, `paint` do fundo, cursor, sub-célula) fica em ~0,6
+- O resto do draw (métricas, o `cr.paint()` que limpa, cursor, sub-célula) fica em ~0,6
   ms, e o ganho de ponta é +4,8% de fps (110,7 → 116,0): o desenho é ~34% do
   tempo, então cortar 16% dele rende ~5% na vazão.
 - São ~1323 runs por draw para 1470 células (1,13 célula/run): o fogo troca a cor

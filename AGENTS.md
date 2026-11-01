@@ -21,7 +21,8 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 - docs/LIMITATIONS.md — o que não é feito e por quê (decisão/limite aceito, não
   fila). Antes de implementar algo "óbvio", checar aqui: pode ser decisão.
 - docs/HISTORY.md — backlog concluído, bugs corrigidos e a nota de
-  git: só narrativa datada (o registro do dia, não leitura corrente).
+  git: só narrativa datada (o registro do dia, não leitura corrente), com as
+  regras de escrita no topo do próprio arquivo.
 - docs/DEBUG.md — manual operacional: o que pode travar a sessão gráfica,
   ferramentas de teste manual, verificação com janela, sondas `PYTERM_*` e
   armadilhas de implementação (GTK/cairo/Pango/parser). **Ler antes de rodar

@@ -5,7 +5,29 @@ Não é tarefa. Pendências: [BACKLOG.md](BACKLOG.md). O que não é feito e por
 [LIMITATIONS.md](LIMITATIONS.md). Status, escopo, arquitetura, medições e
 como testar: [../TASK-bzmux.md](../TASK-bzmux.md). Ferramentas e armadilhas:
 [DEBUG.md](DEBUG.md).
-Convenções: [../AGENTS.md](../AGENTS.md).
+
+## Convenções
+
+- Convenções do projeto: [../AGENTS.md](../AGENTS.md). As daqui são sobre o que
+  se registra, não sobre o código.
+- Conciso, e o detalhe fica onde já está: caminho e função tocados, assinatura
+  nova, teste acrescentado, ordem das tentativas e diff estão no código e no
+  `git log`. O item guarda só o que a memória precisa.
+- O que fica: a decisão e o porquê, a alternativa descartada, a armadilha que não
+  deve ser redescoberta, o bug (causa em uma frase, fix em uma frase) e como se
+  provou que funcionou.
+- Verificação é a observação, não o comando: "o dump mostrou 5 linhas", e não a
+  linha de shell que gerou o dump — comando fica em DEBUG.md.
+- Bug: causa e fix em uma frase cada. A sequência de tentativas não é regressão;
+  se o caminho ensina armadilha, ela vai para DEBUG.md.
+- Número de medição não mora aqui (vai para BENCHMARKS.md). Exceção: o número do
+  dia em que o item fechou, como registro datado.
+- Item fechado cabe em ~15 linhas. Passou disso é sinal de que está recontando o
+  código.
+- Formato: título `### Pn — assunto (data)`, parágrafos curtos ou lista, `code`
+  para caminho, símbolo e valor. Negrito só no status do título; sem tabela.
+- Vale para o que entrar daqui pra frente. Item antigo não se reescreve só para
+  caber nesta regra.
 
 ## Backlog concluído
 
