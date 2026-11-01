@@ -16,10 +16,10 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 
 - AGENTS.md (este) — convenções, arquitetura, scripts, ferramentas.
 - TASK-bzmux.md — ficha magra: status, por onde retomar, fila.
-- docs/BACKLOG.md — backlog pendente (vazio hoje).
+- docs/BACKLOG.md — backlog pendente: o que falta e por quê.
 - docs/LIMITATIONS.md — o que não é feito e por quê (decisão/limite aceito, não
   fila). Antes de implementar algo "óbvio", checar aqui: pode ser decisão.
-- docs/HISTORY.md — backlog concluído (P1–P18), bugs corrigidos e a nota de
+- docs/HISTORY.md — backlog concluído, bugs corrigidos e a nota de
   git: só narrativa datada (o registro do dia, não leitura corrente).
 - docs/DEBUG.md — manual operacional: o que pode travar a sessão gráfica,
   ferramentas de teste manual, verificação com janela, sondas `PYTERM_*` e
@@ -203,8 +203,7 @@ erros.
 `PYTERM_CONFLOG=1` cada reload aprovado imprime os valores no stderr.
 - pipx install --system-site-packages git+ssh://git@github.com/bazoocaze/pybzmux.git
   — instala na máquina (Linux; build feito do clone pelo hatchling, o comando
-  bzmux fica no PATH). Os detalhes e as armadilhas ficam em docs/BACKLOG.md
-  (P31) e no HISTORY.md.
+  bzmux fica no PATH). Os detalhes e as armadilhas ficam em HISTORY.md.
 - ./run.sh — roda o app para testar rápido: passa os argumentos (--cmd,
   --quit-after, --dump-to, -h) para o app, em foreground, e sai com o
   código dele. Escolhe o interpretador: .venv/bin/python quando ele importa gi,

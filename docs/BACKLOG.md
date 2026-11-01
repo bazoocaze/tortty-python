@@ -166,18 +166,9 @@ seleção com botão do meio e `./bench.sh` — este último só onde houver lei
 de governor/frequência (no mac e no Windows vira outro protocolo, não uma
 linha da escada atual).
 
-Os demais itens (P1–P25, P19, P28, P29 e P31–P34) estão concluídos. Histórico e
-bugs: [HISTORY.md](HISTORY.md). Ferramentas e armadilhas: [DEBUG.md](DEBUG.md).
-Status e por onde retomar: [../TASK-bzmux.md](../TASK-bzmux.md).
-
-O que sobra é limite conhecido, não item — caractere largo (CJK/emoji) ocupando
-uma célula só, protocolo de teclado do kitty parcial, sequências não
-interpretadas, sem tema/paleta configurável — tudo em
-[LIMITATIONS.md](LIMITATIONS.md).
-
 P33 — Arquivo de configuração: **v1 implementado** (2026-10-29), falta o uso
 real. A decisão de escopo foi "começar só com `shell`": nada de cores, fonte ou
-atalhos ainda. O que existe:
+atalhos. O que existe:
 
 - `bzmux/config.py` puro (sem `gi`): parse do formato do kitty (`chave valor`,
   `#` comenta até o fim da linha, espaço nas pontas, chave repetida vale a
@@ -201,6 +192,9 @@ Dois bugs achados no caminho, registrados no `docs/HISTORY.md`: o
 disparava) e `no_show_all` bloqueia até o `show_all()` chamado direto no widget
 (a caixa do toast ficava invisível).
 
+Os demais itens estão concluídos: histórico e bugs em [HISTORY.md](HISTORY.md),
+ferramentas e armadilhas em [DEBUG.md](DEBUG.md), status e por onde retomar em
+[../TASK-bzmux.md](../TASK-bzmux.md).
 
 O que sobra é limite conhecido, não item — caractere largo (CJK/emoji) ocupando
 uma célula só, protocolo de teclado do kitty parcial, sequências não
