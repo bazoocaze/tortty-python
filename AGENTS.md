@@ -54,33 +54,34 @@ explicar uma sonda.
 bzmux é um pacote (bzmux/, instalável: `bzmux` no PATH ou `python -m bzmux`);
 nenhum arquivo solto na raiz. O código:
 
-    run.sh         roda o app (teste rápido; escolhe o python)
-    debug.sh       desenvolvimento: background, log, --kill/--status
-    run-tests.sh   roda o lint e a bateria de testes
-    bench.sh       escada do doom-fire (medição, precisa de display)
-    bzmux/
-      __main__.py  `python -m bzmux` (chama cli.run)
-      __init__.py  fachada com import preguiçoso (bzmux.Term não puxa o Gtk)
-      palette.py   célula [char, fg, bg, flags], paleta xterm-256 (int e float), charset DEC
-      term.py      grade, cursor, parser VT — não conhece GTK
-      keys.py      keyval do X11 -> bytes do filho (dead keys, DECCKM)
-      kitty_kbd.py protocolo de teclado do kitty (CSI ... u)
-      mouse.py     protocolo de mouse (SGR e o antigo) — puro
-      graphics.py  protocolo de imagens do kitty (APC G) — puro
-      gui.py       único import de Gtk/Gdk/GLib/Pango/PangoCairo/cairo
-      style.py     tokens de cor do cromo + CSS gerado + contraste (puro)
-      view.py      TermView: uma sessão (pty, cairo + Pango, eventos)
-      window.py    Workspace + BzmuxWindow (abas, lateral, atalhos globais)
-      checks.py    a bateria: asserts puros, sem display
-      selftest.py  runner sem dependências do --selftest
-      cli.py       argv e arranque (e o entry point do console script)
-      shortcut.py  atalho do sistema (.desktop + ícone) — puro, roda antes do gi
-      state.py     geometria da janela entre execuções (JSON em XDG_STATE_HOME)
-      config.py    configuração (chave/valor do kitty) — puro; merge com o default
-      data/        bzmux.svg (ícone) e bzmux.conf (opções default embarcadas)
-    tests/         runner pytest de bzmux/checks.py
-    tools/         xtest.py, pixel.py — teste manual, exige X11 (só eles);
-                   doomfire.py — carga de medição
+- run.sh — roda o app (teste rápido; escolhe o python)
+- debug.sh — desenvolvimento: background, log, --kill/--status
+- run-tests.sh — roda o lint e a bateria de testes
+- bench.sh — escada do doom-fire (medição, precisa de display)
+- install.sh — instalador (Linux)
+- bzmux/__main__.py — python -m bzmux (chama cli.run)
+- bzmux/__init__.py — fachada com import preguiçoso (bzmux.Term não puxa o Gtk)
+- bzmux/palette.py — célula [char, fg, bg, flags], paleta xterm-256 (int e float),
+  charset DEC
+- bzmux/term.py — grade, cursor, parser VT; não conhece GTK
+- bzmux/keys.py — keyval do X11 -> bytes do filho (dead keys, DECCKM)
+- bzmux/kitty_kbd.py — protocolo de teclado do kitty (CSI ... u)
+- bzmux/mouse.py — protocolo de mouse (SGR e o antigo) — puro
+- bzmux/graphics.py — protocolo de imagens do kitty (APC G) — puro
+- bzmux/gui.py — único import de Gtk/Gdk/GLib/Pango/PangoCairo/cairo
+- bzmux/style.py — tokens de cor do cromo + CSS gerado + contraste (puro)
+- bzmux/view.py — TermView: uma sessão (pty, cairo + Pango, eventos)
+- bzmux/window.py — Workspace + BzmuxWindow (abas, lateral, atalhos globais)
+- bzmux/checks.py — a bateria: asserts puros, sem display
+- bzmux/selftest.py — runner sem dependências do --selftest
+- bzmux/cli.py — argv e arranque (e o entry point do console script)
+- bzmux/shortcut.py — atalho do sistema (.desktop + ícone); puro, antes do gi
+- bzmux/state.py — geometria da janela entre execuções (JSON em XDG_STATE_HOME)
+- bzmux/config.py — configuração (chave/valor do kitty); puro, merge c/ default
+- bzmux/data/ — bzmux.svg (ícone) e bzmux.conf (opções default embarcadas)
+- tests/ — runner pytest de bzmux/checks.py
+- tools/xtest.py, tools/pixel.py — teste manual, exige X11
+- tools/doomfire.py — carga de medição, não teste
 
 O que sustenta essa divisão: o caminho do --selftest importa só palette, term
 (que puxa graphics), kitty_kbd e mouse, e nenhum deles puxa gi/cairo — é isso
