@@ -1,5 +1,9 @@
 # bzmux — backlog (pendente)
 
+B17 — Seleção do mouse não acompanha o scroll da tela: com texto selecionado, o
+conteúdo rola e a seleção não vai junto (o realce fica na posição de tela).
+Registrado sem investigação; diagnóstico e reprodução ficam para a execução.
+
 P26 — Desenho: `cr.show_glyphs` com glifos pré-computados. **Experimento, não
 compromisso.** É o único caminho que ataca de verdade o custo de emissão:
 2,43 → 0,76 µs (-69%, ~24% do desenho). O preço é sair do Pango: sem fallback
