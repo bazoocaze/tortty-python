@@ -123,15 +123,19 @@ default embarcado em bzmux/data/bzmux.conf.
   não px), scrollback, cursor_shape.
 - `shell` vazio (o default) herda o `$SHELL` do ambiente; `config.tab_command`
   decide (comando da aba, `$SHELL` do filho) e o `--cmd` não mexe no `$SHELL`.
+- `debug_log` (default /tmp/bzmux.debug.log, `off` desliga; `--debug-log ARQ`
+  vence a configuração) é o log JSONL do `?2026` — eventos, campos e uso em
+  docs/DEBUG.md.
 - Editar com o app aberto aplica na hora. Erro é por linha: na carga inicial o
   que validou vale (o toast mostra o primeiro erro), no reload nada muda.
 
 ## Convenções
 
 - Versão: incrementar o patch (`0.0.1` -> `0.0.2`) em `bzmux/__init__.py`
-  a cada commit que toque código não-teste (`bzmux/`, `tools/`, scripts,
-  `pyproject.toml`). Commit só de docs ou só de teste não incrementa. É a
-  fonte única: o `pyproject.toml` lê de lá (hatch) e o `--version` mostra.
+  quando **fechar um item de backlog** — o commit que fecha o item leva o
+  incremento, não cada commit. Commit de docs, teste ou ajuste avulso não
+  incrementa. É a fonte única: o `pyproject.toml` lê de lá (hatch) e o
+  `--version` mostra.
 - Textos, descrições e comentários concisos; podem ser em português.
 - Nomes de arquivo e símbolos no código (funções, variáveis, classes, constantes)
   em inglês.

@@ -23,8 +23,8 @@ MIT (ver LICENSE).
 """
 
 # Fonte única da versão: o pyproject lê daqui (hatch) e o `--version` mostra.
-# Incrementar o patch a cada commit que toque código (docs/testes não contam).
-__version__ = "0.0.1"
+# O patch sobe ao fechar um item de backlog, não a cada commit.
+__version__ = "0.0.2"
 
 __all__ = ["Term", "BzmuxWindow", "selftest", "__version__"]
 

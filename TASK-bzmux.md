@@ -19,10 +19,11 @@ interação à mão com `tools/xtest.py`.
 
 Nada pela metade: árvore limpa, tudo commitado.
 
-**Próximo alvo: B22** (repaint do app cai no topo do histórico). Já investigado
-até o estado final e a linha de cada quebra da invariante; o esperado, os
-achados e o conserto indicado estão no item B22 de
-[`docs/BACKLOG.md`](docs/BACKLOG.md). Código intocado.
+B22 concluído: rolar o histórico durante o repaint do app (transação `?2026`)
+não leva mais a visão para o topo — a posição é resolvida no fecho da região, e
+o wheel dentro dela vira distância nova. Bug 22 do
+[`docs/HISTORY.md`](docs/HISTORY.md); o log `debug_log` que provou isso está em
+[`docs/DEBUG.md`](docs/DEBUG.md).
 
 **Próximo alvo: o desenho.** O barato já foi feito (P24/P25: cor em float
 cacheada e `show_layout_line`, `draw` 7,76 → 6,54 ms, pixels idênticos). O que

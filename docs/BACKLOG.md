@@ -15,56 +15,6 @@ Regras da fila:
 - Decisão de NÃO fazer algo vai para [LIMITATIONS.md](LIMITATIONS.md), não para
   cá; se o limite deixar de existir, sai de lá e vira item concluído no HISTORY.
 
-B22 — Repaint do app cai no topo do histórico. O B20 cobriu o repaint
-completo (`?2026h` `2J` `H` `3J` + reescrita) chegar com a visão parada no
-histórico; **girando o wheel durante o repaint** a visão salta para o topo do
-histórico em vez de ficar onde estava. Reprodução: sessão com histórico longo
-(pi), rolar para trás e girar a roda enquanto entram quadros do repaint.
-
-Investigado em 2026-11-01, não corrigido. O que o usuário espera, para a
-sequência `?2026h` → `2J H 3J` → wheel → fill → `?2026l`:
-
-- quem estava a `v` linhas do vivo termina a `min(v, linhas que o repaint
-  produziu)` do vivo — o texto que estava na tela continua na tela;
-- o wheel dentro da região mexe na distância do histórico NOVO e a escolha
-  sobrevive ao `?2026l`;
-- nunca `view_off = 0` no meio da região (pulo pro vivo) nem
-  `view_off = len(scrollback)` por clamp (topo);
-- quem estava vivo (`view_off = 0`) continua vivo.
-
-Achados (`view.py` em `f93bc71`): três quebras de "dentro do `?2026` a posição
-é a distância medida antes".
-
-1. 378-382: no `3J` a view lê `pinned_view_off(P) = min(P, len(sb))` com
-   `len(sb) = 0` → `view_off = 0`: vira viva no meio da transação.
-2. 383-384: `if off >= P: P = 0` larga o pin assim que o histórico rechega em
-   `v` linhas, ainda dentro da região; o `elif` da 387 assume com `_anchor`
-   congelado no meio do repaint e `view_off = min(scrolled - anchor,
-   len(sb))` sobe a cada chunk até saturar em `len(sb)` = 1000 = topo.
-3. 614: o wheel zera o pin e cria `_anchor = scrolled - view_off` no meio da
-   região; o caminho da âncora (2) arrasta até o topo, só que mais cedo.
-
-Estado final com fill mais longo que `v` (caso do pi, que reescreve o buffer
-inteiro): `view_off = len(scrollback)` = topo. As variações do wheel (para cima
-com histórico curto, para baixo, depois do pin expirar) mudam quando a escalada
-começa, não onde termina.
-
-O check do B20 (`checks.py:420`) não pega: exercita só os helpers puros
-(`pinned_view_off`/`anchored_view_off`) com `off = 12` e 40 linhas reescritas,
-onde topo e distância certa coincidem; a máquina de estados do `on_pty` ao
-longo dos chunks não é testada.
-
-Correção indicada, não implementada: `_pin_off` vive até o `?2026l`
-(`term.sync_output`), `view_off` só é escrito no fecho, o wheel na região
-atualiza a distância (`P = off`) em vez de zerar o pin, e a troca pin→âncora
-acontece com o histórico novo completo.
-
-Adjacente, medido e não registrado: o teto de 200 ms do `?2026` conta da
-abertura da transação, então repaint que atravessa o pty em mais de 200 ms
-desenha o meio da região e mostra topo/vivo alternados. É o pisca-pisca
-visível do item 1, não a causa dele; o conserto seria rearmar o prazo a cada
-leitura (200 ms de silêncio, não de transação).
-
 P26 — Desenho: `cr.show_glyphs` com glifos pré-computados. **Experimento, não
 compromisso.** É o único caminho que ataca de verdade o custo de emissão:
 2,43 → 0,76 µs (-69%, ~24% do desenho). O preço é sair do Pango: sem fallback

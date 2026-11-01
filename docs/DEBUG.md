@@ -104,6 +104,22 @@ Variável de ambiente na execução (não muda código):
 resolução e desenhada em outra, bug 13 do HISTORY). `PROF` decompõe a vazão,
 `NODRAW`/`NOPARSE` cortam um lado. Escada e números: docs/BENCHMARKS.md.
 
+## Log do `?2026` (opção `debug_log`)
+
+Uma linha JSONL por evento, com `ts` local em ms:
+
+- `debug_log /tmp/bzmux.debug.log` na configuração (default); `off` desliga;
+  `--debug-log ARQ` na linha de comando vence a configuração; reload aplica.
+- `2026` — transição de `sync_output`, com `on`, `v`, `pin`, `sb`, `scr`,
+  `gen`; no fecho leva `ms` (duração da região, `time.monotonic`).
+- `draw` — desenho que escapou com a região aberta (`v`, `pin`, `sb`, `scr`).
+- `pos` — `view_off` mudou dentro da região (`v0`, `v1`, `pin`, ...).
+- `wheel` — roda dentro da região (`d`, `v0`, `v1`, `pin`).
+- `ms > 200` com um `draw` é o teto cumprindo o papel, não frame escapado; `pos`
+  dentro de uma região é o que o bug 22 do HISTORY.md descrevia.
+- Em teste, sempre `--debug-log /tmp/outro-nome.log`: o arquivo padrão é o da
+  sessão do usuário e misturar os dois apaga a evidência dele.
+
 ## Armadilhas de implementação
 
 - `show_all()` desfaz `set_visible(False)`: mostra todos os descendentes e um

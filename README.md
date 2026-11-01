@@ -29,6 +29,7 @@ uv run ruff check .           # só o lint
 uv run ruff format .          # formata (não roda no run-tests)
 python3 -m bzmux --selftest   # os mesmos checks, sem depender de pytest
 python3 -m bzmux --help       # opções, sem abrir janela
+python3 -m bzmux --version    # versão (a mesma de bzmux/__init__.py)
 ./bench.sh                    # mede a vazão (doom-fire), ~10 s
 ```
 
@@ -204,6 +205,7 @@ scrollback 1000            # linhas de histórico
 window_padding_width 0     # margem em volta da grade, em px
 bell none                  # none, visual (marca a aba) ou audible
 copy_on_select off         # seleção com o mouse já vai pro clipboard
+debug_log /tmp/bzmux.debug.log  # log JSONL de depuração; off desliga
 ```
 
 Editar o arquivo com o app aberto aplica na hora. Erro é por linha: ao abrir, o

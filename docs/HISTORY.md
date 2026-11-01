@@ -1032,6 +1032,20 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     distintos: cada `alt+N` loga o título da aba NOVA com `cur=` ainda na
     antiga.
 
+22. **Repaint do app levava quem lia o histórico para o topo.** Com `?2026`
+    aberto, o `_on_pty` continuava resolvendo a posição contra o histórico que
+    estava sendo reescrito: no `3J` ela caía no vivo (`min(pin, 0) = 0`) e,
+    quando o pin expirava, a âncora absoluta escalava a cada chunk até o clamp
+    em `len(scrollback)` — o topo. Fix: com a região aberta o `view_off` não é
+    escrito (o pin guardado no `3J` resolve no chunk do fecho, com o buffer
+    completo) e o wheel dentro da região atualiza a distância pretendida em vez
+    de zerar o pin e criar âncora. Verificado com o gerador de 3 repaints de
+    3000 linhas e o log `debug_log`: a região fecha com o mesmo `v` da abertura
+    (15 no gerador, 114 no uso real) e não sai evento `pos` no meio; antes, a
+    mesma carga terminava em `v = 1000`. O teto de 200 ms segue contando da
+    abertura, então repaint mais longo desenha o meio da região (1 draw em
+    249 ms) — o que não mexe mais na posição.
+
 ## Nota de documentação: número só em um lugar
 
 Até 2026-10-27 os números de vazão viviam repetidos em README, LIMITATIONS,
