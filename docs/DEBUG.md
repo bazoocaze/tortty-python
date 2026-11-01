@@ -121,6 +121,28 @@ resolução e desenhada em outra, bug 13 do HISTORY). `PROF` decompõe a vazão,
 - O desmapeio da página é do despacho do `Gtk.Notebook`: é dele que o pisca do
   cursor depende (`unmap`/`map`). Trocar o container e ele volta a rodar em
   todas as abas.
+- Página recém-anexada ao `Gtk.Notebook` nasce oculta e `set_current_page` é
+  ignorado (`get_current_page()` continua na anterior): `show_all()` na página e
+  no rótulo antes de trocar.
+- `grab_focus()` dentro de `switch-page` não pega (a página ainda não está
+  mapeada, o foco fica no notebook): agendar com `GLib.idle_add`.
+- `GLib.idle_add` de foco rouba o foco de um `Gtk.Entry`: checar `get_focus()`
+  antes, senão o nome digitado vai para o terminal.
+- `sh -c "<cmd>"` não faz exec quando o comando tem argumento: o programa é
+  neto do pty e o cwd do `sh` nunca muda. Herdar cwd pelo último descendente
+  (`/proc/<pid>/task/<pid>/children`).
+- `Gtk.EventBox` sem `add_events()` tem máscara vazia (`get_events() == 0`) e o
+  clique nunca chega; e `notebook.set_tab_label_text()` troca o widget do
+  rótulo (guardar o `Gtk.Label` e mudar o texto dele).
+- `Gtk.Box` não tem `reorder()`: é `reorder_child(child, index)`.
+- Em atalho `Ctrl+Shift+1` o keyval chega como `exclam`/`at`, não como `1`
+  (o Gdk dá o símbolo): mapear de volta ou usar a coluna do teclado.
+- `queue_resize()` não re-aloca quando o tamanho do widget não muda: com fonte
+  nova o `size-allocate` não vem e a grade fica com a célula antiga. Chamar
+  `on_resize` direto ao aplicar config.
+- Métrica de fonte sai do contexto Pango do widget (`get_pango_context()`), não
+  de uma `ImageSurface` solta: ponto→pixel usa outra resolução e a grade
+  desalinha.
 - cairo `FORMAT_A1` mede fonte, mas `font_extents()` devolve 5 valores (ascent,
   descent, height, max_x_advance, max_y_advance).
 - Quebra pendente: emulador não deve contar o `\n` depois de linha cheia como
@@ -135,6 +157,22 @@ resolução e desenhada em outra, bug 13 do HISTORY). `PROF` decompõe a vazão,
   deixa de cortar com limite 0. Usar `del lista[:len(lista) - n]`.
 - `chr(kv)` só existe para `0x20–0x7e`, `0xa0–0xff` e `0x01000000+U`; o resto é
   modificador/função.
+
+## Instalação (pipx e shell)
+
+- O venv do pipx nasce com o python **do próprio pipx**: `uvx pipx` instala num
+  3.12 sem `gi` e `--system-site-packages` não salva — precisa de
+  `--python /usr/bin/python3`. Pipx do apt já usa o do sistema.
+- `pipx install --force` e `reinstall` preservam `include-system-site-packages`
+  mas **ignoram** `--python`: trocar de interpretador exige `uninstall` e
+  instalar de novo.
+- `git+ssh://…` instala o **commit**, não a árvore de trabalho: mudança não
+  commitada não chega no teste.
+- Versão fixa no `pyproject` faz `pipx upgrade` não ver commit novo; atualização
+  é `--force`.
+- `[ -x python3 ]` testa arquivo no cwd, não no PATH: use `command -v`.
+- Função que imprime e é usada como condição vaza no stdout: `if func; then`
+  recebe o valor errado.
 
 ## Medição e perfil
 

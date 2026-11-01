@@ -284,55 +284,26 @@ da frente).
 ### P9 — Ligaduras e shaping — **feito**
 
 O desenho era `cairo.show_text` (API toy): sem shaping, então ligadura não saía,
-árabe não ligava, marca combinante se separava do corpo da letra. Migrado para
-**Pango**: um `Pango.Layout` por draw, reaproveitado em cada run, com
-`PangoCairo.show_layout`.
+árabe não ligava e marca combinante se separava do corpo da letra. Migrado para
+Pango, com um `Pango.Layout` por draw reaproveitado em cada run.
 
-Decisões que custaram teste:
+- Cache de layout por `(texto, negrito)`, teto de 800: `set_text` é a parte cara e
+  run se repete muito — sem cache o desenho dobra (números abaixo).
+- Métricas saem do mesmo layout que desenha (avanço de "M" e `get_pixel_size`);
+  misturar cairo e Pango desalinha a grade. Sublinhado segue retângulo do cairo,
+  que não depende de métrica de fonte.
 
-- **`set_absolute_size` (pixels), não `set_size` (pontos)**: com `set_size` o
-  Pango aplica o DPI 96 e a fonte muda de tamanho em relação ao cairo antigo.
-- **Métricas saem do mesmo layout que desenha**: largura = avanço de "M",
-  altura = `get_pixel_size()` do layout. Antes eram `text_extents`/`font_extents`
-  do cairo; misturar as duas fontes de número desalinha a grade.
-- **`move_to` na quina da célula e o layout desenha dali**: a linha de base sai
-  do ascent do próprio layout, então não existe mais `+ ascent + 1` na mão.
-- **Cache de layout por `(texto, negrito)`**, teto de 800 (limpa quando estoura):
-  `set_text` é a parte cara, e run se repete muito. Sem o cache o desenho dobra
-  de custo (ver números abaixo).
-- Sublinhado continua sendo retângulo do cairo, não atributo do Pango: é o mesmo
-  pixel em qualquer fonte e não depende de métrica de underline.
+Custo do shaping com o doom-fire (68×20): 12,8 ms/frame antes, 30,5 sem cache,
+15,2–15,6 com cache — ~20% do frame com cache, 2,4x sem. Os três são anteriores
+ao bug 13 (desenho a 96 dpi): valem entre si, não contra
+[BENCHMARKS.md](BENCHMARKS.md).
 
-Medido com o doom-fire (P16), 68×20, `PYTERM_PROF=1`:
-
-| desenho | ms/frame | fps | MB/s |
-|---|---|---|---|
-| `cairo.show_text` (antes) | 12,8 | 11,8 | 0,6 |
-| Pango sem cache | 30,5 | 8,1 | 0,4 |
-| Pango com cache de layout | 15,2–15,6 | 11,0 | 0,5 |
-
-Estes três números foram medidos com o desenho ainda a 96 dpi (bug 13): servem
-para comparar um com o outro, não com a linha de base de hoje (22,7 ms/frame,
-8,2 fps em [BENCHMARKS.md](BENCHMARKS.md)).
-
-Ou seja: shaping + fallback custam **~20% do frame** com cache, **2,4x** sem.
-O parse não mudou (4,3 ms por leitura), como esperado — a migração é só desenho.
-
-**Emenda: a fonte passou a ser em PONTOS (13 pt), sem flag.** O `font_size` veio
-do `cairo.show_text`, onde "tamanho de fonte" é unidade de usuário (pixel); na
-migração para Pango eu preservei isso com `set_absolute_size` para não mudar o
-visual no meio da mudança. Mas todo terminal expõe pontos (kitty, alacritty,
-GTK/fontconfig, xterm `-fs`), e o motivo é DPI: em tela com `Xft.dpi: 130`
-(desta máquina) 13 pt = 23,5 px, contra os 16 px antigos — é por isso que o
-"13" do kitty parecia maior que o "16" daqui. Agora usa `set_size` (pontos), e o
-bzmux e o kitty dão a MESMA grade para a mesma janela (70×21 em 980×640).
-
-Duas armadilhas dessa troca: (1) a métrica tem que sair do **contexto Pango do
-próprio widget** (`self.get_pango_context()`), não de uma `ImageSurface` solta,
-senão ponto→pixel usa resolução diferente da que desenha e a grade desalinha —
-foi o que aconteceu na primeira tentativa (48 colunas em vez de 70); (2) a janela
-padrão de 680×420 estava calibrada para a fonte de 16 px e passou a dar 48×14,
-então virou 980×640.
+Emenda: a fonte passou a ser em **pontos**, não em pixels. O `font_size` vinha do
+cairo, onde tamanho é unidade de usuário; mas todo terminal expõe pontos, e a
+diferença é DPI — com `Xft.dpi: 130`, 13 pt = 23,5 px contra 16 px, e era por isso
+que o "13" do kitty parecia maior que o "16" daqui. Com pontos, bzmux e kitty dão
+a mesma grade para a mesma janela (70×21 em 980×640). A métrica tem que sair do
+contexto Pango do widget, não de uma surface solta ([DEBUG.md](DEBUG.md)).
 
 ### P10 — Fallback de fonte (emoji/CJK) — **feito**
 
@@ -347,148 +318,50 @@ modelo de célula, não no desenho.
 
 ### P11 — Abas — **feito**
 
-`Ctrl+Shift+T` abre aba nova; `Alt+1` … `Alt+9` selecionam a aba N (`Alt+0` =
-a 10ª); `Ctrl+Shift+W` fecha a aba; fechar a última fecha a janela.
+`Ctrl+Shift+T` abre aba, `Alt+1..9` (`Alt+0` = a 10ª) seleciona, `Ctrl+Shift+W`
+fecha; fechar a última fecha a janela.
 
-Hoje o `BzmuxWindow` acumula tudo de uma sessão: `Term`, `master`/`child_pid`,
-decoder, seleção (`sel_start`/`sel_end`/`_held`/`_state`), `view_off`,
-`_img_cache`. O trabalho é extrair uma **`TermView(Gtk.DrawingArea)`** com esse
-estado (é o mesmo recorte do `session.py` que a conversa de testes propôs) e
-deixar a janela com um `Gtk.Notebook` + os atalhos globais.
+- Decisão estrutural: extrair `TermView(Gtk.DrawingArea)` com o estado de sessão
+  (pty, decoder, seleção, `view_off`, cache de imagem) e deixar a janela com o
+  `Gtk.Notebook` mais os atalhos globais. `Term` continua sem GTK. `Alt+N` é
+  tratado na janela, senão o filho recebe a tecla primeiro.
+- Rótulo é o título do OSC 0/2 ou o cwd da sessão (`readlink /proc/<pid>/cwd`, sem
+  depender de OSC 7): sem OSC todas as abas ficariam "bzmux", e o `Alt+N` já
+  numera — daí não haver prefixo numérico.
+- O `child_watch_add` do P8 passa a fechar a **aba**, e a agregação "última aba →
+  janela" mora num lugar só.
 
-- Título da aba: `term.title` (OSC 0/2), atualizado no `on_pty` da view.
-- Nova aba herda o **cwd** da aba corrente via `readlink /proc/<pid>/cwd`
-  (sem depender de OSC 7); se falhar, usa o cwd do bzmux.
-- P8 passa a ser por aba: `child_watch_add` fecha a **aba**; a última fecha a
-  janela. O hangup (`killpg SIGHUP`) é por sessão.
-- `Alt+N` tem que ser tratado na janela (não na view), senão o filho recebe a
-  tecla primeiro.
-- O que **não** muda: `Term` continua sem GTK; cada aba tem o seu.
+Quatro armadilhas silenciosas (página nova nasce oculta e o `set_current_page` é
+ignorado; `grab_focus` dentro de `switch-page` não pega; `sh -c` não faz exec, o
+cwd está no neto; `EventBox` sem `add_events` tem máscara vazia e
+`set_tab_label_text` troca o widget): conserto em [DEBUG.md](DEBUG.md).
 
-Ficou assim: `view.py` = `TermView(Gtk.DrawingArea)` com tudo que é por aba
-(`Term`, `master`/`child_pid`, decoder, seleção, `view_off`, `_img_cache`);
-`window.py` = `BzmuxWindow` com `Gtk.Notebook`, `Ctrl+Shift+T`/`W`,
-`Alt+1..9` (`Alt+0` = 10ª), clique do meio no rótulo e o ciclo de vida
-(`child_watch_add` fecha a **aba**; a última fecha a janela). O rótulo é o
-título do app (OSC) ou o **cwd** da sessão — sem OSC todas as abas ficariam
-"bzmux", e o `Alt+N` já dá o número (por isso não tem prefixo numérico).
-
-Quatro armadilhas que custaram tempo (todas silenciosas):
-
-1. **Página recém-anexada nasce *hidden*** e o `Gtk.Notebook` **ignora**
-   `set_current_page` — `get_current_page()` continua na aba antiga e a tecla
-   vai pra ela. Precisa `show_all()` na página e no rótulo.
-2. **`grab_focus()` dentro do `switch-page` não pega**: a página ainda não está
-   mapeada e o foco fica no notebook (as teclas seguintes não chegam em
-   ninguém). `GLib.idle_add` resolve.
-3. **O filho do pty é `sh -c "<cmd>"` e o `sh` NÃO faz exec** quando o comando
-   tem argumento (`bash --norc`): o programa de verdade é **neto**, e o cwd do
-   `sh` em `/proc` nunca muda. Para herdar o cwd é preciso descer até o último
-   descendente (`/proc/<pid>/task/<pid>/children`).
-4. **`Gtk.EventBox` sem `add_events()` tem janela e máscara vazia**
-   (`get_events() == 0`): o clique do meio nunca chegava. E
-   `notebook.set_tab_label_text()` **troca o widget** do rótulo (levando junto
-   o EventBox) — tem que guardar o `Gtk.Label` e mudar o texto dele.
-
-Teste: XTest (`Ctrl+Shift+T`, `Alt+2`, digitar em cada aba, clique do meio) +
-screenshot + `xprop _NET_WM_NAME` para o título; o `--selftest` não cobre (é
-camada GTK).
+Teste por XTest (criar, alternar, digitar em cada aba, clique do meio) e
+`_NET_WM_NAME` para o título. `--selftest` não cobre — é camada GTK.
 
 ### P12 — Workspaces — **feito**
 
-Sistema de **workspaces** como no cmux: cada workspace tem o seu conjunto de
-abas, e o conjunto vive numa **barra lateral esquerda** com uma caixa por
-workspace. O pré-requisito (P11: `TermView` + um `Gtk.Notebook` por conjunto)
-já está no lugar, então aqui é só acrescentar o `Gtk.Stack` e a lateral.
+Workspace é um conjunto de abas com um cartão na lateral: `1  <título da aba
+ativa>`, largura fixa (170 px), e a lateral só aparece com 2+ workspaces.
+`Ctrl+Shift+1..9` seleciona (`0` = o 10º), `Ctrl+Shift+N` cria, `Ctrl+Shift+Q` ou
+clique do meio no cartão fecham, duplo clique renomeia no lugar. Fechar a última
+aba fecha o workspace; o último, a janela.
 
-Decisões já tomadas com o usuário: lateral **só aparece com 2+ workspaces**,
-largura fixa (arrastável fica pra depois), caixa mostra `1  <título da aba
-ativa>`, nome padrão "workspace N" e **editável** (duplo clique renomeia),
-`Ctrl+Shift+1..9` seleciona, `Ctrl+Shift+N` cria, fechar todo o workspace =
-clique do meio na caixa **ou** `Ctrl+Shift+Q`.
+- `Gtk.Stack` com um `Gtk.Notebook` por página, não troca de páginas de um
+  notebook só: cada workspace guarda a própria aba selecionada, ordem e títulos,
+  e a troca é uma chamada.
+- `Ctrl+N` foi descartado de propósito: `C-n` é próxima linha no readline,
+  autocomplete no vim e next-line no emacs. O cmux usa `Ctrl+N` porque não *é* um
+  terminal. Não "consertar" para `Ctrl+N` depois.
+- Aba escondida não recebe `size-allocate`: ao trocar de workspace é preciso
+  forçar o recálculo da view que apareceu, senão `cols`/`rows` e o `SIGWINCH` do
+  `Term` ficam velhos. A lateral custa ~14 colunas e todo resize re-quebra o
+  buffer (reflow do P3).
+- Armadilhas de teclado, foco e widget: [DEBUG.md](DEBUG.md).
 
-Atalhos pedidos:
-
-- `Ctrl+Shift+1` … `Ctrl+Shift+9` — seleciona o workspace N (a caixa da
-  lateral, como o `Alt+N` das abas do P11).
-- `Ctrl+Shift+N` — cria workspace novo (nascendo com uma aba, herdando o cwd
-  da aba ativa do workspace corrente, a mesma regra da aba nova do P11).
-- `Alt+1` … `Alt+9` e `Ctrl+Shift+T` continuam sendo **abas do workspace
-  atual** — é por isso que o P11 vem antes: o `Gtk.Notebook` deixa de ser "o"
-  notebook da janela e passa a ser um por workspace.
-- Fechar a última aba de um workspace **fecha o workspace** (a caixa sai da
-  lateral); fechar o último workspace **fecha o programa**.
-
-Como fica a estrutura:
-
-```
-Gtk.Window
-├── Gtk.Box (horizontal)
-│   ├── sidebar  — Gtk.ListBox, uma linha por workspace (índice + título da
-│   │             aba ativa); é onde o Ctrl+click também seleciona
-│   └── Gtk.Stack  — uma página por workspace, cada página um Gtk.Notebook
-└── atalhos globais na janela (Alt+N, Ctrl+Shift+T/W, Ctrl+Shift+1..9)
-```
-
-`Gtk.Stack` (e não trocar as páginas do notebook) porque cada workspace tem
-que manter a própria aba selecionada, a própria ordem e o próprio histórico de
-títulos; trocar é uma chamada só e o notebook escondido não redesenha.
-
-Detalhes que já se sabe que mordem:
-
-- **`Ctrl+Shift+1` no teclado não entrega `1`.** Com Shift, o keyval chega como
-  `exclam`/`at`/`numbersign`… (`Gdk` dá o símbolo, não o dígito). Tem que
-  mapear de volta (`keyval` do dígito = o do símbolo não-shiftado) ou usar a
-  coluna 1 do teclado; conferir em ABNT2 e US.
-- **`Ctrl+N` foi descartado de propósito**: `C-n` é "próxima linha do
-  histórico" no readline, autocomplete no vim e next-line no emacs. O cmux usa
-  `Ctrl+N` porque não *é* um terminal; aqui o novo workspace é
-  `Ctrl+Shift+N`. Não "consertar" isso pra `Ctrl+N` depois.
-- **Captura na janela, não na view**: os atalhos têm que ser tratados no
-  `key-press-event` da janela com `return True` (sem repassar pro filho) —
-  mesma razão do `Alt+N` no P11. E com o protocolo do kitty ligado (P5) o app
-  *consegue* pedir `Ctrl+Shift+T`; roubar é escolha, não acidente.
-- **Aba escondida não recebe `size-allocate`**, então o `Term` de uma aba em
-  outro workspace fica com `cols`/`rows` velhos e o `SIGWINCH` não sai. Ao
-  trocar de workspace/aba, forçar o recálculo da `TermView` que apareceu (e
-  manter o tamanho de célula num lugar só) — é a mesma classe de bug do resize
-  em alt-screen que já apareceu.
-- O `child_watch_add` do P8 passa a fechar **aba**; a agregação ("fechou a
-  última aba → fecha o workspace → último workspace → fecha a janela") tem que
-  ficar num lugar só, senão sobram janelas vazias.
-- A lateral rouba colunas do terminal (ex.: 140 px ≈ 14 colunas) e todo resize
-  re-quebra o buffer de cada aba (reflow do P3) — prever isso no teste.
-
-Ficou assim: `Workspace` (em `window.py`) = um `Gtk.Notebook` + as `TermView`
-dele + o cartão da lateral; `BzmuxWindow` = `Gtk.Box[ Gtk.ListBox | Gtk.Stack ]`
-e os atalhos globais. `Gtk.Stack` (e não trocar páginas de um notebook só)
-porque cada workspace guarda a própria aba selecionada, ordem e títulos.
-Cartão: `1  <nome>` em negrito + `aba ativa (n abas)` em `<small>` cinza.
-
-Atalhos: `Ctrl+Shift+N` cria (nasce com uma aba herdando o cwd da aba ativa do
-workspace atual), `Ctrl+Shift+1..9` seleciona (`0` = o 10º), `Ctrl+Shift+Q` e
-clique do meio no cartão fecham; **duplo clique** no cartão renomeia no lugar
-(`Gtk.Entry` sobre o rótulo, Enter/foco-fora confirma, Esc cancela). A lateral
-só aparece com 2+ workspaces e tem largura fixa (170 px); arrastável fica pra
-depois. Fechar a última aba fecha o workspace, o último workspace fecha a
-janela (a agregação mora em `Workspace.close_tab` → `close_workspace`).
-
-Duas armadilhas novas (além das quatro do P11):
-
-1. **`Gtk.Box` não tem `reorder()`** — é `reorder_child(child, index)`; o
-   `AttributeError` só aparecia no clique do duplo clique (traceback no
-   `/tmp/bzmux.log`, que fica fora da tela).
-2. **`GLib.idle_add` do foco rouba o foco do `Gtk.Entry` de renomear**: o
-   clique que seleciona o workspace agenda `_focus_idle`, que rodava depois do
-   `grab_focus()` do entry — o nome digitado ia pro terminal (`bash: dev:
-   command not found`). Agora `_focus_idle` desiste se o foco está num
-   `Gtk.Entry`.
-
-Teste (XTest + `xprop` + screenshot): `Ctrl+Shift+N` cria workspace com Term
-próprio, `Ctrl+Shift+1/2` alternam, `Ctrl+Shift+T` abre aba **do workspace
-atual**, renomear por duplo clique, `Ctrl+Shift+Q` e clique do meio fecham o
-workspace (lateral some com 1), `exit` na última aba do ws2 fecha só o ws2 e
-`exit`/`Ctrl+Shift+Q` no último fecha a janela. `--selftest` não cobre.
+Teste por XTest e `xprop`: criar, alternar, renomear, fechar por atalho e por
+clique do meio, e conferir que `Ctrl+Shift+T` abre aba do workspace atual.
+`--selftest` não cobre.
 
 ### P13 — Sistema de estilo da interface — **feito**
 
@@ -849,79 +722,35 @@ o título da aba, "bz-antigo" vs "pybzmux"). 17 testes seguem passando.
 
 ### P31 — Pacote instalável: `pipx install` direto do GitHub (2026-10-28)
 
-O app era `bzmux.py` solto na raiz importando o pacote `core/`. Funcionava
-(`python3 bzmux.py`, `sys.path` da pasta do script) e não instalava: sem
-`[project.scripts]`, o `uv tool`/`pipx` recusavam com `No executables are
-provided by package`; e o `uv build` **não falhava** — caía num setuptools
-legado e gerava um wheel com `top_level = core` (nome genérico, colisão no
-site-packages) e **sem** o `bzmux.py` dentro. O critério de aceite passou a ser
-inspecionar o wheel, não "buildou".
+O app era `bzmux.py` solto na raiz importando `core/`: rodava, não instalava. Sem
+`[project.scripts]` o `pipx`/`uv tool` recusava, e o `uv build` **não falhava** —
+caía num setuptools legado e gerava um wheel com `top_level = core` (nome
+genérico, colisão no site-packages) e sem o script dentro. Daí o critério de
+aceite ter virado inspecionar o wheel, não "buildou".
 
-O que mudou:
+- `core/` → `bzmux/`, com `bzmux/__main__.py` no lugar do script da raiz (que
+  ficaria sombreado pelo diretório homônimo).
+- O entry point é uma função **sem** argumentos (`cli.run`): o `console_scripts`
+  chama sem argv, e `main(argv)` exigiria a lista e estouraria `TypeError` no
+  comando instalado. `main` continua aceitando argv porque os checks dependem.
+- A guarda do `gi` só captura `ModuleNotFoundError` de `gi`/`cairo`: erro de
+  import nosso continua estourando, e sem PyGObject a saída é uma mensagem de
+  duas linhas em vez de traceback.
 
-- `core/` → `bzmux/` (git mv; todos os imports internos já eram relativos) e
-  `bzmux.py` da raiz apagado — ele ficaria sombreado pelo diretório. No lugar
-  dele, `bzmux/__main__.py` para `python -m bzmux`.
-- `pyproject.toml`: `[build-system]` com hatchling, `packages = ["bzmux"]`,
-  `[project.scripts] bzmux = "bzmux.cli:run"`, licença SPDX (`license = "MIT"`
-  + `license-files`) e `package = false` removido (o uv passou a instalar o
-  projeto em modo editable no `.venv`; o `uv.lock` mudou de `virtual` para
-  `editable`).
-- `cli.run()` (entry point, sem argv, sai com o código) e `main(argv=None)` —
-  o `console_scripts` chama a função **sem argumentos**; `main(argv)` exigia a
-  lista e estouraria `TypeError` no comando instalado. `main` continua aceitando
-  argv explícito porque os checks dependem disso.
-- guarda do `gi`: sem PyGObject o app sai com uma mensagem de duas linhas (apt
-  ou `--system-site-packages`) em vez de traceback, e só captura
-  `ModuleNotFoundError` de `gi`/`cairo` — erro de import nosso continua
-  estourando.
-- `USAGE` e os asserts de `checks.py` passam a dizer `bzmux` (a ajuda do comando
-  instalado mentiria se dissesse `bzmux.py`).
-- scripts: `run.sh` exporta `PYTHONPATH` com a raiz e roda `-m bzmux` (sem
-  `cd`, porque o shell aberto herda o cwd de quem chamou — verificado abrindo
-  de `/tmp` com `--cmd 'pwd > arquivo'`); `run-tests.sh` usa `-m bzmux`;
-  `debug.sh` reconhece as duas formas do processo (`-m bzmux` e o script do
-  PATH) — o `grep bzmux\.py` antigo deixaria `--kill`/`--status` pifando em
-  silêncio.
+O que o `git+…` instala é o commit, não a árvore de trabalho — descobrir isso
+custou uma rodada falhando com o HEAD antigo. `install.sh` embrulha o resto
+(deps da distro, o `python3` que importa `gi` e `cairo`, pipx, `--selftest`), e o
+pipe autenticado é `gh api …/contents/install.sh | bash` porque repositório
+privado faz o `raw.githubusercontent` responder 404.
 
-Verificação: wheel com `bzmux/` + `entry_points.txt` (`bzmux = bzmux.cli:run`)
-+ LICENSE e sem `core/`; `python3 -m bzmux --selftest` (17 checks) e `-h` sem
-`gi`; `./run-tests.sh` (selftest + 17 pytest); `./run.sh --quit-after 2` e
-`./debug.sh` (status/kill) fechando pelo PID; venv isolado **sem**
-`--system-site-packages` mostrando a mensagem do `gi` e ainda rodando
-`--selftest`; e o alvo de verdade, `pipx install --system-site-packages` do
-repositório, que abriu e fechou a janela com `--quit-after 2` e cujo
-`--selftest`/`-h` rodam de fora da árvore. O commit (não a árvore de trabalho)
-é o que o `git+...` instala — descobrir isso custou uma rodada falhando com o
-HEAD antigo.
+Armadilhas do pipx (o venv nasce com o python do próprio pipx; `--force` e
+`reinstall` ignoram `--python`) e os dois bugs de shell do `install.sh` estão em
+[DEBUG.md](DEBUG.md).
 
-Quirks do pipx que apareceram e ficam registrados (armadilhas de ambiente em
-geral: [DEBUG.md](DEBUG.md)):
-
-- o venv da ferramenta é criado com o python **do próprio pipx**. Um pipx que
-  rode num python do uv/pyenv (ex.: `uvx pipx`) gera venv num 3.12 sem `gi` e o
-  `--system-site-packages` não ajuda em nada: precisa de
-  `--python /usr/bin/python3`. Pipx instalado pelo apt já usa o do sistema e o
-  comando simples funciona.
-- `pipx reinstall` e `pipx install --force` **preservam** o
-  `include-system-site-packages` mas **ignoram o `--python`**: a janela volta a
-  falhar por falta de `gi` mesmo repetindo `--python`. Trocar de interpretador
-  exige `pipx uninstall` e instalar de novo — verificado nas duas ordens.
-- com `version = "0.1.0"` fixa, `pipx upgrade` não vê commit novo; atualização
-  é `pipx install --force` (ou reinstalar), e versionar por tag fica para quando
-  houver release.
-
-Depois do fechamento, o `install.sh` (raiz) embrulha tudo isso num comando:
-deps da distro por gerenciador (apt/dnf/pacman/zypper), o `python3` que importa
-`gi` **e** `cairo`, `pipx install --force --system-site-packages --python PY`,
-e `--selftest` no fim. Detecta clone (instala da árvore) x pipe (instala de
-`git+ssh://…`); `--dry-run`, `--no-deps`, `--uninstall`. Dois bugs no caminho:
-`[ -x python3 ]` testa arquivo no cwd, não no PATH (dizia "deps ausentes" com
-tudo instalado), e a função de busca vazava o path no stdout quando usada como
-condição. O pipe autenticado hoje é `gh api -H "Accept:
-application/vnd.github.raw" /repos/.../contents/install.sh | bash`, porque repo
-privado faz o `raw.githubusercontent` responder **404** — o `curl | bash`
-clássico só passa a valer quando o repositório abrir.
+Verificado pelo wheel (pacote + `entry_points.txt` + LICENSE, sem `core/`),
+`python3 -m bzmux --selftest` e `-h` sem `gi`, venv isolado mostrando a mensagem
+do `gi`, e `pipx install --system-site-packages` do repositório abrindo e fechando
+a janela com `--quit-after 2`.
 
 ### P28 — Seleção com o mouse: clique de 1 char e âncora no scroll (2026-10-29)
 
@@ -1081,78 +910,36 @@ no uso real.
 
 ### P34 — Configuração v2: as oito opções comuns (2026-10-31)
 
-O v1 (P33) já tinha parse, merge, validação, reload e toast; este item só
-acrescentou chaves (`KNOWN` + `CHECKS` em `config.py`) e o uso de cada uma:
+O v1 (P33) já tinha parse, merge, validação, reload e toast; aqui entraram as
+chaves e o uso de cada uma: `font_family` (Monospace), `font_size` (12 pontos,
+era 13 fixo no código), `cursor_shape`, `cursor_blink` (off), `scrollback`
+(1000), `window_padding_width` (0), `bell` (none/visual/audible — BEL era
+ignorado) e `copy_on_select` (off). O que é quente (fonte, padding, cursor) vale
+nas abas abertas; `shell` só na próxima.
 
-`font_family` (Monospace), `font_size` (**12 pontos**, era 13 fixo em
-`window.py`/`view.py`), `cursor_shape` (block/beam/underline), `cursor_blink`
-(off), `scrollback` (1000), `window_padding_width` (0), `bell`
-(none/visual/audible — BEL era ignorado) e `copy_on_select` (off). Todas
-documentadas em `bzmux/data/bzmux.conf`; o que é quente (fonte, padding, cursor)
-vale em todas as abas abertas, diferente de `shell`, que só pega na próxima.
+- Pisca é um `GLib.timeout_add(530)` que invalida só a célula do cursor, e só na
+  view visível (unmap remove o timer, map religa): N abas, 1 timer. Dois draws
+  inteiros por segundo seriam caros e o dirty-rect é o P27.
+- `DECSCUSR` (`CSI 6 q`) vence a config enquanto durar, como no kitty.
+- Padding é translação no draw, e o resto de sub-célula desconta `2*padding` —
+  sem isso a última coluna pintava sobre a margem.
+- Duas armadilhas de implementação ficaram no [DEBUG.md](DEBUG.md): `queue_resize`
+  que não re-aloca com fonte nova e `lista[-0:]`, que é a lista inteira.
 
-Decisões que ficaram no código:
+Erro passou a ser por linha, revisto no mesmo dia a pedido: a carga inicial aplica
+o que validou (a chave inválida fica no padrão) e um toast mostra o primeiro erro
+com `(+N)`; o reload continua tudo-ou-nada e mantém a configuração que estava
+valendo. O toast só aparece quando há erro.
 
-- **Pisca barato e preguiçoso**: um `GLib.timeout_add(BLINK_MS=530)` que
-  invalida apenas a célula do cursor (`queue_draw_area`); dois draws inteiros
-  por segundo seriam caros e o dirty-rect completo é o P27. O timer se desliga
-  sozinho quando nada pisca (config off e app sem DECSCUSR piscante) e religa no
-  `_on_pty` e no `apply_config`. Só existe na view **visível**: o
-  `Gtk.Notebook` desmapeia a página que sai, então `unmap` remove o timer e
-  `map` religa (cursor volta na fase de "aparece"). Com N abas é 1 timer, não
-  N — verificado com 3 workspaces e `cursor_blink on`, logando os ticks: sempre
-  um id só, e o timer some no unmap.
-- **DECSCUSR (`CSI 6 q`) interpretado**: 1..6 = forma + pisca, 0 (ou fora da
-  faixa) volta para a config. O pedido do app vence a config enquanto durar,
-  como no kitty.
-- **Padding é translação**: `on_draw` faz `cr.translate(padding, padding)` uma
-  vez e todo o resto continua em coordenadas de grade; `cell_at` desconta, e o
-  "resto de sub-célula" (`og_w`/`og_h`) passou a descontar `2*padding` (senão a
-  última fileira/coluna pintava por cima da margem).
-- **`apply_config` chama `on_resize` direto**: `queue_resize()` só re-aloca se o
-  tamanho do widget mudar, e com fonte nova o `size-allocate` nunca vinha — a
-  grade ficava com a célula antiga até um resize manual. Achado na verificação
-  ao vivo, não na leitura.
-- **Limite do histórico**: `graphics.scroll` recebia `-1001` fixo e o `_reflow`
-  cortava com `[-1000:]`; agora os dois seguem `scrollback_limit`. Armadilha:
-  `lista[-0:]` é a **lista inteira**, então com teto 0 o fatiamento não cortaria
-  nada — o corte virou `Term._trim_scrollback()`.
+Bugs do caminho: o flash do `bell` só cobriu a aba inteira depois de mover o
+padding do nó `tab` para o rótulo — e `background-color` sozinho não pintava sem
+`background-image: none`. As duas são armadilhas de GTK3, no [DEBUG.md](DEBUG.md).
 
-Bugs/quirk encontrados no caminho (o segundo é de GTK3, não nosso):
-
-- **Flash do `bell` não pintava a aba.** Adicionar a classe no rótulo da aba
-  pintava só a área do texto, e `tab:checked` continuava mandando no resto. No
-  GTK3 o nó CSS `tab` não é o widget do rótulo (`get_parent()` devolve o próprio
-  Notebook), então não dá para alcançá-lo pelo widget. Fix: o padding da aba
-  saiu do nó `tab` e foi para o rótulo, que ganhou nome próprio
-  (`#tablabel`, `set_name` no EventBox) — o flash agora cobre a aba inteira.
-- **`background-color` sozinho não pinta**: sem `background-image: none` o tema
-  do GTK manda um gradiente e a cor é ignorada (clássico do GTK3, registrado
-  como quirk).
-
-**Regra de erro revista no mesmo dia (à pedido):** o v1 tratava arquivo inválido
-como tudo-ou-nada. Agora o erro é **por linha**: `load()` aplica o que validou e
-devolve `errors` (a chave inválida fica no valor padrão), então a **carga
-inicial** aproveita o resto do arquivo e um único toast mostra o **primeiro**
-erro com `(+N)` para os demais (`config.first_error`). O **reload** não mudou:
-qualquer erro mantém a configuração que já estava valendo (`reload_config` olha
-`cfg.ok` e retorna antes de aplicar). O toast de aviso de configuração só aparece
-quando há erro ou aviso — sem aviso, a janela abre calada.
-
-Verificação: checks `config_options` (padrões chave a chave, um valor válido de
-cada, erro por linha com o válido aplicando e a chave inválida no padrão, e o
-`first_error` com a contagem) e
-`scrollback_and_bell` (teto vale na hora, BEL contado, DECSCUSR); à mão com
-`PYTERM_GEOM=980x640`: `PYTERM_DIAG` com 12 pontos = célula (13,27) e 75x22,
-trocando `font_family` ao vivo para Liberation Mono → (13,26) e 75x23 (família
-mudou de verdade e a grade re-mediu); padding 20 conferido pixel a pixel (grade
-começa em ~20 px e acaba em 980-20, com `\e[2J` verde) e arrasto em (91,87) →
-(117,87) copiando `567`, isto é, `cell_at` com o padding exato; cursor block,
-beam e underline e o pisca conferidos por captura (`import` + `tools/pixel.py`,
-o pisca alternando a cada ~530 ms); `copy_on_select on` põe a seleção também no
-CLIPBOARD e `off` deixa o valor antigo do clipboard; `bell visual` pintou
-`#5c4a12` na aba; `seq 1 100` com `scrollback 5` deixou exatamente 5 linhas de
-histórico.
+Verificado pelos checks `config_options` e `scrollback_and_bell` e à mão: 12
+pontos dá célula 13×27 e 75×22, trocar a família re-mediu (13×26, 75×23), padding
+20 conferido pixel a pixel com o mouse acertando a coluna, as três formas de
+cursor e o pisca por captura, `copy_on_select` no CLIPBOARD e `scrollback 5`
+deixando 5 linhas.
 
 ## Bugs encontrados e corrigidos (histórico útil)
 
@@ -1189,19 +976,11 @@ Todos foram achados com medição, não por leitura — vale registrar o método
    a última fileira tem células de fundo default.
 8. **`DA` nunca respondia.** `CSI c` sem parâmetros virava `[0]` no parser e a
    condição `not params` falhava. Fix: corpo vazio → lista vazia.
-9. **Abas/workspaces: seis armadilhas silenciosas do GTK** (todas custaram
-   depuração; detalhe nas seções P11/P12). (a) Página recém-anexada nasce
-   *hidden* e o `Gtk.Notebook` **ignora** `set_current_page` — a tecla segue
-   indo pra aba antiga. (b) `grab_focus()` dentro do `switch-page` não pega
-   (página ainda não mapeada) → `GLib.idle_add`. (c) `sh -c "bash --norc"`
-   **não faz exec**: o programa é neto e o cwd do `sh` em `/proc` nunca muda →
-   descer até o último descendente em `/proc/<pid>/task/<pid>/children`
-   (era o cwd herdado errado). (d) `Gtk.EventBox` sem `add_events()` tem janela
-   e **máscara vazia** (`get_events() == 0`) — o clique do meio nunca chega.
-   (e) `set_tab_label_text()` **troca o widget** do rótulo, levando o EventBox
-   junto → guardar o `Gtk.Label`. (f) `Gtk.Box` não tem `reorder()` (é
-   `reorder_child(child, idx)`) e o `idle_add` que foca a view roubava o foco
-   do `Gtk.Entry` de renomear o workspace.
+9. **Abas/workspaces: seis armadilhas silenciosas do GTK** — página nova oculta
+   com `set_current_page` ignorado, `grab_focus` em `switch-page`, `sh -c` sem
+   exec (cwd no neto), `EventBox` sem máscara, `set_tab_label_text` trocando o
+   widget do rótulo e `Gtk.Box` sem `reorder()`. As seis estão em
+   [DEBUG.md](DEBUG.md), com o conserto.
 
 10. **`--help` abria a janela.** `parse_args` ignorava em silêncio qualquer
     opção desconhecida, então `bzmux.py --help` (e `--nada`) caíam no fluxo
