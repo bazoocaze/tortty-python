@@ -698,6 +698,15 @@ def debug_socket():
         def debug_quit(self):
             self.saiu = True
 
+        def debug_keys(self, spec):
+            return {"key": spec, "handled": True}
+
+        def debug_resize(self, cols=0, rows=0):
+            return {"requested": [cols, rows]}
+
+        def debug_prof(self, on=None):
+            return {"on": bool(on), "etapas": {}}
+
     alvo = Alvo()
 
     def pede(pedido):
@@ -728,6 +737,28 @@ def debug_socket():
     assert not r["ok"] and "data" in r["err"]
     r = json.loads(debugsock.dispatch(alvo, json.dumps({"cmd": "text", "start": "x"})))
     assert not r["ok"]
+    # keys: uma tecla ou lista, cada uma resolvida pelo alvo
+    assert pede({"cmd": "keys", "data": "ctrl+shift+n"})["keys"] == [
+        {"key": "ctrl+shift+n", "handled": True}
+    ]
+    assert len(pede({"cmd": "keys", "data": ["Tab", "Return"]})["keys"]) == 2
+    assert not pede({"cmd": "keys"})["ok"]
+    # resize devolve o pedido (o resultado aparece no state seguinte)
+    assert pede({"cmd": "resize", "cols": 100, "rows": 30})["requested"] == [100, 30]
+    assert pede({"cmd": "prof", "on": True})["on"]
+    # `parse_key`: modificadores conhecidos, tecla por último
+    assert debugsock.parse_key("ctrl+shift+n") == ("n", ("ctrl", "shift"))
+    assert debugsock.parse_key("PgUp") == ("Page_Up", ())  # alias do keysym
+    assert debugsock.parse_key("shift+pgup") == ("Page_Up", ("shift",))
+    assert debugsock.parse_key("esc") == ("Escape", ())
+    assert debugsock.parse_key(" alt + F2 ") == ("F2", ("alt",))
+    for ruim in ("", "hiper+n", "ctrl+"):
+        try:
+            debugsock.parse_key(ruim)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("parse_key aceitou %r" % ruim)
     # caminho: `auto` ganha o pid; vazio desliga
     caminho = debugsock.resolve("auto")
     assert caminho.endswith("bzmux-%d.sock" % os.getpid())

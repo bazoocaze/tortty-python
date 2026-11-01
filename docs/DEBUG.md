@@ -101,14 +101,14 @@ Variável de ambiente na execução (não muda código):
 - `NOPARSE=1` — lê o pty e descarta (isola o IO).
 - `GEOM=980x640` — trava o tamanho da janela (senão o WM abre 80x24).
 - `GEOMLOG=1` — cada configure: cliente, moldura e frame extents.
-- `DIAG=1` — no primeiro draw: avanço, célula, resolução e colunas.
 - `SCROLLLOG=ARQ` — chunk que rola mais de meia tela (jump/top/bottom/
   alt-screen + bytes crus).
-- `CONFLOG=1` — cada reload aprovado imprime os valores.
 
-`DIAG` é o par que tem de bater (avanço × célula; divergir = grade medida numa
-resolução e desenhada em outra, bug 13 do HISTORY). `PROF` decompõe a vazão,
-`NODRAW`/`NOPARSE` cortam um lado. Escada e números: docs/BENCHMARKS.md.
+`PROF` decompõe a vazão, `NODRAW`/`NOPARSE` cortam um lado. Escada e números:
+docs/BENCHMARKS.md. Avanço × célula (o par do bug 13 do HISTORY: divergir é
+grade medida numa resolução e desenhada em outra) vem no `state` do socket, com
+`advance`, `cell`, `dpi` e `padding`; a configuração carregada também
+(`config`, `errors`), no lugar do antigo `CONFLOG`.
 
 ## Log do `?2026` (opção `debug_log`)
 
@@ -136,8 +136,9 @@ caminho do socket.
 - Um pedido JSON por linha, uma resposta JSON por linha; a mesma conexão aceita
   vários pedidos seguidos.
 - `{"cmd": "state"}` — pid, `xid` da janela, grade, cursor, título, `view_off`,
-  `pin`, `sync`, `scrolled`, `scrollback`, abas, workspaces, configuração e
-  erros.
+  `pin`, `sync`, `scrolled`, `scrollback`, abas, workspaces, configuração,
+  erros, e as métricas da grade (`advance`, `cell`, `dpi`, `padding`, `font`,
+  `font_size`).
 - `{"cmd": "text", "where": "view", "start": 0, "count": 40}` — `view` é o que
   a tela mostra (segue `view_off`), `screen` é a grade viva (o que o dump do
   `SIGUSR1` mostra) e `history` indexa o scrollback por linha absoluta, 0 = a
@@ -145,6 +146,16 @@ caminho do socket.
 - `{"cmd": "write", "data": "seq 1 200\r"}` — bytes crus no pty, como se
   digitados; tecla que o app consome (PgUp, atalhos) não chega ao filho por
   aqui.
+- `{"cmd": "keys", "data": "ctrl+shift+p"}` — tecla pelo caminho do app
+  (atalho, `shift+PgUp`, encoder para o filho), não pelo pty; aceita lista.
+  Nome de keysym do X (`Page_Up`, `F2`, `Return`) mais os atalhos `PgUp`,
+  `PgDn`, `Esc`, `Enter`, `Del`, `BS`, `Ins`; modificadores `ctrl`, `shift`,
+  `alt`, `super`. Tecla desconhecida é erro, não silêncio.
+- `{"cmd": "resize", "cols": 100, "rows": 34}` — redimensiona a JANELA e deixa
+  o caminho normal acontecer (allocation, `TIOCSWINSZ`, `SIGWINCH`); o
+  resultado sai no `state` seguinte.
+- `{"cmd": "prof", "on": true}` — liga a medição de custo em execução; sem `on`
+  só devolve os contadores acumulados (pty, draw, bytes, eagain).
 - `{"cmd": "log", "value": "/tmp/x.log"}` — liga, troca ou desliga (`off`) o
   `debug_log` em execução.
 - `{"cmd": "quit"}` — fecha o app; o destroy vai num idle para a resposta sair

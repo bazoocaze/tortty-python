@@ -38,9 +38,11 @@ output) ignorado — o registro está no [`docs/HISTORY.md`](docs/HISTORY.md).
 
 ## Fila
 
-P35 concluído: socket Unix de introspecção (`--debug-socket ARQ`/`auto`) com os
-verbos `state`, `text`, `write`, `log` e `quit` — é por ele que o agente lê a
-tela (inclusive a visão rolada) e digita sem passar pelo X. Registro no
+P35/P36 concluídos: socket Unix de introspecção (`--debug-socket ARQ`/`auto`)
+com os verbos `state`, `text`, `write`, `keys`, `resize`, `prof`, `log` e
+`quit` — é por ele que o agente lê a tela (inclusive a visão rolada), digita,
+manda tecla, redimensiona e mede custo sem passar pelo X. As sondas
+`PYTERM_DIAG` e `PYTERM_CONFLOG` saíram (viraram campos do `state`). Registro no
 [`docs/HISTORY.md`](docs/HISTORY.md), uso em [`docs/DEBUG.md`](docs/DEBUG.md).
 
 P33/P34 concluídos: arquivo de configuração com `-c`, default embarcado e

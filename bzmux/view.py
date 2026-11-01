@@ -39,6 +39,12 @@ _DEBUG_LOG = None  # log JSONL do ?2026 x scroll; None = desligado (B22)
 _SYNC_MS = 200  # teto da transação ?2026: app que esquece de fechar não congela
 
 
+def set_prof(on):
+    """Liga/desliga a medição de custo em execução (verbo `prof` do socket)."""
+    global _PROF
+    _PROF = bool(on)
+
+
 def set_debug_log(path):
     """Liga o log de depuração do ?2026 no caminho dado; None desliga."""
     global _DEBUG_LOG
@@ -200,7 +206,6 @@ class TermView(Gtk.DrawingArea):
         self._attrs_bold = None  # idem + negrito
         self._advance = None  # avanço real da fonte, em px (float)
         self._dpi = None  # resolução do display (Xft.dpi)
-        self._diag_done = False
         self._layouts = {}  # (texto, negrito) -> (layout, linha, base)
 
         self.master = None
@@ -538,6 +543,30 @@ class TermView(Gtk.DrawingArea):
         except OSError:
             pass  # grupo já não existe: shell saiu sozinho
 
+    def debug_metrics(self):
+        """Avanço, célula, dpi, padding e fonte da grade (substitui o DIAG)."""
+        cw, ch = self.metrics()
+        return {
+            "advance": round(getattr(self, "_advance", cw), 3),
+            "cell": [cw, ch],
+            "dpi": round(self.dpi(), 1),
+            "padding": self.padding,
+            "font": self.font_family,
+            "font_size": self.font_size,
+        }
+
+    def debug_prof(self):
+        """Contadores de custo acumulados desde a última ligação do `prof`."""
+        return {
+            "on": bool(_PROF),
+            "etapas": {
+                etapa: {"n": n, "ms": round(seg * 1000, 1)}
+                for etapa, (n, seg) in sorted(self._prof.items())
+            },
+            "bytes": self._prof_bytes,
+            "eagain": self._prof_eagain,
+        }
+
     def dump_text(self):
         """Texto do dump (SIGUSR1 / saída) desta sessão."""
         t = self.term
@@ -717,7 +746,6 @@ class TermView(Gtk.DrawingArea):
         self._attrs_plain = None
         self._attrs_bold = None
         self._layouts.clear()
-        self._diag_done = False  # PYTERM_DIAG de novo, com a fonte nova
         self._ensure_blink()
         # direto (e não só queue_resize): o tamanho alocado pode não mudar e
         # o size-allocate nunca viria, aí a grade ficava com a célula antiga
@@ -837,18 +865,6 @@ class TermView(Gtk.DrawingArea):
         # da tela: sem pôr a do widget, o texto sai com avanço menor que a
         # célula e a grade inteira desalinha.
         layout = self.new_layout(cr)
-        if os.environ.get("PYTERM_DIAG") and not self._diag_done:
-            self._diag_done = True
-            layout.set_text("MMMMMMMMMM", -1)
-            sys.stderr.write(
-                "DIAG: avanco %r cell %r res %r cols %r\n"
-                % (
-                    layout.get_size()[0] / Pango.SCALE / 10,
-                    self.metrics(),
-                    PangoCairo.context_get_resolution(layout.get_context()),
-                    self.term.cols,
-                )
-            )
         # fundo
         cur = cell_rgb_f(DEF_BG)  # a última cor posta no contexto
         cr.set_source_rgb(*cur)

@@ -14,7 +14,20 @@ import socket as socket_mod
 import stat
 import struct
 
-VERBS = ("state", "text", "write", "log", "quit")
+VERBS = ("state", "text", "write", "keys", "resize", "prof", "log", "quit")
+MODS = ("ctrl", "shift", "alt", "super")
+# nomes que o keysym do X não conhece (PgUp não é "Page_Up" para o Gdk)
+KEY_ALIASES = {
+    "pgup": "Page_Up",
+    "pgdn": "Page_Down",
+    "pgdown": "Page_Down",
+    "esc": "Escape",
+    "enter": "Return",
+    "del": "Delete",
+    "bs": "BackSpace",
+    "ins": "Insert",
+    "space": "space",
+}
 
 
 def auto_path():
@@ -28,6 +41,21 @@ def resolve(value):
     if not value:
         return None
     return auto_path() if value == "auto" else value
+
+
+def parse_key(spec):
+    """`ctrl+shift+n` -> ("n", ("ctrl", "shift")); ValueError se não souber.
+
+    Puro: quem resolve keyval e máscara de modificador é a janela, com o Gdk.
+    """
+    partes = [p.strip() for p in str(spec).split("+")]
+    if not partes or not partes[-1]:
+        raise ValueError("tecla vazia: %r" % spec)
+    nome, mods = partes[-1], partes[:-1]
+    for m in mods:
+        if m.lower() not in MODS:
+            raise ValueError("modificador desconhecido: %r (use %s)" % (m, MODS))
+    return KEY_ALIASES.get(nome.lower(), nome), tuple(m.lower() for m in mods)
 
 
 def _ok(**kw):
@@ -63,6 +91,18 @@ def dispatch(target, line):
                     count=int(req.get("count", 40)),
                 )
             )
+        if cmd == "keys":
+            data = req.get("data")
+            specs = [data] if isinstance(data, str) else list(data or [])
+            if not specs:
+                return _err("keys precisa de data (string ou lista)")
+            return _ok(keys=[target.debug_keys(str(s)) for s in specs])
+        if cmd == "resize":
+            return _ok(
+                **target.debug_resize(cols=int(req.get("cols", 0)), rows=int(req.get("rows", 0)))
+            )
+        if cmd == "prof":
+            return _ok(**target.debug_prof(on=req.get("on")))
         if cmd == "write":
             data = req.get("data")
             if not isinstance(data, str):

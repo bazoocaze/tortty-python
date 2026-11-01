@@ -16,7 +16,7 @@ import sys
 from . import config as config_mod
 from . import debugsock, state, style
 from .gui import Gdk, GdkX11, GLib, Gtk, Pango
-from .view import TermView, set_debug_log
+from .view import TermView, set_debug_log, set_prof
 
 SIDEBAR_W = 170  # largura fixa (arrastável fica pra depois)
 
@@ -543,6 +543,7 @@ class BzmuxWindow(Gtk.Window):
             "workspaces": len(self.workspaces),
             "config": str(self.config.path),
             "errors": list(self.config.errors),
+            **(v.debug_metrics() if v is not None else {}),
         }
 
     def _xid(self):
@@ -552,6 +553,54 @@ class BzmuxWindow(Gtk.Window):
             return int(GdkX11.X11Window.get_xid(gdkwin)) if gdkwin else 0
         except (AttributeError, TypeError):
             return 0
+
+    def debug_prof(self, on=None):
+        """Contadores de custo; `on` liga/desliga a medição em execução."""
+        if on is not None:
+            set_prof(on)
+        v = self.view
+        return v.debug_prof() if v is not None else {"on": bool(on), "etapas": {}}
+
+    def debug_resize(self, cols, rows):
+        """Redimensiona a JANELA para caber cols x rows; o resultado vem no
+        próximo `state` (a alocação e o TIOCSWINSZ acontecem no ciclo do Gtk)."""
+        v = self.view
+        if v is None:
+            return {"requested": [0, 0], "cols": 0, "rows": 0}
+        cols, rows = max(1, int(cols)), max(1, int(rows))
+        cw, ch = v.metrics()
+        w = self.get_allocated_width() + (cols - v.term.cols) * cw
+        h = self.get_allocated_height() + (rows - v.term.rows) * ch
+        self.resize(max(1, w), max(1, h))
+        return {"requested": [cols, rows]}
+
+    def debug_keys(self, spec):
+        """Tecla pelo caminho do app (atalho, scroll, encoder), não pelo pty."""
+        nome, mods = debugsock.parse_key(spec)
+        keyval = Gdk.keyval_from_name(nome)
+        if keyval == Gdk.KEY_VoidSymbol:  # nome que o keysym não conhece
+            keyval = 0
+        if not keyval and len(nome) == 1:
+            keyval = ord(nome)
+        if not keyval:
+            raise ValueError("tecla desconhecida: %s" % nome)
+        mascaras = {
+            "ctrl": Gdk.ModifierType.CONTROL_MASK,
+            "shift": Gdk.ModifierType.SHIFT_MASK,
+            "alt": Gdk.ModifierType.MOD1_MASK,
+            "super": Gdk.ModifierType.SUPER_MASK,
+        }
+        ev = Gdk.Event.new(Gdk.EventType.KEY_PRESS)
+        estado = Gdk.ModifierType(0)  # flags, não int: o campo exige o tipo
+        for m in mods:
+            estado |= mascaras[m]
+        ev.keyval = keyval
+        ev.state = estado
+        ev.hardware_keycode = 0
+        v = self.view
+        if v is None:
+            return {"key": nome, "mods": list(mods), "handled": False}
+        return {"key": nome, "mods": list(mods), "handled": bool(v.on_key(v, ev))}
 
     def debug_text(self, where="view", start=0, count=40):
         """Linhas do que a tela mostra (`view`), da grade viva ou do histórico."""
@@ -717,8 +766,6 @@ class BzmuxWindow(Gtk.Window):
         for ws in self.workspaces:
             for v in ws.views:
                 v.apply_config(novo)
-        if os.environ.get("PYTERM_CONFLOG"):
-            print("config recarregada: %r" % (novo.values,), file=sys.stderr)
         aviso = config_mod.message(novo)
         if aviso:
             self.show_toast("Aviso na configuração", aviso, aviso=True)

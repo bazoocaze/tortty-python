@@ -37,7 +37,8 @@ o único import. A arquitetura já tem a costura; falta a porta existir.
    existe fora do X11 (degrada silencioso, precisa cair em CLIPBOARD).
 4. `view.py` — família "Monospace" hardcoded (melhor tabela por OS);
    `get_scale_factor()` nunca é lido (Retina 2x, Windows 150%). A métrica é
-   medida do Pango, então a grade se adapta — o teste é o par do `PYTERM_DIAG`
+   medida do Pango, então a grade se adapta — o teste é o par avanço × célula
+   que o `state` do socket devolve
    (avanço x célula x res x cols) rodado em cada OS, o mesmo que pegou o bug 13.
 
 ## Fatos verificados (2026-10-28)
@@ -145,7 +146,8 @@ comparação ganha dois parâmetros novos: família da fonte e scale factor
 (rasterização CoreText/DirectWrite/FreeType mudam avanço e hinting; a grade
 continua correta porque é medida, mas os fps não são comparáveis entre OS).
 
-Verificação mínima em cada OS: `--selftest` (sem display), `PYTERM_DIAG=1`
+Verificação mínima em cada OS: `--selftest` (sem display), as métricas do
+`state` pelo `--debug-socket`
 (avanço x célula x res x cols batendo), wheel com trackpad, colar do clipboard,
 seleção com botão do meio e `./bench.sh` — este último só onde houver leitura
 de governor/frequência (no mac e no Windows vira outro protocolo, não uma

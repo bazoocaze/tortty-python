@@ -295,7 +295,7 @@ Ordem de ataque, do que rende mais:
 ### Anomalia resolvida (2026-10-27): era o governor
 
 - O desenho não reproduzia os 22,7 ms/frame: dava 47,7 ms em 60 frames, 97,8 em
-  300 e 105,1 em 400, sempre com `PYTERM_DIAG` idêntico (avanço 14,0, célula
+  300 e 105,1 em 400, sempre com as métricas idênticas (`state` do socket: avanço 14,0, célula
   14×28, res 130, 70 colunas).
 - Trocar `powersave` → `schedutil` devolveu 22,12 / 21,70 / 20,97 / 22,18 ms em
   quatro tiros seguidos, com a vazão indo de 10,4 para 59–64 fps.

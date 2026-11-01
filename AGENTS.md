@@ -176,7 +176,7 @@ default embarcado em bzmux/data/bzmux.conf.
   python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to ARQ imprime fps e
   MB/s na saída, então dá para comparar dois terminais na mesma grade. Por que,
   resultados e protocolo: docs/BENCHMARKS.md. As sondas de diagnóstico
-  (`PYTERM_PROF/NODRAW/NOPARSE/GEOM/GEOMLOG/DIAG/SCROLLLOG/CONFLOG`) estão na
+  (`PYTERM_PROF/NODRAW/NOPARSE/GEOM/GEOMLOG/SCROLLLOG`) estão na
   tabela de docs/DEBUG.md; a escada com os números fica em docs/BENCHMARKS.md.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.

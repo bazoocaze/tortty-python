@@ -869,6 +869,31 @@ apagou o arquivo; socket órfão sumiu no boot; pedido inválido devolve
 `{"ok": false}` em vez de derrubar. Check `debug_socket` cobre o despacho com
 alvo falso, sem display nem socket.
 
+### P36 — Socket de introspecção: métricas, `prof`, `resize` e `keys` (2026-11-01)
+
+Extensão do P35 para tirar do ambiente e do X o que ainda exigia reinício ou
+`tools/xtest.py`:
+
+- `state` ganhou as métricas da grade (`advance`, `cell`, `dpi`, `padding`,
+  `font`, `font_size`) e a sonda `PYTERM_DIAG` saiu; o par avanço × célula do
+  bug 13 passou a ser consulta a qualquer momento, inclusive depois de trocar a
+  fonte. `PYTERM_CONFLOG` também saiu: `config` e `errors` já estão no `state`.
+- verbo `prof`: liga a medição de custo em execução e devolve os acumulados
+  (pty, draw, bytes, eagain) — antes só o retrato da saída com `PYTERM_PROF`.
+- verbo `resize COLSxROWS`: redimensiona a **janela** e deixa o caminho normal
+  acontecer (allocation → `TIOCSWINSZ`/`SIGWINCH`), então reflow e alocação
+  preguiçosa de página oculta deixam de exigir WM.
+- verbo `keys`: tecla pelo caminho do app (atalho da janela → encoder), com
+  modificadores; `PgUp`/`PgDn`/`Esc`/`Enter`/`Del`/`BS`/`Ins` como apelidos
+  porque o keysym do X não os conhece (`PgUp` vira `Page_Up`).
+
+Verificado em display privado: `resize` 80x29 → `state` 100x34 no ciclo
+seguinte; `shift+PgUp` levou `view_off` de 0 a 28 e `shift+Home` a 273 (topo);
+`ctrl+shift+n`/`ctrl+shift+t`/`ctrl+shift+w` criaram e fecharam aba e workspace;
+`keys` `a` e `Return` chegaram ao filho; nome de tecla inválido responde erro.
+Check `debug_socket` cobre o `parse_key` (apelidos, modificador inválido, tecla
+vazia) e os verbos novos com alvo falso.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.
