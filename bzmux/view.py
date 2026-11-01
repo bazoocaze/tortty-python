@@ -149,6 +149,9 @@ class TermView(Gtk.DrawingArea):
         self.connect("scroll-event", self.on_scroll)
         self.connect("key-press-event", self.on_key)
         self.connect("key-release-event", self.on_key_release)
+        # aba oculta não pisca: o Gtk.Notebook desmapeia a página que sai
+        self.connect("map", self._on_map)
+        self.connect("unmap", self._on_unmap)
         # size-allocate (e não configure-event): o configure do GtkWindow
         # chega ANTES do filho ser re-alocado, então get_allocation() ali
         # ainda devolve o tamanho antigo e o resize nunca era aplicado.
@@ -647,13 +650,27 @@ class TermView(Gtk.DrawingArea):
         return None if pisca and not self._blink_on else forma
 
     def _ensure_blink(self):
-        """Liga o timer do pisca se algo pediu (config ou app)."""
-        if self._blink_timer:
-            return
+        """Liga o timer do pisca se algo pediu (config ou app) e a view aparece."""
+        if self._blink_timer or not self.get_mapped():
+            return  # oculta: quem liga é o _on_map
         if self.cursor_blink or (self.term.app_cursor_style or (0, 0))[1]:
             self._blink_timer = GLib.timeout_add(BLINK_MS, self._blink_tick)
 
+    def _on_map(self, *_a):
+        """Voltou a aparecer: cursor visível e o pisca religado."""
+        self._blink_on = True
+        self._ensure_blink()
+
+    def _on_unmap(self, *_a):
+        """Aba oculta: sem timer — com N abas seriam N timers acordando."""
+        if self._blink_timer:
+            GLib.source_remove(self._blink_timer)
+            self._blink_timer = 0
+
     def _blink_tick(self):
+        if not self.get_mapped():  # rede: o _on_unmap normalmente já parou
+            self._blink_timer = 0
+            return False
         if not (self.cursor_blink or (self.term.app_cursor_style or (0, 0))[1]):
             self._blink_timer = 0
             self._blink_on = True

@@ -1069,11 +1069,15 @@ vale em todas as abas abertas, diferente de `shell`, que só pega na próxima.
 
 Decisões que ficaram no código:
 
-- **Pisca barato**: um `GLib.timeout_add(BLINK_MS=530)` que invalida apenas a
-  célula do cursor (`queue_draw_area`); dois draws inteiros por segundo seriam
-  caros e o dirty-rect completo é o P27. O timer se desliga sozinho quando nada
-  pisca (config off e app sem DECSCUSR piscante) e religa no `_on_pty` e no
-  `apply_config`.
+- **Pisca barato e preguiçoso**: um `GLib.timeout_add(BLINK_MS=530)` que
+  invalida apenas a célula do cursor (`queue_draw_area`); dois draws inteiros
+  por segundo seriam caros e o dirty-rect completo é o P27. O timer se desliga
+  sozinho quando nada pisca (config off e app sem DECSCUSR piscante) e religa no
+  `_on_pty` e no `apply_config`. Só existe na view **visível**: o
+  `Gtk.Notebook` desmapeia a página que sai, então `unmap` remove o timer e
+  `map` religa (cursor volta na fase de "aparece"). Com N abas é 1 timer, não
+  N — verificado com 3 workspaces e `cursor_blink on`, logando os ticks: sempre
+  um id só, e o timer some no unmap.
 - **DECSCUSR (`CSI 6 q`) interpretado**: 1..6 = forma + pisca, 0 (ou fora da
   faixa) volta para a config. O pedido do app vence a config enquanto durar,
   como no kitty.
@@ -1288,6 +1292,15 @@ saíram junto: eram de bancada antiga e agora contradiziam o BENCHMARKS.
 
 ## Quirks registrados (não redescobrir)
 
+- **Página oculta do `Gtk.Notebook` não é realocada.** A view de uma aba/aba de
+  workspace que não está na tela mantém o `size-allocate` **antigo**: abrir a
+  lateral (170 px, `SIDEBAR_W`) estreita a grade de 75 para 62 colunas, mas só
+  na página visível — as ocultas continuam dizendo 75 até serem mapeadas, e aí
+  o `on_resize` corrige (62) e manda `TIOCSWINSZ`/`SIGWINCH`. Ler o `dump` de
+  duas views e ver larguras diferentes (75 vs 62) é isso, não bug de geometria.
+- **O despacho do `Gtk.Notebook` é o que desmapeia a página**: é disso que o
+  pisca do cursor depende para parar em aba oculta (sinal `unmap`/`map`); se
+  alguém trocar o container, o pisca volta a rodar em todas as abas.
 - **O dump (`--dump-to`/SIGUSR1) mostra a grade VIVA, não a visão rolada.**
   `dump_text` usa `Term.row_text`, então com a visão no histórico as linhas do
   dump continuam sendo o rodapé — conferir `view_off` por ele dá falso negativo
