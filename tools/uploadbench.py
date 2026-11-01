@@ -195,12 +195,14 @@ def main(argv):
         resultados[modo] = mede(win, banco, a.frames, modo, img)
     med_runs, avg_runs = resultados["runs"]
 
-    print("display %s · grade %dx%d · célula %dx%d · %d frames" % (
-        win.get_display().get_name(), a.cols, a.rows, cw, ch, a.frames
-    ))
-    print("runs   mediana %6.2f ms  média %6.2f ms  (%d runs/frame)" % (
-        med_runs, avg_runs, len(banco.runs(0))
-    ))
+    print(
+        "display %s · grade %dx%d · célula %dx%d · %d frames"
+        % (win.get_display().get_name(), a.cols, a.rows, cw, ch, a.frames)
+    )
+    print(
+        "runs   mediana %6.2f ms  média %6.2f ms  (%d runs/frame)"
+        % (med_runs, avg_runs, len(banco.runs(0)))
+    )
     for modo, rotulo in (
         ("upload", "1 pedido/frame, pixels pelo fio"),
         ("pixmap", "surface do servidor, compõe tudo"),
@@ -209,8 +211,10 @@ def main(argv):
         ("pixmap-comp", "só compor o pixmap (sem desenhar)"),
     ):
         med, avg = resultados[modo]
-        print("%-8s mediana %6.2f ms  média %6.2f ms  (%s)  razão %.2fx"
-              % (modo, med, avg, rotulo, med_runs / med if med else 0.0))
+        print(
+            "%-8s mediana %6.2f ms  média %6.2f ms  (%s)  razão %.2fx"
+            % (modo, med, avg, rotulo, med_runs / med if med else 0.0)
+        )
     win.destroy()
     return 0
 
