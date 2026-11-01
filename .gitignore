@@ -4,3 +4,7 @@ __pycache__/
 .pytest_cache/
 *.swp
 *.swo
+
+# artefatos locais de execucao/agente (nao versionados)
+nohup.out
+.pi/
