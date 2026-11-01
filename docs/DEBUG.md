@@ -124,7 +124,8 @@ Uma linha JSONL por evento, com `ts` local em ms:
 
 Ferramenta para o agente, desligada por omissão: `--debug-socket ARQ`, ou `auto`
 = arquivo com o pid em `$XDG_RUNTIME_DIR`. Arquivo em `0600` e só o mesmo uid
-conecta.
+conecta; quando abre, a janela mostra um toast de aviso de segurança com o
+caminho do socket.
 
 - Um pedido JSON por linha, uma resposta JSON por linha; a mesma conexão aceita
   vários pedidos seguidos.

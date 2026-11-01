@@ -850,7 +850,9 @@ injeta no X real, já travou o desktop com implicit grab).
 Feito: `--debug-socket ARQ` — socket Unix com JSON por linha, atendido na
 thread da UI (`GLib.io_add_watch`, sem thread nova), `auto` =
 `$XDG_RUNTIME_DIR/bzmux-<pid>.sock`, arquivo em `0600` e só o mesmo uid conecta
-(`SO_PEERCRED`); socket órfão de app morto é removido no boot. Verbos: `state`
+(`SO_PEERCRED`); socket órfão de app morto é removido no boot. Ao abrir, um
+toast de aviso de segurança mostra o caminho do socket (quem abriu tem de saber
+que a porta está de pé). Verbos: `state`
 (inclusive `view_off`, `pin`, `sync` e `scrolled`, que o dump do `SIGUSR1` não
 mostra), `text` (`view` = o que a tela mostra, `screen` = grade viva,
 `history` = scrollback por linha absoluta), `write` (bytes crus no pty), `log`

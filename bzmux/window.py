@@ -513,6 +513,14 @@ class BzmuxWindow(Gtk.Window):
             if erro:
                 self._debugsock = None
                 self.show_toast("Socket de debug", erro, erro=True)
+            else:
+                # superfície de debug: só existe com a flag, mas quem abriu tem
+                # de saber que ela está de pé
+                self.show_toast(
+                    "Aviso de segurança",
+                    "debug socket ativado: %s" % caminho,
+                    aviso=True,
+                )
 
     # -- introspecção (--debug-socket, P35) -----------------------------
     def debug_state(self):
