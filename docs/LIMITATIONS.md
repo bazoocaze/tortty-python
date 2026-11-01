@@ -152,9 +152,9 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
   instalável (`pipx` ou `install.sh`, item P31), mas não tem release, PyPI,
   instalador para outra plataforma, versionamento semântico nem suporte.
 - **Só Linux, com GTK3 do sistema**: o PyGObject e o cairo vêm da distro e o
-  cromo é GTK3 — macOS e Windows exigiriam levar o stack inteiro, o que é a
-  discussão do P30 no [BACKLOG.md](BACKLOG.md). Não é portabilidade prometida
-  para depois; é onde ele roda.
+  cromo é GTK3 — macOS e Windows exigiriam levar o stack inteiro, o que é o
+  estudo do P30 em [PORTABILITY.md](PORTABILITY.md). Não é portabilidade
+  prometida para depois; é onde ele roda.
 - **Python puro é decisão, não pendência**: o experimento perguntou se dava
   para fazer um terminal inteiro em Python e a resposta foi sim — ele é usado
   no dia a dia assim. O teto de vazão (~6x o kitty) é o preço aceito, e se

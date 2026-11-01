@@ -343,7 +343,7 @@ grep prof: /tmp/bzmux.log
   Debian): 210 pacotes, 346 MB em disco, dominado por fontes (`fonts-noto-core`
   42 MB) e ICU (`libicu74` 36 MB). Numa máquina GTK esse custo é zero, porque o
   desktop já o pagou.
-- Rota Qt, para comparação (P30, no [BACKLOG.md](BACKLOG.md)): PySide6 244 MB
+- Rota Qt, para comparação (P30, em [PORTABILITY.md](PORTABILITY.md)): PySide6 244 MB
   instalado, app trivial com PSS de 50 MB, dos quais 23 MB de libs Qt. No
   Windows/macOS é a mesma ordem de grandeza de levar GTK para lá; no Linux o GTK
   ganha por construção.

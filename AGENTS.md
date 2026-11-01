@@ -27,6 +27,8 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
   ferramentas de teste manual, verificação com janela, sondas `PYTERM_*` e
   armadilhas de implementação (GTK/cairo/Pango/parser). **Ler antes de rodar
   ferramenta com display**; armadilha nova entra aqui, não no HISTORY.
+- docs/PORTABILITY.md — estudo do P30 (Linux/Windows/macOS): o que é
+  plataforma hoje, bloqueios no código, rotas e custo; decisão pendente.
 - docs/BENCHMARKS.md — benchmarks e medição e **o único lugar com número de
   vazão/desenho/parse/pegada**: a carga doom-fire (manchete), o `dmesg` real, a
   escada e as decomposições, a pegada (PSS do app e disco do stack gráfico), o

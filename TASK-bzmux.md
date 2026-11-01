@@ -46,7 +46,7 @@ descartado estão no [`docs/HISTORY.md`](docs/HISTORY.md) e em
 
 P30 em discussão: portabilidade gráfica (Windows/macOS) — manter GTK3 via
 conda-forge ou trocar por Qt/PySide6; dados levantados e custo de cada rota em
-[`docs/BACKLOG.md`](docs/BACKLOG.md). Decisão pendente: cairo + Pango é
+[`docs/PORTABILITY.md`](docs/PORTABILITY.md). Decisão pendente: cairo + Pango é
 identidade ou implementação?
 
 P31 concluído: o app virou pacote instalável (`bzmux/`, console script, guarda
