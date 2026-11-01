@@ -701,6 +701,9 @@ reverso na tela, `xclip -o -selection primary` inalterado), arrasto curto
 depois do wheel (seleciona o texto certo). `selection_text` puro continua
 coberto em `checks.py`. A bateria não cobre o estado da view (precisa de Gtk).
 
+A opção B foi desfeita pelo B17 (bug 17): a seleção passou a ser ancorada no
+conteúdo, então rolar não desfaz mais o destaque.
+
 ### P29 — `Alt` não prefixava `ESC` nas teclas especiais (2026-10-29)
 
 `Alt+Backspace` apagava **1 caractere** em vez de uma palavra no `zsh`, e o
@@ -976,6 +979,29 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     não pode reaparecer no `on_motion` (apagaria o arrasto em curso). Sem check
     automático — a decisão vive num handler de GTK e exige display; a bateria
     não cobre `view.py`.
+
+17. **A seleção não acompanhava o scroll da tela.** `sel_start`/`sel_end`
+    guardavam fileira e coluna da **tela**: rolar (`view_off`, wheel,
+    `Shift+PgUp`) movia o texto e deixava o realce na mesma posição física,
+    agora sobre outro texto — e o `copy` seguinte copiava o errado; a mitigação
+    do P28 (desfazer a seleção ao rolar) só trocava "texto errado" por
+    "seleção perdida". Fix: âncora absoluta (`Term.CellAnchor`, linha =
+    `scrolled - view_off + row`), a mesma conta do P32 — o desenho volta à
+    fileira de tela e o `copy` lê pela âncora, então seleção que saiu da tela
+    continua valendo. A âncora carrega a geração do mapa (`Term.abs_gen`):
+    `CSI 3J`, RIS, reflow e a troca de buffer do alt-screen a invalidam, o corte
+    no teto do `scrollback` não. Verificado pelo check
+    `selection_follows_history` (as duas ordens, output no teto de 1000, morte
+    por `CSI 3J` e reflow) e com janela em display privado: realce 3 fileiras
+    abaixo na captura e `Ctrl+Shift+C` devolvendo o texto certo depois do wheel.
+
+18. **RIS devolvia o teto do histórico para 1000.** `Term.reset` recriava o
+    `Term` inteiro (`__init__`) e levava junto o `scrollback_limit`, que é
+    configuração e não estado do app: com `scrollback 5`, um `ESC c` do
+    programa passava a guardar 1000 linhas. Fix: ler o valor antes do
+    `__init__` e repor depois. Achado ao revisar o bug 17 (o `reset` mudou
+    naquele fix); o check `scrollback_and_bell` agora manda `RIS` e confere que
+    o teto sobrevive.
 
 ## Nota de documentação: número só em um lugar
 

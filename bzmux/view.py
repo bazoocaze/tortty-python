@@ -123,10 +123,12 @@ class TermView(Gtk.DrawingArea):
         self.dead_mark = 0  # dead key pendente (marca combinante)
         self.term = Term()
         self.term.set_scrollback(scrollback)
-        # seleção local (quando o app NÃO pediu mouse): âncora e ponta
+        # seleção local (quando o app NÃO pediu mouse): âncora e ponta em
+        # coordenada ABSOLUTA (`CellAnchor`), senão o realce fica preso na
+        # posição de tela quando o conteúdo rola (B17)
         self.sel_start = None
         self.sel_end = None
-        self.press_cell = None  # célula do press: a seleção nasce no arrasto
+        self.press_anchor = None  # célula do press: a seleção nasce no arrasto
         self.press_at = None  # pixel do press: a folga de arrasto é medida nele
         self.dragging = False
         self._held = None  # botão do protocolo apertado agora
@@ -591,16 +593,15 @@ class TermView(Gtk.DrawingArea):
             # a âncora é absoluta (P32): o output que chegar depois não arranca
             # o usuário daqui — só rolar até o fim, tecla ou limpeza do histórico
             self._anchor = t.scrolled - off
-            # a seleção vive em coordenadas de TELA: rolar deixaria o destaque
-            # sobre outro texto e o copy seguinte copiaria o texto errado
-            self.clear_selection()
+            # a seleção também é absoluta (B17): rolar não a desfaz nem a deixa
+            # sobre outro texto, ela vai junto com o conteúdo
             self.queue_draw()
         return True
 
     def clear_selection(self):
         if self.sel_start is not None or self.sel_end is not None:
             self.sel_start = self.sel_end = None
-            self.press_cell = None
+            self.press_anchor = None
             self.press_at = None
             self.queue_draw()
 
@@ -693,14 +694,33 @@ class TermView(Gtk.DrawingArea):
         )
 
     # -- desenho ------------------------------------------------------
-    def sel_range(self):
-        """Seleção normalizada (r1, c1, r2, c2) ou None."""
-        if self.sel_start is None or self.sel_end is None:
+    def sel_span(self):
+        """Seleção normalizada em âncoras absolutas (início, fim) ou None."""
+        a, b = self.sel_start, self.sel_end
+        if a is None or b is None:
             return None
-        (r1, c1), (r2, c2) = self.sel_start, self.sel_end
-        if (r1, c1) > (r2, c2):
-            (r1, c1), (r2, c2) = (r2, c2), (r1, c1)
-        return (r1, c1, r2, c2)
+        # âncora destruída (CSI 3J, reflow): não há mais o texto pra pintar
+        if not (self.term.anchor_alive(a) and self.term.anchor_alive(b)):
+            return None
+        return (a, b) if (a.line, a.col) <= (b.line, b.col) else (b, a)
+
+    def sel_range(self):
+        """Seleção normalizada (r1, c1, r2, c2) nas fileiras da visão ou None.
+
+        O que ficou fora da tela (seleção maior que a viewport) é preso à
+        borda: o desenho pinta só o pedaço visível, a cópia usa a âncora.
+        """
+        span = self.sel_span()
+        if span is None:
+            return None
+        t = self.term
+        a, b = span
+        r1, r2 = t.anchor_row(a, self.view_off), t.anchor_row(b, self.view_off)
+        if r1 >= t.rows or r2 < 0:
+            return None  # a seleção inteira está fora da tela
+        c1 = a.col if r1 >= 0 else 0
+        c2 = b.col if r2 < t.rows else t.cols - 1
+        return (max(0, r1), c1, min(t.rows - 1, r2), c2)
 
     def on_draw(self, area, cr):
         if not _PROF:
@@ -946,7 +966,7 @@ class TermView(Gtk.DrawingArea):
             # nem sobrescrever o PRIMARY com 1 caractere. E clicar no histórico
             # NÃO volta pro vivo: o arrasto é justamente para copiar dali (B16)
             self.clear_selection()
-            self.press_cell = (row, col)
+            self.press_anchor = t.anchor_at(self.view_off, row, col)
             self.press_at = (ev.x, ev.y)
             self.dragging = True
             return True
@@ -966,10 +986,10 @@ class TermView(Gtk.DrawingArea):
             return True
         if ev.button == 1 and self.dragging:
             self.dragging = False
-            sel = self.sel_range()
+            span = self.sel_span()
             # só copia o que foi realmente selecionado (press + arrasto em
             # outra célula); sem arrasto, o PRIMARY do usuário fica intacto
-            if sel and sel[:2] != sel[2:]:
+            if span and span[0] != span[1]:
                 self.copy(Gdk.SELECTION_PRIMARY)
                 if self.copy_on_select:  # P34: já vai para o clipboard também
                     self.copy(Gdk.SELECTION_CLIPBOARD)
@@ -990,9 +1010,10 @@ class TermView(Gtk.DrawingArea):
                 px, py = self.press_at or (ev.x, ev.y)
                 if max(abs(ev.x - px), abs(ev.y - py)) <= DRAG_SLOP:
                     return True
-                self.sel_start = self.press_cell  # arrasto começa no press
-            if (row, col) != self.sel_end:
-                self.sel_end = (row, col)
+                self.sel_start = self.press_anchor  # arrasto começa no press
+            cell = t.anchor_at(self.view_off, row, col)
+            if cell != self.sel_end:
+                self.sel_end = cell
                 self.queue_draw()
             return True
         if t.mouse_mode == 2 and self._held is not None:
@@ -1037,17 +1058,15 @@ class TermView(Gtk.DrawingArea):
     # -- área de transferência ----------------------------------------
     def copy(self, selection=Gdk.SELECTION_CLIPBOARD):
         """Copia a seleção — ou a viewport inteira, se não houver seleção."""
-        rows = self.visible_rows()
-        sel = self.sel_range()
-        if sel:
-            r1, c1, r2, c2 = sel
+        span = self.sel_span()
+        if span:
             # Sem `+ "\n"`: o kitty só junta as linhas com "\n" ENTRE elas, e
             # o fim de linha entra quando o arrasto chega na coluna 0 da linha
             # seguinte (aí a última "linha" da seleção é vazia). O newline
             # incondicional fazia colar "abcdef" executar `abcdef`.
-            text = self.term.selection_text((r1, c1), (r2, c2), rows=rows)
+            text = self.term.anchor_text(*span)
         else:
-            text = self.term.all_text(rows=rows)
+            text = self.term.all_text(rows=self.visible_rows())
         cb = Gtk.Clipboard.get(selection)
         cb.set_text(text, -1)
         cb.store()

@@ -171,6 +171,12 @@ resolução e desenhada em outra, bug 13 do HISTORY). `PROF` decompõe a vazão,
   chamada de desenho: decidir na criação da entrada do cache, nunca por run.
 - Baseline do layout vem de `get_baseline()`, não do ascent da fonte: com
   fallback CJK o layout resolve outra baseline e o texto sobe.
+- Âncora de seleção e de histórico mora em linha **absoluta**
+  (`scrolled - view_off + row`), nunca em fileira de tela: coordenada de tela
+  envelhece ao rolar e ao chegar output. A geração do mapa (`Term.abs_gen`)
+  invalida no reflow, em `CSI 3J` e na troca de buffer do alt-screen, mas
+  **não** no corte do teto do `scrollback` — ali a linha absoluta continua a
+  mesma (P32/B17).
 
 ## Instalação (pipx e shell)
 

@@ -5,6 +5,7 @@ abrir janela (e sem display). Quem desenha é `window.BzmuxWindow`.
 """
 
 import re
+from typing import NamedTuple
 
 from .graphics import Graphics
 from .palette import (
@@ -38,6 +39,14 @@ _CSI_MAX = 1024
 # Tudo que não casar aqui (chunk partido, intermediário, dígito Unicode) cai
 # no parser lento, que continua sendo o dono da gramática.
 _CSI_RE = re.compile(r"\x1b\[([0-9;:?]*)([\x40-\x7e])")
+
+
+class CellAnchor(NamedTuple):
+    """Célula em coordenada absoluta: não envelhece quando a tela rola."""
+
+    line: int  # linha absoluta: `Term.scrolled` é o topo do vivo
+    col: int
+    gen: int  # geração do mapa (ver `Term.abs_gen`)
 
 
 def _csi_parse(body, final):
@@ -89,7 +98,11 @@ class Term:
         self.cols, self.rows = cols, rows
         self.grid = [self._blank_row() for _ in range(rows)]
         self.alt_grid = None  # None = buffer principal
-        self.scrolled = 0  # linhas que saíram pelo topo (diagnóstico)
+        self.scrolled = 0  # linhas que saíram pelo topo (índice absoluto)
+        # geração do mapa absoluto: reflow (linhas juntam/partem) e limpeza do
+        # histórico (CSI 3J) invalidam âncoras velhas. O corte no teto NÃO
+        # invalida: a linha absoluta continua a mesma (como no P32).
+        self.abs_gen = 0
         self.scrollback = []
         self.scrollback_limit = 1000  # teto de linhas do histórico (P34)
         # reflow (P3): row_wrapped[i] = "esta linha continua na de baixo"
@@ -139,9 +152,12 @@ class Term:
         return [" ", DEF_FG, self.bg, 0]
 
     def reset(self):
-        """RIS (ESC c): limpa tudo, mantém o tamanho."""
-        cols, rows = self.cols, self.rows
+        """RIS (ESC c): limpa tudo, mantém o tamanho e o teto do histórico."""
+        cols, rows, gen = self.cols, self.rows, self.abs_gen + 1
+        limit = self.scrollback_limit  # o teto é configuração, não estado do app
         self.__init__(cols, rows)
+        self.abs_gen = gen
+        self.scrollback_limit = limit
 
     def resize(self, cols, rows):
         """Redimensiona: re-quebra (reflow) no buffer principal.
@@ -202,6 +218,7 @@ class Term:
         preenchido — e o cursor continua sobre o mesmo caractere.
         """
         old_cols = self.cols
+        self.abs_gen += 1  # as linhas absolutas antigas não valem mais
         total = len(self.scrollback) + len(self.grid)
         cur_abs = len(self.scrollback) + self.cy
         cur_off = None
@@ -410,6 +427,7 @@ class Term:
                 self.scrollback.clear()
                 self.sb_wrapped.clear()
                 self.graphics.clear()
+                self.abs_gen += 1  # o histórico sumiu: âncora antiga morreu
             self.cursor_to(0, 0)
         elif n == 1:
             for x in range(self.cx + 1):
@@ -550,7 +568,9 @@ class Term:
                 # vim e less ligam isso ao entrar em tela cheia)
                 self.app_cursor = on
             elif p in (47, 1047, 1049):
+                # a troca de buffer muda o mapa absoluto: âncora velha morre
                 if on and self.alt_grid is None:
+                    self.abs_gen += 1
                     self.alt_grid = self.grid
                     self.alt_wrapped = self.row_wrapped
                     self.grid = [self._blank_row() for _ in range(self.rows)]
@@ -561,6 +581,7 @@ class Term:
                         self.scrollback.clear()
                         self.sb_wrapped.clear()
                 elif not on and self.alt_grid is not None:
+                    self.abs_gen += 1
                     self.grid = self.alt_grid
                     self.alt_grid = None
                     if len(self.alt_wrapped) == self.rows:
@@ -975,6 +996,43 @@ class Term:
         """
         return max(0, min(self.scrolled - anchor, len(self.scrollback)))
 
+    def abs_row(self, line):
+        """A fileira de células da linha absoluta, ou None se ela não existe."""
+        lo = self.scrolled - len(self.scrollback)
+        if line < lo:
+            return None
+        if line < self.scrolled:
+            return self.scrollback[line - lo]
+        if line < self.scrolled + len(self.grid):
+            return self.grid[line - self.scrolled]
+        return None
+
+    # -- âncoras de célula (B17) ---------------------------------------
+    def anchor_at(self, view_off, row, col):
+        """Âncora absoluta da célula (row, col) da visão com `view_off`."""
+        return CellAnchor(self.scrolled - view_off + row, col, self.abs_gen)
+
+    def anchor_row(self, anchor, view_off):
+        """Fileira da visão onde a âncora cai; fora da tela dá <0 ou >= rows."""
+        return anchor.line - self.scrolled + view_off
+
+    def anchor_alive(self, anchor):
+        """A âncora ainda aponta para conteúdo existente (não sumiu nem refluiu)."""
+        if anchor.gen != self.abs_gen:
+            return False
+        return self.abs_row(anchor.line) is not None
+
+    def anchor_text(self, start, end):
+        """Texto entre duas âncoras, mesmo fora da visão (a seleção não some)."""
+        if (start.line, start.col) > (end.line, end.col):
+            start, end = end, start
+        if not self.anchor_alive(start) or not self.anchor_alive(end):
+            return ""
+        rows = [self.abs_row(line) for line in range(start.line, end.line + 1)]
+        if any(r is None for r in rows):
+            return ""
+        return self._span_text(rows, (0, start.col), (len(rows) - 1, end.col))
+
     # -- texto (cópia) ------------------------------------------------
     def paste_payload(self, text):
         """O que mandar pro filho quando o usuário cola `text`.
@@ -996,6 +1054,10 @@ class Term:
         """
         if rows is None:
             rows = self.grid
+        return self._span_text(rows, start, end)
+
+    def _span_text(self, rows, start, end):
+        """Texto entre duas células de `rows` (pontas inclusivas, sem espaço à direita)."""
         (r1, c1), (r2, c2) = start, end
         if (r1, c1) > (r2, c2):
             (r1, c1), (r2, c2) = (r2, c2), (r1, c1)

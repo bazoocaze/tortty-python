@@ -257,6 +257,12 @@ def scrollback_and_bell():
     assert t.row_text(1).startswith("linha 19")  # o vivo não é afetado
     t.set_scrollback(0)  # reduzir corta na hora
     assert t.scrollback == []
+    t.set_scrollback(2)
+    for i in range(10):
+        t.feed("linha %d\r\n" % i)
+    t.feed("\x1bc")  # RIS limpa a tela mas não é dono da configuração
+    assert (t.scrollback_limit, t.scrollback) == (2, [])
+    t.set_scrollback(0)
     assert t.bells == 0
     t.feed("\a")
     assert t.bells == 1  # a view zera e avisa a janela
@@ -394,6 +400,50 @@ def scroll_anchor():
     # limpar o histórico (CSI 3J) destrói a âncora: não há o que ler, vivo
     t.feed("\x1b[3J")
     assert t.anchored_view_off(anchor) == 0
+
+
+def selection_follows_history():
+    """B17: a seleção vive no conteúdo — rolar e output não trocam o texto."""
+    t = Term(cols=10, rows=5)
+    t.feed("".join("%03d\r\n" % i for i in range(20)))
+    # seleciona "018" no vivo; rolar duas linhas leva o realce junto (antes ele
+    # ficava na fileira 2, já sobre "016")
+    a, b = t.anchor_at(0, 2, 0), t.anchor_at(0, 2, 2)
+    assert t.anchor_text(a, b) == "018"
+    for off in (1, 2):
+        pintado = _row_text(t.visible_rows(off)[t.anchor_row(a, off)]).rstrip()
+        assert pintado == "018", off
+    assert _row_text(t.visible_rows(2)[2]).rstrip() == "016"  # a fileira antiga
+    # rolou muito: a seleção sai da tela mas continua copiando o mesmo texto
+    assert t.anchor_row(a, 10) >= t.rows
+    assert t.anchor_text(a, b) == "018"
+    # ordem inversa: rolar, selecionar no histórico e voltar ao vivo
+    c, d = t.anchor_at(6, 0, 0), t.anchor_at(6, 0, 2)
+    assert t.anchor_text(c, d) == "010"
+    assert t.anchor_row(c, 0) < 0  # sumiu da tela, não da seleção
+    assert t.anchor_text(c, d) == "010"
+    # output do app com a seleção no histórico: o texto não sai do lugar, nem
+    # quando o scrollback bate no teto e descarta linha velha
+    t.feed("".join("%03d\r\n" % i for i in range(20, 1100)))
+    assert len(t.scrollback) == 1000
+    e, f = t.anchor_at(3, 0, 0), t.anchor_at(3, 0, t.cols - 1)
+    texto = t.anchor_text(e, f)
+    assert texto
+    t.feed("".join("%03d\r\n" % i for i in range(1100, 1110)))
+    assert (len(t.scrollback), t.anchor_alive(e), t.anchor_alive(f)) == (1000, True, True)
+    off = t.anchored_view_off(e.line)  # P32: a visão segue a linha lida
+    assert t.anchor_row(e, off) == 0
+    assert _row_text(t.visible_rows(off)[0]).rstrip() == texto
+    assert t.anchor_text(e, f) == texto
+    # limpar o histórico (CSI 3J) mata a âncora: não há mais o texto
+    t.feed("\x1b[3J")
+    assert (t.anchor_alive(e), t.anchor_text(e, f)) == (False, "")
+    # reflow muda o mapa absoluto (linha junta/parte): âncora velha não vale
+    v = Term(cols=10, rows=3)
+    v.feed("".join("%03d\r\n" % i for i in range(10)))
+    g = v.anchor_at(2, 0, 0)
+    v.resize(20, 3)
+    assert not v.anchor_alive(g)
 
 
 # -- mouse, seleção e colagem (P1/P7) ----------------------------------
@@ -562,6 +612,7 @@ ALL = (
     reflow,
     history,
     scroll_anchor,
+    selection_follows_history,
     mouse_modes_and_sgr,
     selection,
     paste_markers,
