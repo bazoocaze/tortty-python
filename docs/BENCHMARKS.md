@@ -54,6 +54,7 @@ outros docs citam o fato em uma frase e linkam.
 ```
 ./bench.sh                       # a escada inteira, 300 frames (~10 s)
 ./bench.sh --frames 1200         # o protocolo de referência, 4 etapas
+./bench.sh --cols 70 --rows 21   # outra grade (a de 2026-10-27)
 python3 tools/doomfire.py                      # 30 fps até Ctrl+C
 python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to /tmp/x.txt
 ```
@@ -70,9 +71,11 @@ python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to /tmp/x.txt
   frequência da CPU por etapa. Precisa de display e não guarda número: os de
   referência são os daqui.
 - A condição é travada pelo **grid**, não pela janela: `tools/benchrun.py` sobe o
-  app com o socket, ajusta com `resize` até `cols×rows` bater no alvo (70×21),
-  confere e só então digita a carga no pty; grid diferente = etapa sem número
-  (código 3), nunca número de outra condição.
+  app com o socket, ajusta com `resize` até `cols×rows` bater no alvo, confere e
+  só então digita a carga no pty; grid diferente = etapa sem número (código 3),
+  nunca número de outra condição. O padrão é **61×18 com fonte 13** (a janela
+  que sobra sem estar maximizada); `--cols/--rows/--font-size` trocam, e a grade
+  usada sai no rodapé da tabela.
 - O grid não sai dos pixels: célula = fonte × dpi, e dpi é o `Xft.dpi` da sessão
   (`130` no desktop do autor, `96` sem o recurso). A mesma janela de 980x640 é
   70×21 com 130 e 98×27 com 96 — por isso o alvo é em células.
@@ -80,6 +83,31 @@ python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to /tmp/x.txt
   padrão 80×24 (o primeiro `TIOCSWINSZ` chega depois) e o número vira de outro
   grid. É por isso que o `benchrun.py` escreve no pty só depois do `state`
   confirmar o alvo.
+
+### O número da máquina hoje
+
+Condição: as três primeiras etapas do `bench.sh`, 1200 frames, fonte 13,
+`schedutil` a 4,25–4,29 GHz, 2026-11-01, um terminal de cada vez.
+
+| display | grade | fps | MB/s | bytes/frame | `draw` |
+|---|---|---|---|---|---|
+| `:0` (X com glamor) | 61×18 | 113,9 | 4,9 | 42,8 KB | 13,9 ms |
+| `:0` (X com glamor) | 70×21 | 53,0 | 3,0 | 57,0 KB | 20,6 ms |
+| Xvfb `:96` (sem glamor) | 70×21 | 111,4 | 6,3 | 56,7 KB | 5,8 ms |
+
+- O mesmo código, o mesmo grid e quase a mesma área de pixels: 5,8 ms em Xvfb e
+  20,6 ms no X real. A diferença é o caminho do servidor — `:0` usa
+  `modesetting` + `glamoregl`, onde cada preenchimento do cairo vira trabalho de
+  GL; o Xvfb pinta direto no pixmap.
+- Número de benchmark, portanto, é propriedade do **display** tanto quanto do
+  código: comparar só dentro do mesmo display, e anotar qual.
+- O cronômetro do `draw` cobre ~40% do frame (8,3 ms de 18,9 ms em 70×21); o
+  resto é flush e pintura do lado do servidor, fora do `on_draw`.
+- fps não é linear no número de células porque cada desenho cobre vários frames
+  do gerador (2,5 em 70×21, 3,8 em 61×18): o terminal pinta o estado mais novo e
+  descarta os intermediários.
+- A referência de 2026-10-27 abaixo (110–122 fps em 70×21) é de outro momento
+  desta máquina: não é re-medição, e o padrão do `bench.sh` hoje é 61×18.
 
 ### O número
 

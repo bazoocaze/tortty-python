@@ -11,7 +11,8 @@ Este script inverte a ordem e deixa o resto do drama de fora:
 - sobe o app com o socket de introspecção e um XDG_STATE_HOME descartável (nada
   de geometria salva nem janela maximizada de uma execução anterior);
 - pede o grid ao próprio app e usa o verbo `resize` até ele bater no alvo — o
-  alvo é em células (70x21, o da referência), não em pixels;
+  alvo é em células (61x18, a janela padrão na tela do dia a dia), não em
+  pixels;
 - confere o grid e, se não bater, sai com código 3 em vez de imprimir número de
   outra condição;
 - só então digita o doomfire no pty. É isto que mata a corrida do arranque: o
@@ -165,8 +166,8 @@ def le_prof(log):
 def main(argv):
     ap = argparse.ArgumentParser(description="uma medição do doom-fire pelo grid")
     ap.add_argument("--frames", type=int, default=1200)
-    ap.add_argument("--cols", type=int, default=70)
-    ap.add_argument("--rows", type=int, default=21)
+    ap.add_argument("--cols", type=int, default=61)
+    ap.add_argument("--rows", type=int, default=18)
     ap.add_argument("--font-size", default="13")
     ap.add_argument("--app", default=APP_PADRAO)
     ap.add_argument("--env", action="append", default=[], metavar="K=V")

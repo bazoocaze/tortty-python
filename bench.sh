@@ -3,9 +3,10 @@
 # tempos de desenho e de pty numa tabela. Com o padrão (~300 frames) leva uns
 # 10 s no total; a janela abre e fecha quatro vezes, uma etapa por vez.
 #
-# Uso: ./bench.sh [--frames N] [-h]
+# Uso: ./bench.sh [--frames N] [--cols C] [--rows R] [--font-size P] [-h]
 #
-# A condição é travada pelo GRID (70x21, fonte 13), não pela janela em pixels —
+# A condição é travada pelo GRID (padrão 61x18, fonte 13 — a janela que sobra
+# sem estar maximizada), não pela janela em pixels —
 # quem faz isso é o tools/benchrun.py: ele sobe o app com o socket, pede o grid
 # ao próprio app, ajusta com `resize` até bater, confere e só então digita o
 # doomfire no pty. Se o grid não bater, a etapa falha e nada é impresso: número
@@ -22,8 +23,8 @@ set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd)
 FRAMES=300
-COLS=70
-ROWS=21
+COLS=61
+ROWS=18
 FONT=13
 
 while [ $# -gt 0 ]; do
@@ -31,6 +32,15 @@ while [ $# -gt 0 ]; do
         --frames)
             [ $# -ge 2 ] || { echo "falta o valor de --frames" >&2; exit 2; }
             FRAMES=$2; shift 2 ;;
+        --cols)
+            [ $# -ge 2 ] || { echo "falta o valor de --cols" >&2; exit 2; }
+            COLS=$2; shift 2 ;;
+        --rows)
+            [ $# -ge 2 ] || { echo "falta o valor de --rows" >&2; exit 2; }
+            ROWS=$2; shift 2 ;;
+        --font-size)
+            [ $# -ge 2 ] || { echo "falta o valor de --font-size" >&2; exit 2; }
+            FONT=$2; shift 2 ;;
         -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
         *) echo "opção desconhecida: $1" >&2; exit 2 ;;
     esac
