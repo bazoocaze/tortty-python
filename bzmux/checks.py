@@ -124,18 +124,22 @@ def argv_parsing():
     """--help sai sem abrir janela; opção inválida é erro de uso (exit 2)."""
     from . import cli
 
-    assert cli.parse_args(["bzmux"]) == (None, 0, None, None, None)
+    assert cli.parse_args(["bzmux"]) == (None, 0, None, None, None, None)
     assert cli.parse_args(["bzmux", "--cmd", "mc", "--quit-after", "2"]) == (
         "mc",
         2,
         None,
         None,
         None,
+        None,
     )
     assert cli.parse_args(["bzmux", "-c", "/tmp/x.conf"])[3] == "/tmp/x.conf"
     assert cli.parse_args(["bzmux", "--config", "/tmp/x.conf"])[3] == "/tmp/x.conf"
-    assert cli.parse_args(["bzmux", "--cmd"])[4] == "--cmd"
-    assert cli.parse_args(["bzmux", "--nada"])[4] == "--nada"
+    # --debug-log troca o caminho do log; `off` desliga (vence a config)
+    assert cli.parse_args(["bzmux", "--debug-log", "/tmp/x.log"])[4] == "/tmp/x.log"
+    assert cli.parse_args(["bzmux", "--debug-log", "off"])[4] == "off"
+    assert cli.parse_args(["bzmux", "--cmd"])[5] == "--cmd"
+    assert cli.parse_args(["bzmux", "--nada"])[5] == "--nada"
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out):
         assert cli.main(["bzmux", "--help"]) == 0
@@ -222,6 +226,7 @@ def config_options():
     assert (cfg.cursor_shape, cfg.cursor_blink) == ("block", False)
     assert (cfg.scrollback, cfg.padding) == (1000, 0)
     assert (cfg.bell, cfg.copy_on_select) == ("none", False)
+    assert cfg.debug_log == "/tmp/bzmux.debug.log"
     # valor válido de cada chave: família com espaço, fonte fracionária
     with open(p, "w") as f:
         f.write(
@@ -235,6 +240,17 @@ def config_options():
     assert (cfg.cursor_shape, cfg.cursor_blink) == ("beam", True)
     assert (cfg.scrollback, cfg.padding) == (200, 4)
     assert (cfg.bell, cfg.copy_on_select) == ("visual", True)
+    # debug_log: caminho livre, `off` desliga, vazio é erro
+    with open(p, "w") as f:
+        f.write("debug_log /tmp/outro.log\n")
+    assert config.load(p).debug_log == "/tmp/outro.log"
+    with open(p, "w") as f:
+        f.write("debug_log off\n")
+    assert config.load(p).debug_log is None
+    with open(p, "w") as f:
+        f.write("debug_log\n")
+    cfg = config.load(p)
+    assert not cfg.ok and "debug_log vazio" in cfg.errors[0]
     # erro é por linha: o válido aplica, o inválido fica no padrão
     for lixo, esperado in (
         ("font_size abc", "font_size não é número"),

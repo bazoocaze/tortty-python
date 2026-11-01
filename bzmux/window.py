@@ -16,7 +16,7 @@ import sys
 from . import config as config_mod
 from . import state, style
 from .gui import Gdk, GdkX11, GLib, Gtk, Pango
-from .view import TermView
+from .view import TermView, set_debug_log
 
 SIDEBAR_W = 170  # largura fixa (arrastável fica pra depois)
 
@@ -357,7 +357,7 @@ class Workspace:
 
 
 class BzmuxWindow(Gtk.Window):
-    def __init__(self, cmd=None, quit_after=0, dump_to=None, config_path=None):
+    def __init__(self, cmd=None, quit_after=0, dump_to=None, config_path=None, debug_log=None):
         super().__init__(title="bzmux")
         # O comando dado na linha de comando é replicado em cada aba nova
         # (decisão do P11): `run.sh --cmd ...` e os testes continuam
@@ -369,6 +369,8 @@ class BzmuxWindow(Gtk.Window):
         self.cmd = cmd if cmd is not None else self.shell
         self.dump_to = dump_to
         self.quit_after = quit_after
+        # --debug-log vence a configuração (como o --cmd vence o `shell`)
+        self._debug_log_cli = debug_log
         self.workspaces = []
         # fonte e demais opções vêm da configuração (P34); padrão 12 pontos
         self._apply_options()
@@ -504,6 +506,9 @@ class BzmuxWindow(Gtk.Window):
         self.cursor_shape = cfg.cursor_shape
         self.cursor_blink = cfg.cursor_blink
         self.copy_on_select = cfg.copy_on_select
+        # log JSONL de depuração do ?2026: `off` desliga, o CLI vence a config
+        log = self._debug_log_cli
+        set_debug_log(config_mod.debug_log_path(log if log is not None else cfg.debug_log))
         if getattr(self, "toast_titulo", None) is not None:
             self._set_toast_font()
 

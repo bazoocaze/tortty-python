@@ -11,6 +11,8 @@ uso: bzmux [opções]
   -c, --config ARQ   arquivo de configuração (default: ~/.config/bzmux/bzmux.conf)
   --quit-after SEG   fecha sozinho depois de SEG segundos
   --dump-to ARQUIVO  salva a grade visível ao sair
+  --debug-log ARQ    log JSONL do ?2026 x scroll (default: a opção `debug_log`;
+                     `off` desliga)
   --selftest         roda os checks sem abrir janela
   --install-shortcut cria o atalho no menu do sistema (.desktop + ícone)
   --remove-shortcut  remove o atalho
@@ -20,10 +22,10 @@ uso: bzmux [opções]
 def parse_args(argv):
     """Só leitura de argv — separado para poder testar sem Gtk.
 
-    Devolve (cmd, quit_after, dump_to, config, erro), onde erro é a primeira
-    opção desconhecida (ou sem valor) e None quando está tudo certo.
+    Devolve (cmd, quit_after, dump_to, config, debug_log, erro), onde erro é a
+    primeira opção desconhecida (ou sem valor) e None quando está tudo certo.
     """
-    cmd, quit_after, dump_to, conf = None, 0, None, None
+    cmd, quit_after, dump_to, conf, dlog = None, 0, None, None, None
     args = list(argv[1:])
     while args:
         a = args.pop(0)
@@ -35,9 +37,11 @@ def parse_args(argv):
             quit_after = int(args.pop(0))
         elif a == "--dump-to" and args:
             dump_to = args.pop(0)
+        elif a == "--debug-log" and args:
+            dlog = args.pop(0)
         else:
-            return cmd, quit_after, dump_to, conf, a
-    return cmd, quit_after, dump_to, conf, None
+            return cmd, quit_after, dump_to, conf, dlog, a
+    return cmd, quit_after, dump_to, conf, dlog, None
 
 
 def run():
@@ -78,7 +82,7 @@ def main(argv=None):
         return selftest()
     if "--install-shortcut" in argv or "--remove-shortcut" in argv:
         return _shortcut("--install-shortcut" in argv)
-    cmd, quit_after, dump_to, conf, erro = parse_args(argv)
+    cmd, quit_after, dump_to, conf, dlog, erro = parse_args(argv)
     if erro:
         print(f"bzmux: opção inválida: {erro}\n\n{USAGE}", file=sys.stderr)
         return 2
@@ -105,7 +109,13 @@ def main(argv=None):
     GLib.set_prgname("bzmux")
     Gdk.set_program_class("Bzmux")
 
-    win = BzmuxWindow(cmd=cmd, quit_after=quit_after, dump_to=dump_to, config_path=conf)
+    win = BzmuxWindow(
+        cmd=cmd,
+        quit_after=quit_after,
+        dump_to=dump_to,
+        config_path=conf,
+        debug_log=dlog,
+    )
     win.show_all()
     # O Marco (MATE) nega present() com timestamp 0 (GDK_CURRENT_TIME): é
     # preciso o timestamp ATUAL do servidor X, como fazem os apps Qt.

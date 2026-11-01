@@ -35,17 +35,25 @@ from .term import Term
 _PROF = bool(os.environ.get("PYTERM_PROF"))  # mede o custo de draw e de pty
 _NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem desenho
 _NOPARSE = bool(os.environ.get("PYTERM_NOPARSE"))  # sonda: só lê o pty e descarta
-_SYNC_LOG = "/tmp/bzmux.debug.log"  # log JSONL do ?2026 x scroll (B22)
+_DEBUG_LOG = None  # log JSONL do ?2026 x scroll; None = desligado (B22)
 _SYNC_MS = 200  # teto da transação ?2026: app que esquece de fechar não congela
 
 
+def set_debug_log(path):
+    """Liga o log de depuração do ?2026 no caminho dado; None desliga."""
+    global _DEBUG_LOG
+    _DEBUG_LOG = path or None
+
+
 def _slog(**ev):
-    """Uma linha JSONL no log de investigação do ?2026 (B22)."""
+    """Uma linha JSONL no log de depuração do ?2026 (B22)."""
+    if not _DEBUG_LOG:
+        return
     ev["ts"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()) + ".%03d" % (
         int((time.time() % 1) * 1000)
     )
     try:
-        with open(_SYNC_LOG, "a") as f:
+        with open(_DEBUG_LOG, "a") as f:
             f.write(json.dumps(ev, ensure_ascii=False) + "\n")
     except OSError:
         pass
@@ -404,14 +412,20 @@ class TermView(Gtk.DrawingArea):
             self._hist_gen = self.term.hist_gen
             if self.view_off:
                 self._pin_off = self.view_off
-        if self._pin_off:
-            off = self.term.pinned_view_off(self._pin_off)
-            self.view_off = off
-            self._anchor = self.term.scrolled - off
-            if off >= self._pin_off:
-                self._pin_off = 0  # chegou na distância: volta ao modo âncora
-        elif self.view_off:
-            self.view_off = self.term.anchored_view_off(self._anchor)
+        # `?2026` aberto: o app está reescrevendo o histórico agora e o parcial
+        # não vale como referência (B22) — nem o vivo (`min(pin, 0)` no `3J`)
+        # nem a escalada enquanto o histórico cresce. A posição fica onde
+        # estava; quem resolve é o chunk do fecho, com o buffer completo, e o
+        # `_pin_off` guardado no `3J` segue valendo até lá.
+        if not self.term.sync_output:
+            if self._pin_off:
+                off = self.term.pinned_view_off(self._pin_off)
+                self.view_off = off
+                self._anchor = self.term.scrolled - off
+                if off >= self._pin_off:
+                    self._pin_off = 0  # chegou na distância: volta ao modo âncora
+            elif self.view_off:
+                self.view_off = self.term.anchored_view_off(self._anchor)
         if self.term.sync_output and self.view_off != v_before:
             _slog(
                 ev="pos",
@@ -650,7 +664,12 @@ class TermView(Gtk.DrawingArea):
         if off != self.view_off:
             if t.sync_output:
                 _slog(ev="wheel", d=delta, v0=self.view_off, v1=off, pin=self._pin_off)
-            self._pin_off = 0  # o usuário escolheu: a posição dele manda
+            if t.sync_output and self._pin_off:
+                # região reescrevendo o histórico: vale a intenção (distância
+                # sem o clamp do histórico parcial), não uma âncora absoluta
+                self._pin_off = max(0, self.view_off + delta)
+            else:
+                self._pin_off = 0  # o usuário escolheu: a posição dele manda
             self.view_off = off
             # a âncora é absoluta (P32): o output que chegar depois não arranca
             # o usuário daqui — só rolar até o fim, tecla ou limpeza do histórico

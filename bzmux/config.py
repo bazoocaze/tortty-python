@@ -27,6 +27,7 @@ DEFAULTS = {
     "window_padding_width": "0",
     "bell": "none",
     "copy_on_select": "off",
+    "debug_log": "/tmp/bzmux.debug.log",  # `off` desliga
 }
 DATA = Path(__file__).with_name("data") / "bzmux.conf"
 
@@ -153,6 +154,18 @@ def check_padding(valor):
     return _number(valor, "window_padding_width", 0, PADDING_MAX, inteiro=True)
 
 
+def check_debug_log(valor):
+    """`off` desliga; qualquer outro valor é caminho de arquivo."""
+    if valor.lower() == "off" or valor:
+        return None
+    return "debug_log vazio (use off para desligar)"
+
+
+def debug_log_path(value):
+    """Caminho do log de depuração, ou None quando está desligado."""
+    return None if not value or value.lower() == "off" else value
+
+
 CHECKS = {
     "shell": check_shell,
     "font_family": check_font_family,
@@ -163,6 +176,7 @@ CHECKS = {
     "window_padding_width": check_padding,
     "bell": check_bell,
     "copy_on_select": check_copy_on_select,
+    "debug_log": check_debug_log,
 }
 
 
@@ -225,6 +239,11 @@ class Config:
     @property
     def copy_on_select(self):
         return BOOLS.get(self._get("copy_on_select").lower(), False)
+
+    @property
+    def debug_log(self):
+        """Caminho do log JSONL de depuração (?2026 x scroll), ou None."""
+        return debug_log_path(self._get("debug_log"))
 
     @property
     def ok(self):
