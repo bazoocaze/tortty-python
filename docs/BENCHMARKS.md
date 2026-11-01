@@ -12,6 +12,25 @@ governor; os outros citam o fato e linkam). Dentro dele:
   vazão).
 - **Protocolo** para comparar dois terminais e as armadilhas de medição.
 
+## Convenções
+
+- Conciso: cada seção responde uma pergunta. Sem narrativa de tentativa, sem
+  repetir método que já está descrito aqui. Medida nova atualiza o número da
+  tabela; não acrescenta parágrafo de conclusão.
+- Número só aqui: vazão, desenho, parse e pegada moram neste arquivo; os outros
+  docs citam o fato em uma frase e linkam.
+- Número sem condição não vale: todo valor vem com data, governor e frequência
+  da CPU, a grade (cols x linhas) e o comando exato.
+- Comparação exige mesma grade e mesma fonte; número de outra configuração não
+  entra na mesma tabela.
+- Unidade explícita na coluna: fps, MB/s, bytes/frame, µs/célula, ms por chamada
+  de `draw` ou `pty`.
+- Estimativa é dita como estimativa e com o modo de obtenção; nada de número
+  arredondado apresentado como medição.
+- Armadilha de medição vai para "Armadilhas"; de ferramenta ou de sessão, para
+  [DEBUG.md](DEBUG.md); narrativa datada de item, para
+  [HISTORY.md](HISTORY.md).
+
 ## A carga principal: doom-fire
 
 ### Por que
