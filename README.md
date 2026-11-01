@@ -192,16 +192,25 @@ o seu arquivo é **mesclado** por cima dele, não o substitui.
 ./run.sh -c /tmp/meu.conf     # usa outro arquivo (merge com o default)
 ```
 
-Hoje há uma opção:
+As opções (e os valores de fábrica):
 
 ```
-# programa aberto em cada aba nova (o --cmd da linha de comando vence)
-shell /bin/bash
+shell /bin/bash            # programa de cada aba nova (o --cmd vence)
+font_family Monospace      # só família monoespaçada
+font_size 12               # em PONTOS (o Pango converte pelo DPI)
+cursor_shape block         # block, beam ou underline
+cursor_blink off           # on/off; app que pede cursor (CSI 6 q) manda
+scrollback 1000            # linhas de histórico
+window_padding_width 0     # margem em volta da grade, em px
+bell none                  # none, visual (marca a aba) ou audible
+copy_on_select off         # seleção com o mouse já vai pro clipboard
 ```
 
-Editar o arquivo com o app aberto aplica na hora; configuração inválida **não
-é aplicada** — continua valendo a anterior e o erro aparece num aviso de 10 s na
-base da janela. `Ctrl+Shift+F2` abre o seu arquivo no `vim`, numa aba nova.
+Editar o arquivo com o app aberto aplica na hora. Erro é por linha: ao abrir, o
+que for válido vale e a chave com problema fica no padrão (um aviso de 10 s na
+base da janela mostra o primeiro erro); ao salvar com o app aberto, qualquer erro
+mantém a configuração que já estava valendo — nada muda. `Ctrl+Shift+F2` abre o
+seu arquivo no `vim`, numa aba nova.
 
 ## O que funciona
 
@@ -215,7 +224,7 @@ base da janela. `Ctrl+Shift+F2` abre o seu arquivo no `vim`, numa aba nova.
   título por `OSC 0/2`, respostas `DA`/`DA2`/`CPR`/`DECRQM` de volta ao filho,
   **transação de desenho** (`?2026`, synchronized output: o frame só sai no
   fecho da transação).
-- **Scrollback** de 1000 linhas no buffer principal, **com tela de
+- **Scrollback** de 1000 linhas no buffer principal (opção `scrollback`), **com tela de
   histórico**: `Shift+PgUp`/`PgDn` (e `Shift+Home`/`End`) deslizam a visão,
   o **wheel** rola a viewport — sem falar com o app quando ele não pediu
   mouse, e mandando `64`/`65` quando pediu. Volta ao vivo ao digitar, ao
@@ -314,7 +323,7 @@ Lista completa, com a razão de cada um e o que quebra na prática, em
 [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). Em resumo: seleção só por célula
 (sem palavra/bloco), gráficos sem animação/z-index, caractere largo ocupando
 uma célula só (sem `wcwidth`), protocolo de teclado do kitty parcial, sem busca
-no scrollback e sem arquivo de configuração/tema. São escolhas — nenhuma delas
+no scrollback e sem tema/paleta configurável. São escolhas — nenhuma delas
 é consequência de ser Python, e as que incomodam no uso viram item de backlog.
 
 ## O que a medição realmente mostra (corrigido)

@@ -91,6 +91,7 @@ class Term:
         self.alt_grid = None  # None = buffer principal
         self.scrolled = 0  # linhas que saíram pelo topo (diagnóstico)
         self.scrollback = []
+        self.scrollback_limit = 1000  # teto de linhas do histórico (P34)
         # reflow (P3): row_wrapped[i] = "esta linha continua na de baixo"
         # (quebra mole, não '\n'). É o que permite re-quebrar no resize em vez
         # de recortar. sb_wrapped é o mesmo, paralelo ao scrollback.
@@ -103,6 +104,9 @@ class Term:
         self.wrap_pending = False
         self.cursor_visible = True
         self.app_cursor = False  # DECCKM (?1): setas em modo aplicação
+        # DECSCUSR (CSI 6 q): (forma, pisca) pedido pelo app; None = config
+        self.app_cursor_style = None
+        self.bells = 0  # BEL contados (o host decide visual/audível)
         self.mouse_mode = 0  # ?1000=1 ?1002=2 ?1003=3 (0 = off)
         self.mouse_sgr = False  # ?1006: coordenadas SGR
         self.focus_report = False  # ?1004: avisar foco in/out
@@ -275,8 +279,9 @@ class Term:
                 new_wrap.pop()
 
         split = max(0, len(new_rows) - rows)
-        self.scrollback = new_rows[:split][-1000:]
-        self.sb_wrapped = new_wrap[:split][-1000:]
+        self.scrollback = new_rows[:split]
+        self.sb_wrapped = new_wrap[:split]
+        self._trim_scrollback()
         self.grid = new_rows[split:]
         self.row_wrapped = new_wrap[split:]
         while len(self.grid) < rows:
@@ -304,12 +309,31 @@ class Term:
     def _blank_cell_raw(self):
         return _BLANK_CELL
 
+    def set_scrollback(self, n):
+        """Novo teto do histórico (P34): corta o excedente na hora."""
+        n = max(0, int(n))
+        if n == self.scrollback_limit:
+            return False
+        self.scrollback_limit = n
+        self._trim_scrollback()
+        self.graphics.drop_above(-len(self.scrollback))
+        return True
+
+    def _trim_scrollback(self):
+        """Corta o histórico no teto (chamado quando o teto muda e no scroll)."""
+        n = self.scrollback_limit
+        if len(self.scrollback) > n:
+            del self.scrollback[: len(self.scrollback) - n]
+            del self.sb_wrapped[: max(0, len(self.sb_wrapped) - n)]
+
     def scroll_up(self):
         self.scrolled += 1
         # rolagem de tela cheia: a linha que sai pelo topo vai pro histórico,
         # então a imagem que estava nela continua existindo (com linha
         # negativa) e reaparece quando a visão sobe no scrollback
-        self.graphics.scroll(self.top, self.bottom, -1001 if self.top == 0 else None)
+        self.graphics.scroll(
+            self.top, self.bottom, -(self.scrollback_limit + 1) if self.top == 0 else None
+        )
         if self.alt_grid is not None:
             self.grid.pop(self.top)
             self.grid.insert(self.bottom, self._blank_row())
@@ -319,7 +343,7 @@ class Term:
             if self.top == 0 and self.bottom == self.rows - 1:
                 self.scrollback.append(self.grid.pop(0))
                 self.sb_wrapped.append(self.row_wrapped.pop(0))
-                if len(self.scrollback) > 1000:
+                if len(self.scrollback) > self.scrollback_limit:
                     self.scrollback.pop(0)
                     self.sb_wrapped.pop(0)
                     # o que estava preso nessa linha morreu de vez
@@ -680,6 +704,14 @@ class Term:
                 self.child_out += f"\x1b[6;{ch};{cw}t".encode()
             elif params[0] == 18:
                 self.child_out += f"\x1b[8;{self.rows};{self.cols}t".encode()
+        elif final == "q" and inter == " ":
+            # DECSCUSR: 1..6 = forma+pisca; 0 (ou fora da faixa) volta à config
+            ps = get(0, 0)
+            if 1 <= ps <= 6:
+                forma = ("block", "underline", "beam")[(ps - 1) // 2]
+                self.app_cursor_style = (forma, ps % 2 == 1)
+            else:
+                self.app_cursor_style = None
         elif final == "n" and params == (6,):
             # DSR: informa posição do cursor
             self.child_out += f"\x1b[{self.cy + 1};{self.cx + 1}R".encode()
@@ -763,7 +795,7 @@ class Term:
                         continue
                     self.state = "esc"
                 elif ch in "\x07":
-                    pass  # BEL
+                    self.bells += 1  # BEL: o host decide visual/audível (P34)
                 elif ch < " " or ch == "\x7f":
                     if ch in "\n\r\b\t":
                         self.put(ch)

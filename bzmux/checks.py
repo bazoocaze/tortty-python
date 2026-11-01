@@ -178,18 +178,95 @@ def config_file():
     # sem arquivo do usuário: valem os padrões, sem erro
     cfg = config.load(os.path.join(d, "nao-existe.conf"))
     assert (cfg.shell, cfg.ok, cfg.exists) == (config.DEFAULT_SHELL, True, False)
-    # chave desconhecida é erro (linha lixo invalida o arquivo, vale o padrão)
+    # chave desconhecida é erro, mas o resto do arquivo VALE (carga inicial)
     with open(p, "w") as f:
         f.write("foo bar\nshell /bin/sh\n")
     cfg = config.load(p)
-    assert (cfg.shell, cfg.ok) == (config.DEFAULT_SHELL, False)
+    assert (cfg.shell, cfg.ok) == ("/bin/sh", False)
     assert "linha 1: chave desconhecida: foo" in config.message(cfg)
-    # valor inválido não aplica NADA: fica o padrão e o erro vai pro toast
+    # valor inválido fica no padrão (a chave não aplica) e o erro vai pro toast
     with open(p, "w") as f:
         f.write("# nada aqui\nshell /nao/existe/xyz\n")
     cfg = config.load(p)
     assert (cfg.shell, cfg.ok) == (config.DEFAULT_SHELL, False)
     assert "linha 2: shell não executável" in config.message(cfg)
+
+
+def config_options():
+    """P34: fonte, cursor, histórico, padding, bell e copy_on_select."""
+    from . import config
+
+    # o default embarcado documenta TODAS as chaves, com os valores de fábrica
+    emb = {e.key: e.value for e in config.parse(config.DATA.read_text())}
+    assert emb == config.DEFAULTS
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "bzmux.conf")
+    # sem arquivo do usuário valem os padrões, chave a chave
+    cfg = config.load(os.path.join(d, "nao-existe.conf"))
+    assert (cfg.font_family, cfg.font_size) == ("Monospace", 12.0)
+    assert (cfg.cursor_shape, cfg.cursor_blink) == ("block", False)
+    assert (cfg.scrollback, cfg.padding) == (1000, 0)
+    assert (cfg.bell, cfg.copy_on_select) == ("none", False)
+    # valor válido de cada chave: família com espaço, fonte fracionária
+    with open(p, "w") as f:
+        f.write(
+            "font_family DejaVu Sans Mono\nfont_size 12.5\ncursor_shape beam\n"
+            "cursor_blink yes\nscrollback 200\nwindow_padding_width 4\n"
+            "bell visual\ncopy_on_select on\n"
+        )
+    cfg = config.load(p)
+    assert cfg.ok, config.message(cfg)
+    assert (cfg.font_family, cfg.font_size) == ("DejaVu Sans Mono", 12.5)
+    assert (cfg.cursor_shape, cfg.cursor_blink) == ("beam", True)
+    assert (cfg.scrollback, cfg.padding) == (200, 4)
+    assert (cfg.bell, cfg.copy_on_select) == ("visual", True)
+    # erro é por linha: o válido aplica, o inválido fica no padrão
+    for lixo, esperado in (
+        ("font_size abc", "font_size não é número"),
+        ("font_size 0", "font_size fora da faixa"),
+        ("font_family", "font_family vazio"),
+        ("cursor_shape square", "cursor_shape inválido"),
+        ("cursor_blink talvez", "cursor_blink inválido"),
+        ("scrollback -1", "scrollback fora da faixa"),
+        ("window_padding_width 8px", "não é número"),
+        ("bell beep", "bell inválido"),
+        ("copy_on_select 2", "copy_on_select inválido"),
+    ):
+        with open(p, "w") as f:
+            f.write("font_size 20\n" + lixo + "\n")
+        cfg = config.load(p)
+        assert not cfg.ok and esperado in config.message(cfg), (lixo, config.message(cfg))
+        assert cfg.font_size == 20.0  # a linha válida antes do erro aplicou
+
+    # o toast da carga inicial é UM só: primeiro erro + contagem dos outros
+    with open(p, "w") as f:
+        f.write("bell beep\nfont_size 20\ncursor_shape square\n")
+    cfg = config.load(p)
+    assert (cfg.bell, cfg.font_size, cfg.ok) == ("none", 20.0, False)
+    assert "linha 1: bell inválido" in config.first_error(cfg)
+    assert config.first_error(cfg).endswith("(+1)")
+
+
+def scrollback_and_bell():
+    """P34: teto de histórico configurável e BEL contado (não silenciado)."""
+    t = Term(cols=12, rows=3)
+    t.set_scrollback(2)
+    for i in range(20):
+        t.feed("linha %d\r\n" % i)
+    assert len(t.scrollback) == 2  # corta pela mais antiga, não pela que chega
+    assert t.row_text(1).startswith("linha 19")  # o vivo não é afetado
+    t.set_scrollback(0)  # reduzir corta na hora
+    assert t.scrollback == []
+    assert t.bells == 0
+    t.feed("\a")
+    assert t.bells == 1  # a view zera e avisa a janela
+    # DECSCUSR (CSI 6 q) vira pedido do app; 0 volta para a config
+    t.feed("\x1b[4 q")
+    assert t.app_cursor_style == ("underline", False)
+    t.feed("\x1b[5 q")
+    assert t.app_cursor_style == ("beam", True)
+    t.feed("\x1b[0 q")
+    assert t.app_cursor_style is None
 
 
 # -- protocolo de teclado do kitty (P5) --------------------------------
@@ -384,6 +461,7 @@ def style_contrast():
         (style.CARD_SEL_INFO_FG, style.CARD_SEL_BG),
         (style.CARD_FG, style.TAB_BAR_BG),
         (style.CARD_FG, style.TAB_ACTIVE_BG),
+        (style.CARD_FG, style.BELL_BG),
         (style.TOAST_FG, style.TOAST_BG),
         (style.TOAST_DETAIL_FG, style.TOAST_BG),
         (style.TOAST_WARN_FG, style.TOAST_WARN_BG),
@@ -400,6 +478,7 @@ def style_contrast():
         style.CARD_SEL_FG,
         style.TAB_BAR_BG,
         style.TAB_ACTIVE_BG,
+        style.BELL_BG,
         style.TAB_SEP,
         style.TOAST_ACCENT,
         style.TOAST_DETAIL_FG,
@@ -475,6 +554,8 @@ ALL = (
     argv_parsing,
     kitty_keyboard,
     config_file,
+    config_options,
+    scrollback_and_bell,
     graphics_image_and_offset,
     graphics_follow_history,
     wrap_and_control,

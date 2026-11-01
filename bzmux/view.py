@@ -35,6 +35,7 @@ _NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem 
 _NOPARSE = bool(os.environ.get("PYTERM_NOPARSE"))  # sonda: só lê o pty e descarta
 _SYNC_MS = 200  # teto da transação ?2026: app que esquece de fechar não congela
 DRAG_SLOP = 3  # px de folga: abaixo disso o mouse não "arrastou"
+BLINK_MS = 530  # ritmo do cursor piscando (`cursor_blink`); não é opção
 
 
 def _tick(prof, name, t0):
@@ -98,14 +99,22 @@ class TermView(Gtk.DrawingArea):
         self,
         cmd=None,
         cwd=None,
-        font_size=13,
+        font_family="Monospace",
+        font_size=12,
+        padding=0,
+        cursor_shape="block",
+        cursor_blink=False,
+        copy_on_select=False,
+        scrollback=1000,
         on_exit=None,
         on_title=None,
+        on_bell=None,
         shortcuts=None,
     ):
         super().__init__()
         self.on_exit = on_exit  # chamada quando o shell sai
         self.on_title = on_title  # chamada quando o título (OSC) muda
+        self.on_bell = on_bell  # chamada quando o app manda BEL (P34)
         self.shortcuts = shortcuts  # atalhos da janela (prioridade)
         self._title = "bzmux"
         self.app_title = False  # o app já mandou OSC 0/2?
@@ -113,6 +122,7 @@ class TermView(Gtk.DrawingArea):
         self._notified = False
         self.dead_mark = 0  # dead key pendente (marca combinante)
         self.term = Term()
+        self.term.set_scrollback(scrollback)
         # seleção local (quando o app NÃO pediu mouse): âncora e ponta
         self.sel_start = None
         self.sel_end = None
@@ -143,7 +153,14 @@ class TermView(Gtk.DrawingArea):
         # chega ANTES do filho ser re-alocado, então get_allocation() ali
         # ainda devolve o tamanho antigo e o resize nunca era aplicado.
         self.connect("size-allocate", self.on_resize)
+        self.font_family = font_family
         self.font_size = font_size
+        self.padding = padding  # margem em volta da grade, em px (P34)
+        self.cursor_shape = cursor_shape
+        self.cursor_blink = cursor_blink
+        self.copy_on_select = copy_on_select
+        self._blink_on = True  # fase do pisca: True = cursor aparece nela
+        self._blink_timer = 0
         self._metrics = None
         self._font_desc = None  # Pango.FontDescription (P9)
         self._attrs_plain = None  # Pango.AttrList: espaçamento nas células
@@ -340,6 +357,13 @@ class TermView(Gtk.DrawingArea):
                 )
         if self.view_off:
             self.view_off = self.term.anchored_view_off(self._anchor)
+        if self.term.bells:  # BEL: a janela decide visual/audível (P34)
+            self.term.bells = 0
+            if self.on_bell:
+                self.on_bell(self)
+        if self.cursor_blink or (self.term.app_cursor_style or (0, 0))[1]:
+            self._blink_on = True  # output novo: cursor volta a aparecer
+            self._ensure_blink()
         self.request_draw()
         return True
 
@@ -393,6 +417,9 @@ class TermView(Gtk.DrawingArea):
             parts.append(f"bytes {self._prof_bytes / 1e6:.2f}MB eagain {self._prof_eagain}")
             print("prof:", " | ".join(parts), file=sys.stderr)
         self._closing = True
+        if self._blink_timer:
+            GLib.source_remove(self._blink_timer)
+            self._blink_timer = 0
         if self.pty_watch:
             GLib.source_remove(self.pty_watch)
             self.pty_watch = 0
@@ -460,7 +487,7 @@ class TermView(Gtk.DrawingArea):
         a fonte acompanha tela HiDPI sem mudar de config."""
         if self._font_desc is None:
             d = Pango.FontDescription()
-            d.set_family("Monospace")
+            d.set_family(self.font_family)
             d.set_size(round(self.font_size * Pango.SCALE))
             self._font_desc = d
         return self._font_desc
@@ -524,8 +551,8 @@ class TermView(Gtk.DrawingArea):
         if alloc.width < 10 or alloc.height < 10:
             return False
         cw, ch = self.metrics()
-        cols = max(2, alloc.width // int(cw))
-        rows = max(1, alloc.height // int(ch))
+        cols = max(2, (alloc.width - 2 * self.padding) // int(cw))
+        rows = max(1, (alloc.height - 2 * self.padding) // int(ch))
         if (cols, rows) != (self.term.cols, self.term.rows):
             self.term.resize(cols, rows)
             self._send_winsize(cols, rows)
@@ -577,6 +604,74 @@ class TermView(Gtk.DrawingArea):
             self._anchor = 0
             self.queue_draw()
 
+    # -- opções vivas (P34) -------------------------------------------
+    def apply_config(self, cfg):
+        """Aplica as opções da configuração sem recriar a sessão."""
+        self.font_family = cfg.font_family
+        self.font_size = cfg.font_size
+        self.padding = cfg.padding
+        self.cursor_shape = cfg.cursor_shape
+        self.cursor_blink = cfg.cursor_blink
+        self.copy_on_select = cfg.copy_on_select
+        self.term.set_scrollback(cfg.scrollback)
+        # tudo que saiu da fonte medida (layout cacheado incluído)
+        self._font_desc = None
+        self._metrics = None
+        self._advance = None
+        self._attrs_plain = None
+        self._attrs_bold = None
+        self._layouts.clear()
+        self._diag_done = False  # PYTERM_DIAG de novo, com a fonte nova
+        self._ensure_blink()
+        # direto (e não só queue_resize): o tamanho alocado pode não mudar e
+        # o size-allocate nunca viria, aí a grade ficava com a célula antiga
+        self.on_resize(self, self.get_allocation())
+        self.queue_resize()
+        self.queue_draw()
+
+    def _cursor_style(self):
+        """(forma, pisca) — DECSCUSR do app vence a config (P34)."""
+        return self.term.app_cursor_style or (self.cursor_shape, self.cursor_blink)
+
+    def _cursor_draw(self):
+        """Forma a desenhar agora, ou None (invisível, histórico, pisca off)."""
+        t = self.term
+        if self.view_off or not t.cursor_visible:
+            return None
+        if t.cy >= t.rows or t.cx >= t.cols:
+            return None
+        forma, pisca = self._cursor_style()
+        return None if pisca and not self._blink_on else forma
+
+    def _ensure_blink(self):
+        """Liga o timer do pisca se algo pediu (config ou app)."""
+        if self._blink_timer:
+            return
+        if self.cursor_blink or (self.term.app_cursor_style or (0, 0))[1]:
+            self._blink_timer = GLib.timeout_add(BLINK_MS, self._blink_tick)
+
+    def _blink_tick(self):
+        if not (self.cursor_blink or (self.term.app_cursor_style or (0, 0))[1]):
+            self._blink_timer = 0
+            self._blink_on = True
+            return False  # nada pisca: desligar (a config/app religa)
+        self._blink_on = not self._blink_on
+        self._invalidate_cursor()
+        return True
+
+    def _invalidate_cursor(self):
+        """Repinta só a célula do cursor (a cada 530 ms, sem draw inteiro)."""
+        t = self.term
+        if self.view_off or not t.cursor_visible or t.cy >= t.rows or t.cx >= t.cols:
+            return
+        cw, ch = self.metrics()
+        self.queue_draw_area(
+            self.padding + int(t.cx * cw),
+            self.padding + int(t.cy * ch),
+            int(cw) + 2,
+            int(ch) + 2,
+        )
+
     # -- desenho ------------------------------------------------------
     def sel_range(self):
         """Seleção normalizada (r1, c1, r2, c2) ou None."""
@@ -621,14 +716,18 @@ class TermView(Gtk.DrawingArea):
         cur = cell_rgb_f(DEF_BG)  # a última cor posta no contexto
         cr.set_source_rgb(*cur)
         cr.paint()
+        if self.padding:
+            # daqui pra baixo as coordenadas são da GRADE: o padding (P34)
+            # vira só translação, inclusive para o mouse (cell_at desconta)
+            cr.translate(self.padding, self.padding)
         sel = self.sel_range()
         rows = self.visible_rows()
         # sobra sub-célula: quase nunca a janela é múltiplo exato de (cw, ch).
         # A faixa que sobra embaixo/à direita pertence à última fileira/coluna
         # e recebe o fundo DELA, senão um app com fundo colorido (vim com
         # termguicolors, htop) ganha um rodapé preto.
-        og_w = self.get_allocated_width()
-        og_h = self.get_allocated_height()
+        og_w = max(0, self.get_allocated_width() - 2 * self.padding)
+        og_h = max(0, self.get_allocated_height() - 2 * self.padding)
         last_y = len(rows) - 1
         for y, row in enumerate(rows):
             x = 0
@@ -735,8 +834,9 @@ class TermView(Gtk.DrawingArea):
             cr.paint()
             cr.restore()
 
-        # cursor bloco — só no vivo: no histórico o cursor do app não está ali
-        if self.view_off == 0 and t.cursor_visible and t.cy < t.rows and t.cx < t.cols:
+        # cursor — só no vivo: no histórico o cursor do app não está ali
+        forma = self._cursor_draw()
+        if forma == "block":
             cr.set_source_rgb(*cell_rgb_f(DEF_FG))
             cr.rectangle(t.cx * cw, t.cy * ch, cw, ch)
             cr.fill()
@@ -746,6 +846,16 @@ class TermView(Gtk.DrawingArea):
             layout.set_text(cell[0], -1)
             cr.move_to(t.cx * cw, t.cy * ch)
             PangoCairo.show_layout(cr, layout)
+        elif forma == "beam":
+            bw = max(1, round(cw / 6))
+            cr.set_source_rgb(*cell_rgb_f(DEF_FG))
+            cr.rectangle(t.cx * cw, t.cy * ch, bw, ch)
+            cr.fill()
+        elif forma == "underline":
+            bh = max(2, round(ch / 10))
+            cr.set_source_rgb(*cell_rgb_f(DEF_FG))
+            cr.rectangle(t.cx * cw, t.cy * ch + ch - bh, cw, bh)
+            cr.fill()
         if self.view_off:
             # marcador de histórico no canto ("↑") com o quanto se voltou
             label = f"↑{self.view_off} "
@@ -763,11 +873,11 @@ class TermView(Gtk.DrawingArea):
 
     # -- mouse, seleção e cópia ---------------------------------------
     def cell_at(self, px, py):
-        """Pixel -> (col, row) 0-based, preso à grade."""
+        """Pixel -> (col, row) 0-based, preso à grade (desconta o padding)."""
         cw, ch = self.metrics()
         t = self.term
-        col = max(0, min(t.cols - 1, int(px // int(cw))))
-        row = max(0, min(t.rows - 1, int(py // int(ch))))
+        col = max(0, min(t.cols - 1, int((px - self.padding) // int(cw))))
+        row = max(0, min(t.rows - 1, int((py - self.padding) // int(ch))))
         return col, row
 
     def _write_child(self, data):
@@ -837,6 +947,8 @@ class TermView(Gtk.DrawingArea):
             # outra célula); sem arrasto, o PRIMARY do usuário fica intacto
             if sel and sel[:2] != sel[2:]:
                 self.copy(Gdk.SELECTION_PRIMARY)
+                if self.copy_on_select:  # P34: já vai para o clipboard também
+                    self.copy(Gdk.SELECTION_CLIPBOARD)
             else:
                 self.clear_selection()
             self.queue_draw()

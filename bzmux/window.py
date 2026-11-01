@@ -31,6 +31,7 @@ def _geom():
 
 
 TAB_TITLE_CHARS = 20  # aba: largura em chars, não em px (o título trunca)
+BELL_FLASH_MS = 800  # `bell visual`: quanto tempo a aba fica marcada (P34)
 _styled = False  # o provider é da tela: aplica uma vez por processo
 
 
@@ -94,6 +95,7 @@ class Workspace:
         self.win = win
         self.name = f"workspace {index}"
         self.views = []
+        self._bell_timers = {}  # view -> (fonte do timer, contexto do rótulo)
         self.notebook = Gtk.Notebook()
         self.notebook.set_scrollable(True)
         self.notebook.set_show_border(False)
@@ -140,9 +142,16 @@ class Workspace:
         v = TermView(
             cmd=cmd if cmd is not None else self.win.cmd,
             cwd=self.win.current_cwd(self),
+            font_family=self.win.font_family,
             font_size=self.win.font_size,
+            padding=self.win.padding,
+            cursor_shape=self.win.cursor_shape,
+            cursor_blink=self.win.cursor_blink,
+            copy_on_select=self.win.copy_on_select,
+            scrollback=self.win.config.scrollback,
             on_exit=self.on_view_exit,
             on_title=self.on_view_title,
+            on_bell=self.win.on_view_bell,
             shortcuts=self.win.handle_shortcut,
         )
         self.views.append(v)
@@ -154,6 +163,7 @@ class Workspace:
         label.set_max_width_chars(TAB_TITLE_CHARS)
         label.set_tooltip_text(self.label_text(v))
         box = Gtk.EventBox()
+        box.set_name("tablabel")  # alvo do CSS e do flash do bell (style.py)
         box.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
         box.add(label)
         box.connect("button-press-event", self.on_tab_click, v)
@@ -174,6 +184,7 @@ class Workspace:
         view = view or self.view
         if view is None:
             return False
+        self._clear_bell(view)
         view.shutdown()
         if view in self.views:
             self.views.remove(view)
@@ -236,6 +247,28 @@ class Workspace:
         """O shell da aba morreu: fecha a aba (P8, agora por aba)."""
         self.win.dump()
         self.close_tab(view)
+
+    def flash_tab(self, view):
+        """`bell visual` (P34): marca a aba por BELL_FLASH_MS."""
+        box = self.notebook.get_tab_label(view)
+        if box is None:
+            return
+        self._clear_bell(view)  # flash anterior desta aba, se ainda estava lá
+        ctx = box.get_style_context()
+        ctx.add_class("bell")
+
+        def off():
+            self._clear_bell(view)
+            return False
+
+        self._bell_timers[view] = (GLib.timeout_add(BELL_FLASH_MS, off), ctx)
+
+    def _clear_bell(self, view):
+        """Tira o flash (timer + classe do rótulo). Também no fechar da aba."""
+        ent = self._bell_timers.pop(view, None)
+        if ent:
+            GLib.source_remove(ent[0])
+            ent[1].remove_class("bell")
 
     def label_text(self, view):
         """Rótulo da aba: título do app ou, sem OSC, o cwd da sessão.
@@ -330,7 +363,8 @@ class BzmuxWindow(Gtk.Window):
         self.dump_to = dump_to
         self.quit_after = quit_after
         self.workspaces = []
-        self.font_size = 13  # pontos (convenção de terminal)
+        # fonte e demais opções vêm da configuração (P34); padrão 12 pontos
+        self._apply_options()
         self._closing = False
         # geometria lembrada entre execuções. Com PYTERM_GEOM quem manda é o
         # protocolo de medição: não restaura e não salva (a grade do bench
@@ -379,18 +413,14 @@ class BzmuxWindow(Gtk.Window):
         self.toast_barra.set_size_request(4, -1)
         self.toast_textos = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
         textos = self.toast_textos
-        # a mesma fonte da grade: Monospace 13 pontos (era a do tema, ~11)
-        fonte = Pango.FontDescription()
-        fonte.set_family("Monospace")
-        fonte.set_size(13 * Pango.SCALE)
+        # a mesma fonte da grade (config P34): o toast acompanha fonte/tamanho
         self.toast_titulo = Gtk.Label()
-        self.toast_titulo.override_font(fonte)
         self.toast_titulo.set_xalign(0)
         self.toast_detalhe = Gtk.Label()
-        self.toast_detalhe.override_font(fonte)
         self.toast_detalhe.get_style_context().add_class("detalhe")
         self.toast_detalhe.set_xalign(0)
         self.toast_detalhe.set_line_wrap(True)
+        self._set_toast_font()
         # sem teto de largura: o detalhe cresce até a borda e quebra
         textos.pack_start(self.toast_titulo, False, False, 0)
         textos.pack_start(self.toast_detalhe, False, False, 0)
@@ -440,13 +470,13 @@ class BzmuxWindow(Gtk.Window):
         self.connect("key-press-event", self.on_window_key)
 
         self.new_workspace()
-        # aviso de configuração (P33) só depois da janela existir
-        aviso = config_mod.message(self.config)
-        if aviso:
-            if self.config.ok:
-                self.show_toast("Aviso na configuração", aviso, aviso=True)
-            else:
-                self.show_toast("Erro na configuração", aviso, erro=True)
+        # aviso de configuração (P33) só depois da janela existir. Na carga
+        # inicial o que validou já valeu (P34): o toast mostra o PRIMEIRO erro,
+        # com a contagem dos outros, em vez da lista inteira.
+        if not self.config.ok:
+            self.show_toast("Erro na configuração", config_mod.first_error(self.config), erro=True)
+        elif self.config.warnings:
+            self.show_toast("Aviso na configuração", config_mod.message(self.config), aviso=True)
         # a referência tem de sobreviver: sem ela o Gio.FileMonitor é coletado
         # e o auto-reload simplesmente não acontece (monitor mudo)
         self._conf_monitor = config_mod.watch(self.reload_config, self.config.path)
@@ -457,7 +487,39 @@ class BzmuxWindow(Gtk.Window):
         # SIGTERM fecha como o --quit-after: o dump e o prof saem no fim
         GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM, self._on_term_signal)
 
-    # -- configuração (P33) --------------------------------------------
+    # -- configuração (P33/P34) ----------------------------------------
+    def _apply_options(self):
+        """Opções da config que viram atributo da janela (fonte, padding...)."""
+        cfg = self.config
+        self.font_family = cfg.font_family
+        self.font_size = cfg.font_size
+        self.padding = cfg.padding
+        self.cursor_shape = cfg.cursor_shape
+        self.cursor_blink = cfg.cursor_blink
+        self.copy_on_select = cfg.copy_on_select
+        if getattr(self, "toast_titulo", None) is not None:
+            self._set_toast_font()
+
+    def _set_toast_font(self):
+        """Toast com a fonte da grade (segue a config, inclusive no reload)."""
+        d = Pango.FontDescription()
+        d.set_family(self.font_family)
+        d.set_size(round(self.font_size * Pango.SCALE))
+        for label in (self.toast_titulo, self.toast_detalhe):
+            label.override_font(d)
+        self._toast_pad = None  # a meia altura da fonte mudou: remede no 1º show
+
+    def on_view_bell(self, view):
+        """BEL do app (P34): `bell visual` marca a aba, `audible` apita."""
+        modo = self.config.bell
+        if modo == "audible":
+            Gdk.beep()
+        elif modo == "visual":
+            for ws in self.workspaces:
+                if view in ws.views:
+                    ws.flash_tab(view)
+                    break
+
     def show_toast(self, titulo, detalhe="", erro=False, aviso=False, segundos=None):
         """Aviso flutuante na base da janela, como no Android."""
         if segundos is None:
@@ -545,13 +607,17 @@ class BzmuxWindow(Gtk.Window):
         self.config = novo
         if novo.shell != self.cmd and not getattr(self, "_cmd_fixo", False):
             self.cmd = novo.shell  # vale para as próximas abas
+        self._apply_options()  # fonte/padding/cursor valem em TODAS as abas
+        for ws in self.workspaces:
+            for v in ws.views:
+                v.apply_config(novo)
         if os.environ.get("PYTERM_CONFLOG"):
             print("config recarregada: %r" % (novo.values,), file=sys.stderr)
         aviso = config_mod.message(novo)
         if aviso:
             self.show_toast("Aviso na configuração", aviso, aviso=True)
-        else:
-            self.show_toast("Configuração aplicada", "shell %s" % novo.shell)
+            return
+        self.show_toast("Configuração aplicada", "%s %g pt" % (novo.font_family, novo.font_size))
 
     # -- workspaces ----------------------------------------------------
     @property

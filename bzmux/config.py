@@ -4,9 +4,10 @@ Sempre **merge**: o arquivo `data/bzmux.conf` que embarca com o pacote é a base
 e o arquivo do usuário entra por cima, chave a chave. O `-c` só troca o caminho
 do arquivo do usuário — a base continua valendo.
 
-Config inválida nunca aplica nada: `load()` devolve a configuração anterior
-(`values`) junto com `errors`, e quem chama mostra o erro e segue com o que já
-estava funcionando.
+Erro é **por linha, não por arquivo**: `load()` aplica o que validou e devolve
+os erros em `errors`; a chave inválida fica no valor padrão. Assim a carga
+inicial aproveita o resto do arquivo (e o toast mostra o primeiro erro), e o
+reload descarta tudo e mantém a configuração que já estava valendo (`ok`).
 """
 
 import os
@@ -15,11 +16,37 @@ from pathlib import Path
 from typing import NamedTuple
 
 # Só para pacote mal montado (o `data/bzmux.conf` é a fonte normal dos padrões).
-FALLBACK = {"shell": "/bin/bash"}
-DEFAULT_SHELL = "/bin/bash"
+# Também é a lista de chaves conhecidas: chave fora daqui é erro (P33).
+DEFAULTS = {
+    "shell": "/bin/bash",
+    "font_family": "Monospace",
+    "font_size": "12",
+    "cursor_shape": "block",
+    "cursor_blink": "off",
+    "scrollback": "1000",
+    "window_padding_width": "0",
+    "bell": "none",
+    "copy_on_select": "off",
+}
+DEFAULT_SHELL = DEFAULTS["shell"]
 DATA = Path(__file__).with_name("data") / "bzmux.conf"
 
-KNOWN = ("shell",)
+KNOWN = tuple(DEFAULTS)
+CURSOR_SHAPES = ("block", "beam", "underline")
+BELLS = ("none", "visual", "audible")
+BOOLS = {
+    "on": True,
+    "yes": True,
+    "true": True,
+    "1": True,
+    "off": False,
+    "no": False,
+    "false": False,
+    "0": False,
+}
+FONT_MIN, FONT_MAX = 4.0, 96.0  # pontos
+SCROLLBACK_MAX = 100000
+PADDING_MAX = 200  # px
 
 
 class Entry(NamedTuple):
@@ -69,7 +96,75 @@ def check_shell(valor):
     return None
 
 
-CHECKS = {"shell": check_shell}
+def check_font_family(valor):
+    """Só não-vazio: família inexistente cai no fallback do Pango, sem erro."""
+    if not valor:
+        return "font_family vazio"
+    return None
+
+
+def _number(valor, nome, minimo, maximo, inteiro=False):
+    try:
+        n = int(valor) if inteiro else float(valor)
+    except ValueError:
+        return "%s não é número: %s" % (nome, valor)
+    if not minimo <= n <= maximo:
+        fmt = "%d" if inteiro else "%g"
+        return "%s fora da faixa (%s..%s): %s" % (nome, fmt % minimo, fmt % maximo, valor)
+    return None
+
+
+def _enum(valor, nome, aceitos):
+    if valor.lower() not in aceitos:
+        return "%s inválido: %s (use %s)" % (nome, valor, "/".join(aceitos))
+    return None
+
+
+def check_font_size(valor):
+    return _number(valor, "font_size", FONT_MIN, FONT_MAX)
+
+
+def check_cursor_shape(valor):
+    return _enum(valor, "cursor_shape", CURSOR_SHAPES)
+
+
+def check_bell(valor):
+    return _enum(valor, "bell", BELLS)
+
+
+def _bool(valor, nome):
+    if valor.lower() not in BOOLS:
+        return "%s inválido: %s (use on/off)" % (nome, valor)
+    return None
+
+
+def check_cursor_blink(valor):
+    return _bool(valor, "cursor_blink")
+
+
+def check_copy_on_select(valor):
+    return _bool(valor, "copy_on_select")
+
+
+def check_scrollback(valor):
+    return _number(valor, "scrollback", 0, SCROLLBACK_MAX, inteiro=True)
+
+
+def check_padding(valor):
+    return _number(valor, "window_padding_width", 0, PADDING_MAX, inteiro=True)
+
+
+CHECKS = {
+    "shell": check_shell,
+    "font_family": check_font_family,
+    "font_size": check_font_size,
+    "cursor_shape": check_cursor_shape,
+    "cursor_blink": check_cursor_blink,
+    "scrollback": check_scrollback,
+    "window_padding_width": check_padding,
+    "bell": check_bell,
+    "copy_on_select": check_copy_on_select,
+}
 
 
 class Config:
@@ -80,9 +175,45 @@ class Config:
         self.warnings = list(warnings)
         self.exists = exists  # o arquivo do usuário existe?
 
+    def _get(self, key):
+        return self.values.get(key, DEFAULTS[key])
+
     @property
     def shell(self):
-        return self.values.get("shell", DEFAULT_SHELL)
+        return self._get("shell")
+
+    @property
+    def font_family(self):
+        return self._get("font_family")
+
+    @property
+    def font_size(self):
+        """Em PONTOS (o Pango converte pelo DPI); float aceita 12.5."""
+        return float(self._get("font_size"))
+
+    @property
+    def cursor_shape(self):
+        return self._get("cursor_shape").lower()
+
+    @property
+    def cursor_blink(self):
+        return BOOLS.get(self._get("cursor_blink").lower(), False)
+
+    @property
+    def scrollback(self):
+        return int(self._get("scrollback"))
+
+    @property
+    def padding(self):
+        return int(self._get("window_padding_width"))
+
+    @property
+    def bell(self):
+        return self._get("bell").lower()
+
+    @property
+    def copy_on_select(self):
+        return BOOLS.get(self._get("copy_on_select").lower(), False)
 
     @property
     def ok(self):
@@ -128,7 +259,7 @@ def _validated(vals, base):
 def load(path=None):
     """Config mesclada (embutido <- usuário). Nunca levanta exceção."""
     path = Path(path) if path else default_path()
-    base = dict(FALLBACK)
+    base = dict(DEFAULTS)
     emb = _read(DATA)
     if emb is None:
         errors = ["arquivo de padrões não encontrado: %s" % DATA]
@@ -138,9 +269,9 @@ def load(path=None):
     if txt is None:
         return Config(base, path, errors)
     values, user_errors, warnings = _validated(parse(txt), base)
-    if user_errors:  # não aplica nada: fica com os padrões
-        return Config(base, path, errors + user_errors, warnings, exists=True)
-    return Config(values, path, errors, warnings, exists=True)
+    # chave inválida fica no padrão e o resto do arquivo VALE (carga inicial);
+    # no reload quem chama olha `ok` e mantém a configuração anterior
+    return Config(values, path, errors + user_errors, warnings, exists=True)
 
 
 def watch(func, path=None):
@@ -165,6 +296,13 @@ def watch(func, path=None):
     monitor = Gio.File.new_for_path(str(path)).monitor_file(Gio.FileMonitorFlags.NONE, None)
     monitor.connect("changed", changed)
     return monitor
+
+
+def first_error(cfg):
+    """Primeiro erro, com a contagem dos outros — cabe num toast só."""
+    if not cfg.errors:
+        return ""
+    return cfg.errors[0] + (" · (+%d)" % (len(cfg.errors) - 1) if len(cfg.errors) > 1 else "")
 
 
 def message(cfg):

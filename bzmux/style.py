@@ -17,6 +17,7 @@ CARD_SEL_FG = "#ffffff"  # nome sobre o verde escuro
 CARD_SEL_INFO_FG = "#cfe3d5"  # linha de baixo sobre o verde
 TAB_BAR_BG = "#000000"  # barra de abas (o vazio ao lado das abas)
 TAB_ACTIVE_BG = "#1f4d2e"  # aba ativa: mesmo verde do workspace ativo
+BELL_BG = "#5c4a12"  # `bell visual`: flash da aba (mesmo tom do aviso)
 TAB_SEP = "#333333"  # linha de 1 px entre as abas
 TOAST_BG = "#1f4d2e"  # fundo do toast de aviso (mesmo verde do cartão ativo)
 TOAST_FG = "#ffffff"  # título do toast
@@ -44,10 +45,14 @@ notebook > header > tabs { background-color: %(TAB_BAR_BG)s; }
 notebook > header > tabs > tab {
   background-color: %(TAB_BAR_BG)s; box-shadow: none; color: %(CARD_FG)s;
   border-width: 0 0 0 1px; border-style: solid; border-color: %(TAB_SEP)s;
-  border-radius: 0; padding: 5px 16px; }
+  border-radius: 0; }
+/* o padding mora no rótulo (e não no tab) para o flash do bell cobrir a aba */
+#tablabel { padding: 5px 16px; }
 notebook > header > tabs > tab:first-child { border-left-width: 0; }
 notebook > header > tabs > tab:hover { background-color: %(CARD_HOVER_BG)s; }
 notebook > header > tabs > tab:checked { background-color: %(TAB_ACTIVE_BG)s; }
+/* `bell visual`: o rótulo da aba é um Gtk.EventBox (é ele que pinta) */
+.bell { background-color: %(BELL_BG)s; background-image: none; }
 #toast {
   background-color: %(TOAST_BG)s; color: %(TOAST_FG)s; border-radius: 14px;
   border: 1px solid %(TOAST_ACCENT)s;

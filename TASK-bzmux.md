@@ -32,10 +32,12 @@ output) ignorado — o registro está no [`docs/HISTORY.md`](docs/HISTORY.md).
 
 ## Fila
 
-P33 v1 implementado: arquivo de configuração (só `shell` por enquanto) com
-`-c`, default embarcado e mesclado, formato do kitty, `Ctrl+Shift+F2` abrindo no
-`vim` e auto-reload validado. Falta o uso real; as próximas opções (fonte,
-scrollback, paleta, atalhos) estão em [`docs/BACKLOG.md`](docs/BACKLOG.md).
+P33/P34 concluídos: arquivo de configuração com `-c`, default embarcado e
+mesclado, formato do kitty, `Ctrl+Shift+F2` abrindo no `vim`, auto-reload
+validado e as oito opções comuns (`font_family`, `font_size` 12, `cursor_shape`,
+`cursor_blink`, `scrollback`, `window_padding_width`, `bell`, `copy_on_select`).
+Falta paleta e remapeamento de atalhos — em
+[`docs/BACKLOG.md`](docs/BACKLOG.md).
 
 P32 concluído: o output do app não arranca mais quem está lendo o histórico
 (âncora por linha absoluta; sem heurística de conteúdo). O porquê e o que foi
@@ -68,7 +70,7 @@ alvo natural é o desenho — ver [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
 O que não é item de backlog, e sim limite registrado — caractere largo sem
 `wcwidth`, protocolo de teclado do kitty parcial, sequência não interpretada,
-sem configuração/tema, vazão ~30x menor que nativo — está em
+sem tema/paleta configurável, vazão ~30x menor que nativo — está em
 [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md), com a razão de cada um. Antes de tratar algo
 como falta, checar lá: pode ser decisão.
 

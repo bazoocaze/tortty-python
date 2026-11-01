@@ -1055,6 +1055,77 @@ que enche o histórico e depois escreve devagar: rolar 25 linhas → `view_off`
 `view_off` em 25; tecla volta ao vivo (`view_off` 0). Confirmado pelo usuário
 no uso real.
 
+### P34 — Configuração v2: as oito opções comuns (2026-10-31)
+
+O v1 (P33) já tinha parse, merge, validação, reload e toast; este item só
+acrescentou chaves (`KNOWN` + `CHECKS` em `config.py`) e o uso de cada uma:
+
+`font_family` (Monospace), `font_size` (**12 pontos**, era 13 fixo em
+`window.py`/`view.py`), `cursor_shape` (block/beam/underline), `cursor_blink`
+(off), `scrollback` (1000), `window_padding_width` (0), `bell`
+(none/visual/audible — BEL era ignorado) e `copy_on_select` (off). Todas
+documentadas em `bzmux/data/bzmux.conf`; o que é quente (fonte, padding, cursor)
+vale em todas as abas abertas, diferente de `shell`, que só pega na próxima.
+
+Decisões que ficaram no código:
+
+- **Pisca barato**: um `GLib.timeout_add(BLINK_MS=530)` que invalida apenas a
+  célula do cursor (`queue_draw_area`); dois draws inteiros por segundo seriam
+  caros e o dirty-rect completo é o P27. O timer se desliga sozinho quando nada
+  pisca (config off e app sem DECSCUSR piscante) e religa no `_on_pty` e no
+  `apply_config`.
+- **DECSCUSR (`CSI 6 q`) interpretado**: 1..6 = forma + pisca, 0 (ou fora da
+  faixa) volta para a config. O pedido do app vence a config enquanto durar,
+  como no kitty.
+- **Padding é translação**: `on_draw` faz `cr.translate(padding, padding)` uma
+  vez e todo o resto continua em coordenadas de grade; `cell_at` desconta, e o
+  "resto de sub-célula" (`og_w`/`og_h`) passou a descontar `2*padding` (senão a
+  última fileira/coluna pintava por cima da margem).
+- **`apply_config` chama `on_resize` direto**: `queue_resize()` só re-aloca se o
+  tamanho do widget mudar, e com fonte nova o `size-allocate` nunca vinha — a
+  grade ficava com a célula antiga até um resize manual. Achado na verificação
+  ao vivo, não na leitura.
+- **Limite do histórico**: `graphics.scroll` recebia `-1001` fixo e o `_reflow`
+  cortava com `[-1000:]`; agora os dois seguem `scrollback_limit`. Armadilha:
+  `lista[-0:]` é a **lista inteira**, então com teto 0 o fatiamento não cortaria
+  nada — o corte virou `Term._trim_scrollback()`.
+
+Bugs/quirk encontrados no caminho (o segundo é de GTK3, não nosso):
+
+- **Flash do `bell` não pintava a aba.** Adicionar a classe no rótulo da aba
+  pintava só a área do texto, e `tab:checked` continuava mandando no resto. No
+  GTK3 o nó CSS `tab` não é o widget do rótulo (`get_parent()` devolve o próprio
+  Notebook), então não dá para alcançá-lo pelo widget. Fix: o padding da aba
+  saiu do nó `tab` e foi para o rótulo, que ganhou nome próprio
+  (`#tablabel`, `set_name` no EventBox) — o flash agora cobre a aba inteira.
+- **`background-color` sozinho não pinta**: sem `background-image: none` o tema
+  do GTK manda um gradiente e a cor é ignorada (clássico do GTK3, registrado
+  como quirk).
+
+**Regra de erro revista no mesmo dia (à pedido):** o v1 tratava arquivo inválido
+como tudo-ou-nada. Agora o erro é **por linha**: `load()` aplica o que validou e
+devolve `errors` (a chave inválida fica no valor padrão), então a **carga
+inicial** aproveita o resto do arquivo e um único toast mostra o **primeiro**
+erro com `(+N)` para os demais (`config.first_error`). O **reload** não mudou:
+qualquer erro mantém a configuração que já estava valendo (`reload_config` olha
+`cfg.ok` e retorna antes de aplicar). O toast de aviso de configuração só aparece
+quando há erro ou aviso — sem aviso, a janela abre calada.
+
+Verificação: checks `config_options` (padrões chave a chave, um valor válido de
+cada, erro por linha com o válido aplicando e a chave inválida no padrão, e o
+`first_error` com a contagem) e
+`scrollback_and_bell` (teto vale na hora, BEL contado, DECSCUSR); à mão com
+`PYTERM_GEOM=980x640`: `PYTERM_DIAG` com 12 pontos = célula (13,27) e 75x22,
+trocando `font_family` ao vivo para Liberation Mono → (13,26) e 75x23 (família
+mudou de verdade e a grade re-mediu); padding 20 conferido pixel a pixel (grade
+começa em ~20 px e acaba em 980-20, com `\e[2J` verde) e arrasto em (91,87) →
+(117,87) copiando `567`, isto é, `cell_at` com o padding exato; cursor block,
+beam e underline e o pisca conferidos por captura (`import` + `tools/pixel.py`,
+o pisca alternando a cada ~530 ms); `copy_on_select on` põe a seleção também no
+CLIPBOARD e `off` deixa o valor antigo do clipboard; `bell visual` pintou
+`#5c4a12` na aba; `seq 1 100` com `scrollback 5` deixou exatamente 5 linhas de
+histórico.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.
@@ -1281,6 +1352,17 @@ saíram junto: eram de bancada antiga e agora contradiziam o BENCHMARKS.
 - **Custo de desenho depende de runs, não de células**: 1360 células com 37
   cores por linha custam ~13 ms; o mesmo número de células com uma cor custa
   ~1 ms. Medir desenho com tela uniforme subestima o pior caso por 10x.
+- **`background-color` sozinho não pinta no GTK3**: se o tema põe um
+  `background-image` (gradiente) no nó, a cor é ignorada. Regra de CSS que
+  precisa de fundo sólido tem de vir com `background-image: none` (foi o que
+  fazia o flash do `bell` "não funcionar" com a classe e sem `none`).
+- **O nó CSS `tab` do `Gtk.Notebook` não é o widget do rótulo**: classe no
+  rótulo pinta só a área do texto, e `tab:checked` continua mandando no resto.
+  `label.get_parent()` devolve o próprio Notebook; o caminho é dar nome próprio
+  ao rótulo (`set_name`) e cuidar do padding nele (P34).
+- **`lista[-0:]` é a lista inteira**, não lista vazia: fatiamento com um teto
+  configurável (`[-limit:]`) deixa de cortar quando o limite é 0. Usar
+  `del lista[:len(lista) - n]`.
 - **Célula em branco é compartilhada (P21)**: `_blank_row()` é
   `[_BLANK_CELL] * cols`, e a mesma lista de célula aparece em toda a grade. É
   por isso que escrever tem que **substituir** a célula (`row[x] = [ch, fg, bg,

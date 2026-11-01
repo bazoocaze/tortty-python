@@ -29,6 +29,13 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 - README.md — visão para humano: como rodar, ferramentas, ambiente, o que
   funciona, limites, medição, licença.
 
+Registrar item no backlog é só registrar: a investigação (ler código, medir,
+reproduzir) acontece quando o item for **executado**, não quando ele é anotado.
+Na anotação vai o que o pedido já trouxe — sintoma, e o que for de graça no
+caminho — e para por aí; nada de diagnóstico completo, causa raiz ou plano
+fechado antes da hora. Vale para registro novo: item já registrado não se
+reescreve para caber nesta regra.
+
 Ao fechar um item do backlog: mover de docs/BACKLOG.md para o fim de
 "Backlog concluído" em docs/HISTORY.md, com o bug que apareceu no caminho e
 como foi verificado. Bug corrigido fora de item de backlog entra na lista
@@ -190,10 +197,18 @@ App:
 - Configuração (P33): `chave valor` no formato do kitty, `#` comenta. O arquivo
 do usuário é `$XDG_CONFIG_HOME/bzmux/bzmux.conf` (o `-c` troca o caminho) e é
 **sempre mesclado** sobre `bzmux/data/bzmux.conf`, que é o default embarcado.
-v1 tem uma opção: `shell` (default `/bin/bash`, usado em cada aba nova; o
-`--cmd` vence). Editar o arquivo com o app aberto aplica na hora
-(`Gio.FileMonitor` com debounce de 250 ms) e config inválida **não aplica
-nada** — fica a anterior e o erro vira um toast de 10 s na base da janela.
+Opções (P33/P34): `shell` (`/bin/bash`; o `--cmd` vence), `font_family`
+(`Monospace`), `font_size` (`12`, em **pontos**, não px), `cursor_shape`
+(`block`/`beam`/`underline`), `cursor_blink` (`off`), `scrollback` (`1000`),
+`window_padding_width` (`0`, px), `bell` (`none`/`visual`/`audible`) e
+`copy_on_select` (`off`). O que é quente (fonte, padding, cursor) aplica em
+todas as abas abertas no reload; `shell` só vale na próxima aba. `CSI 6 q`
+(DECSCUSR) do app vence a config do cursor enquanto durar. Editar o arquivo com o app aberto aplica na hora
+(`Gio.FileMonitor` com debounce de 250 ms). Erro é por linha: na **carga
+inicial** o que validou vale e a chave inválida fica no padrão, com um toast de
+10 s mostrando o **primeiro** erro (`(+N)` para os outros); no **reload**
+qualquer erro mantém a configuração anterior (nada muda) e o toast lista os
+erros.
 `Ctrl+Shift+F2` abre o arquivo do usuário no `vim`, em aba nova. Com
 `PYTERM_CONFLOG=1` cada reload aprovado imprime os valores no stderr.
 - pipx install --system-site-packages git+ssh://git@github.com/bazoocaze/pybzmux.git

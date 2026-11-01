@@ -35,11 +35,11 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 - **Sem combinação de célula para grafema complexo**: cada célula carrega um
   caractere; marca combinante é desenhada pelo Pango, mas não ocupa célula
   própria nem altera a contagem de colunas do app.
-- **Ligadura depende da fonte instalada**: o shaping existe (Pango), mas a
-  Monospace padrão da máquina (DejaVu) quase não tem ligadura. Sem configuração
-  de fonte, não há como escolher uma Fira Code/JetBrains.
-- **Fonte e paleta fixas no código**: escolha atual, não limite técnico; ver
-  "Sem arquivo de configuração/tema" abaixo.
+- **Ligadura depende da fonte instalada**: o shaping existe (Pango) e a família
+  agora é configurável (`font_family`), mas a Monospace padrão da máquina
+  (DejaVu) quase não tem ligadura — quem quiser precisa ter uma Fira Code ou
+  JetBrains instalada e escolhê-la. Não há `font_features`/`letter_spacing`
+  ligados por opção.
 
 ## Parser VT (o que não é interpretado)
 
@@ -132,11 +132,12 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
 - **Posição da janela só é lembrada no X11**: no Wayland o cliente não escolhe
   onde a janela fica, então o arquivo de estado guarda apenas tamanho e
   maximizado. Não é falta de código, é o protocolo.
-- **Sem arquivo de configuração/tema**: fonte, tamanho e paleta são fixos no
-  código (`bzmux/palette.py`, `bzmux/style.py`) e não há flag de linha de comando
-  para mudar fonte ou cor. É escolha atual, não limite técnico: mudar exige
-  editar o código e reiniciar. O tamanho é **13 pontos** (convenção de
-  terminal: pontos, convertidos pelo DPI do display), não pixels.
+- **Sem tema nem paleta configurável**: o arquivo de configuração (P33/P34)
+  cobre fonte, tamanho, cursor, histórico, padding, bell e cópia, mas **cor** do
+  terminal (`palette.py`) e do cromo (`style.py`) continuam fixas no código —
+  mudar exige editar e reiniciar. Paleta e remapeamento de atalhos são o que
+  falta; fonte em **pontos** (convenção de terminal, convertidos pelo DPI do
+  display), não pixels.
 - **Sem abas/workspaces persistentes**: abas e workspaces vivem só na execução;
   fechar a janela perde o layout.
 - **Sem modo de cópia/scrollback**: sem editor de texto sobre o histórico.

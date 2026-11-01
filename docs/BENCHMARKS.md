@@ -53,8 +53,14 @@ e o arquivo evita depender de ler a tela. Grade = tamanho do terminal
 ### O número
 
 Grade 70×21 (1470 células, janela de 980x640 travada com `PYTERM_GEOM`,
-fonte de 13 pontos), `--fps 0 --frames 1200`, **um terminal de cada vez**, 3
-tiros de cada em 2026-10-27, `schedutil` com turbo em 4,29 GHz:
+fonte de 13 pontos — o padrão da época), `--fps 0 --frames 1200`, **um terminal
+de cada vez**, 3 tiros de cada em 2026-10-27, `schedutil` com turbo em 4,29 GHz.
+
+**Depois do P34 (2026-10-31) o padrão virou 12 pontos** e a grade de 980x640
+passou a 75×22; `font_family`, `font_size` e `window_padding_width` agora mudam
+a célula. Os números abaixo **não** são re-medição do padrão novo: para
+comparar com eles, `font_size 13` na config, e registrar fonte/tamanho/padding
+no protocolo junto do governor e da versão.
 
 | | fps | MB/s de escapes | bytes/frame |
 |---|---|---|---|
