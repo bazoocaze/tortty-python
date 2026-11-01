@@ -1,5 +1,20 @@
 # bzmux — backlog (pendente)
 
+Regras da fila:
+
+- Registrar é só registrar: a investigação (ler código, medir, reproduzir)
+  acontece quando o item for executado, não quando ele é anotado. Na anotação
+  vai o que o pedido já trouxe — sintoma, e o que for de graça no caminho — e
+  para por aí; nada de diagnóstico completo, causa raiz ou plano fechado antes
+  da hora. Item já registrado não se reescreve para caber nesta regra.
+- Ao fechar um item: mover para o fim de "Backlog concluído" em
+  [HISTORY.md](HISTORY.md), com o bug que apareceu no caminho e como foi
+  verificado.
+- Bug corrigido fora de item entra na lista numerada de bugs do HISTORY.md; o
+  quirk, se for armadilha de ambiente ou de ferramenta, em [DEBUG.md](DEBUG.md).
+- Decisão de NÃO fazer algo vai para [LIMITATIONS.md](LIMITATIONS.md), não para
+  cá; se o limite deixar de existir, sai de lá e vira item concluído no HISTORY.
+
 B17 — Seleção do mouse não acompanha o scroll da tela: com texto selecionado, o
 conteúdo rola e a seleção não vai junto (o realce fica na posição de tela).
 Registrado sem investigação; diagnóstico e reprodução ficam para a execução.

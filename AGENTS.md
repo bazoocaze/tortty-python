@@ -16,7 +16,8 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 
 - AGENTS.md (este) — convenções, arquitetura, scripts, ferramentas.
 - TASK-bzmux.md — ficha magra: status, por onde retomar, fila.
-- docs/BACKLOG.md — backlog pendente: o que falta e por quê.
+- docs/BACKLOG.md — backlog pendente e as regras da fila (registrar,
+  fechar, para onde vai o que não é item).
 - docs/LIMITATIONS.md — o que não é feito e por quê (decisão/limite aceito, não
   fila). Antes de implementar algo "óbvio", checar aqui: pode ser decisão.
 - docs/HISTORY.md — backlog concluído, bugs corrigidos e a nota de
@@ -33,19 +34,9 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 - README.md — visão para humano: como rodar, ferramentas, ambiente, o que
   funciona, limites, medição, licença.
 
-Registrar item no backlog é só registrar: a investigação (ler código, medir,
-reproduzir) acontece quando o item for **executado**, não quando ele é anotado.
-Na anotação vai o que o pedido já trouxe — sintoma, e o que for de graça no
-caminho — e para por aí; nada de diagnóstico completo, causa raiz ou plano
-fechado antes da hora. Vale para registro novo: item já registrado não se
-reescreve para caber nesta regra.
+Regras da fila (registro, fechamento, para onde vai o que não é item) estão no
+topo de docs/BACKLOG.md.
 
-Ao fechar um item do backlog: mover de docs/BACKLOG.md para o fim de
-"Backlog concluído" em docs/HISTORY.md, com o bug que apareceu no caminho e
-como foi verificado. Bug corrigido fora de item de backlog entra na lista
-numerada de bugs do HISTORY.md (e o quirk, se for armadilha de ambiente).
-Decisão de NÃO fazer algo vai para docs/LIMITATIONS.md, não para o backlog; se o
-limite deixar de existir, sai de lá e vira item concluído no HISTORY.md.
 **Número de medição mora em um só lugar: docs/BENCHMARKS.md** (com data e
 governor da CPU). Os outros docs citam o fato em uma frase e linkam — não
 repetem valor. Repetir número em cinco arquivos só produz divergência: cada
