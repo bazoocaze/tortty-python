@@ -1,9 +1,10 @@
 # bzmux — histórico
 
-Memória do projeto: backlog concluído, bugs corrigidos, quirks e git.
+Memória do projeto: backlog concluído, bugs corrigidos e git.
 Não é tarefa. Pendências: [BACKLOG.md](BACKLOG.md). O que não é feito e por quê:
 [LIMITATIONS.md](LIMITATIONS.md). Status, escopo, arquitetura, medições e
-como testar: [../TASK-bzmux.md](../TASK-bzmux.md).
+como testar: [../TASK-bzmux.md](../TASK-bzmux.md). Ferramentas e armadilhas:
+[DEBUG.md](DEBUG.md).
 Convenções: [../AGENTS.md](../AGENTS.md).
 
 ## Backlog concluído
@@ -872,7 +873,8 @@ repositório, que abriu e fechou a janela com `--quit-after 2` e cujo
 é o que o `git+...` instala — descobrir isso custou uma rodada falhando com o
 HEAD antigo.
 
-Quirks do pipx que apareceram e ficam registrados:
+Quirks do pipx que apareceram e ficam registrados (armadilhas de ambiente em
+geral: [DEBUG.md](DEBUG.md)):
 
 - o venv da ferramenta é criado com o python **do próprio pipx**. Um pipx que
   rode num python do uv/pyenv (ex.: `uvx pipx`) gera venv num 3.12 sem `gi` e o
@@ -1290,122 +1292,12 @@ dia em que fechou um item, como registro datado — não como leitura corrente.
 Duas linhas obsoletas do README (parse+grade "0,7–1,9 MiB/s" e "desenho 1,2 ms")
 saíram junto: eram de bancada antiga e agora contradiziam o BENCHMARKS.
 
-## Quirks registrados (não redescobrir)
+## Armadilhas (saíram daqui)
 
-- **Página oculta do `Gtk.Notebook` não é realocada.** A view de uma aba/aba de
-  workspace que não está na tela mantém o `size-allocate` **antigo**: abrir a
-  lateral (170 px, `SIDEBAR_W`) estreita a grade de 75 para 62 colunas, mas só
-  na página visível — as ocultas continuam dizendo 75 até serem mapeadas, e aí
-  o `on_resize` corrige (62) e manda `TIOCSWINSZ`/`SIGWINCH`. Ler o `dump` de
-  duas views e ver larguras diferentes (75 vs 62) é isso, não bug de geometria.
-- **O despacho do `Gtk.Notebook` é o que desmapeia a página**: é disso que o
-  pisca do cursor depende para parar em aba oculta (sinal `unmap`/`map`); se
-  alguém trocar o container, o pisca volta a rodar em todas as abas.
-- **O dump (`--dump-to`/SIGUSR1) mostra a grade VIVA, não a visão rolada.**
-  `dump_text` usa `Term.row_text`, então com a visão no histórico as linhas do
-  dump continuam sendo o rodapé — conferir `view_off` por ele dá falso negativo
-  (na investigação do bug 16 o dump sugeriu que o wheel tinha parado de
-  funcionar, e o wheel estava certo). O `dump_text` passou a pôr
-  `(histórico +N)` no cabeçalho da viewport justamente para isso.
-- **Vazão medida depende do governor da CPU, e muito.** O mesmo doom-fire deu
-  0,5 MB/s com `powersave` e 3,4 MB/s com `schedutil` (~6x); o gerador isolado,
-  que nem toca no terminal, foi de 256 para 744 fps na mesma troca — é o
-  `powersave` prendendo a CPU em ~1,4 GHz sob carga sostenida (o desenho de
-  texto uniforme, leve, ficou em 1,41/1,45 ms nos dois governores — o efeito é
-  do caminho com ~2000 runs de cor, não do trivial). Isso ficou horas disfarçado de
-  "anomalia do desenho" (105 ms/frame contra os 22,7 registrados, com
-  `PYTERM_DIAG` idêntico e bateria/tomada dando o mesmo), e a pista que
-  resolveu foi medir uma etapa que não depende do app. Regras: registrar o
-  governor junto com o número, comparar só dentro do mesmo governor, e sempre
-  incluir um tiro do gerador isolado como controle.
-- **`cProfile` não enxerga `gi.FunctionInfo`**: `PangoCairo.show_layout`
-  chamado 20.000 vezes num teste isolado não aparece no perfil, e o tempo cai no
-  `self` do chamador (já fez `_on_draw` medir 46% de "self" sem nenhuma chamada
-  de Pango). Métodos de objeto cairo (`fill`, `rectangle`, `move_to`) aparecem;
-  funções de módulo do gi, não. O `cProfile` também infla quem faz muitas
-  chamadas Python (`join`: 21% no perfil contra 12% no relógio) e derrubou o
-  doom-fire de 59,8 para 5,6 fps. Para proporção, medir com `perf_counter` por
-  seção; o perfil serve para descobrir *quais* chamadas existem.
-- **As primeiras chamadas de `_on_draw` custam mais**: 3 draws deram
-  3,42 ms/chamada e 443 deram 1,41 ms na mesma carga (setup de layout/fonte/
-  contexto). Medir `draw` com centenas de chamadas, ou comparar por razão.
-- **`pkill -f bzmux.py` mata o próprio shell** de quem chama (o padrão casa com
-  a linha de comando) e já deixou janelas órfãs. Usar `./debug.sh --kill`, que
-  confere o PID file contra `/proc/<pid>/cmdline` antes de matar.
-- **`wmctrl -r bzmux` deixa de funcionar** quando o app muda o título por OSC
-  (`mc` faz isso). Para achar a janela, casar por `_NET_WM_PID` contra o PID do
-  runner.
-- **`import -window root -crop` com geometria de `xwininfo`** só funciona com a
-  janela ativada antes; senão captura a janela que estiver por cima.
-- **O `.n  Name` e os nomes truncados com `~` no `mc` são do próprio `mc`**
-  (conferido nos bytes crus: ele escreve `.n  Name` e trunca conforme a largura
-  do painel). Não é bug de renderização.
-- **Injetar `<Caps_Lock>` liga a trava de verdade** no servidor X: o teste
-  seguinte sai em maiúsculas. Desligar com outro `<Caps_Lock>` e conferir com
-  `xset q`.
-- **`chr(kv)` para keyval de tecla especial não existe**: só `0x20–0x7e`,
-  `0xa0–0xff` e `0x01000000+U` são caractere. O resto é modificador/função.
-- **As ferramentas de teste moram em `tools/`** (rodam com o `python3` do
-  sistema — `python3-xlib` 0.33 e `gi` já estão instalados). `tools/xtest.py`
-  injeta eventos: `id`, `geometry`, `activate`, `move`, `click`, `dclick`,
-  `wheel`, `drag`, `key`, `type` (texto arbitrário, com `/ - . , ; = { } [ ]
-  | ~ ?` e maiúsculas). `tools/pixel.py` lê cor de pixel de um PNG:
-  `tools/pixel.py shot.png 400,200`, `--scan X` (uma amostra por faixa de
-  19 px), `--row Y`.
-- **`xdotool` também está instalado** (`1:3.20160805`): `search --pid`,
-  `type`, `key`, `mousemove --window`, `click --repeat 2`. Serve para o que não
-  vale escrever à mão. As duas ferramentas usam **as mesmas coordenadas**
-  (conferido: mesmo pixel para o mesmo ponto relativo).
-- **Coordenadas são relativas à janela, e a grade não começa em (0,0)**: com
-  lateral (170 px) e barra de abas (~28 px), a sessão começa em `y≈58`. Clicar
-  em `y=8` acerta a **barra de abas** — e arrastar ali **reordena aba** em vez
-  de selecionar texto.
-- **`xwininfo` "Absolute upper-left" é a origem do cliente** (é o que se usa
-  para injetar); o `Position` do `xdotool getwindowgeometry` é o **frame** do WM —
-  aqui 11/40 px deslocado. Confundir os dois desloca todo clique e todo teste.
-- **Achar a janela por `_NET_WM_PID` tem de pegar a maior visível**: o GTK cria
-  ajudantes de 10x10 com o mesmo PID, e a primeira que aparece engana
-  (`geometry` devolvia 10x10 e `set_input_focus` estourava `BadMatch`).
-- **`~`, `^` e `` ` `` são dead keys no ABNT2**: `type '~nome'` digita `~` e o
-  `n` compõe `ǹ` — é o comportamento certo do terminal (composição por NFC),
-  não falha da ferramenta. Para um til literal, digitar espaço depois.
-- **`cairo` com `FORMAT_A1`** serve para medir fonte, mas `font_extents()`
-  devolve **5** valores (ascent, descent, height, max_x_advance,
-  max_y_advance) — não 6.
-
-- **Quebra pendente e caracteres de controle**: emulador nenhum deve contar o
-  `\n` que vem depois de uma linha cheia como segunda quebra; texto preenchendo
-  a última coluna e `\r\n` é o padrão de qualquer TUI que desenha com padding
-  até a borda.
-- **`show_all()` desfaz `set_visible(False)`**: `Gtk.Widget.show_all()` mostra
-  todos os descendentes, então um widget escondido no construtor volta a
-  aparecer. Para controlar visibilidade na mão, `set_no_show_all(True)` nele.
-- **Prioridade de fonte do GLib**: `io_add_watch` sem prioridade explícita usa
-  `DEFAULT` (0), que é *maior* que qualquer coisa de desenho. Um fd sempre
-  pronto em prioridade 0 congela a tela; `PRIORITY_DEFAULT_IDLE` (200) deixa o
-  redraw (120) passar na frente. O mesmo vale para `timeout_add` de animação.
-- **Custo de desenho depende de runs, não de células**: 1360 células com 37
-  cores por linha custam ~13 ms; o mesmo número de células com uma cor custa
-  ~1 ms. Medir desenho com tela uniforme subestima o pior caso por 10x.
-- **`background-color` sozinho não pinta no GTK3**: se o tema põe um
-  `background-image` (gradiente) no nó, a cor é ignorada. Regra de CSS que
-  precisa de fundo sólido tem de vir com `background-image: none` (foi o que
-  fazia o flash do `bell` "não funcionar" com a classe e sem `none`).
-- **O nó CSS `tab` do `Gtk.Notebook` não é o widget do rótulo**: classe no
-  rótulo pinta só a área do texto, e `tab:checked` continua mandando no resto.
-  `label.get_parent()` devolve o próprio Notebook; o caminho é dar nome próprio
-  ao rótulo (`set_name`) e cuidar do padding nele (P34).
-- **`lista[-0:]` é a lista inteira**, não lista vazia: fatiamento com um teto
-  configurável (`[-limit:]`) deixa de cortar quando o limite é 0. Usar
-  `del lista[:len(lista) - n]`.
-- **Célula em branco é compartilhada (P21)**: `_blank_row()` é
-  `[_BLANK_CELL] * cols`, e a mesma lista de célula aparece em toda a grade. É
-  por isso que escrever tem que **substituir** a célula (`row[x] = [ch, fg, bg,
-  fl]`), nunca fazer `row[x][2] = ...`: mutação in-place em uma célula em branco
-  pinta a tela inteira. `blank_cell()` (com bg corrente, para `erase_*`) segue
-  alocando uma célula nova de propósito.
-- **fps de carga depende da grade**: a vazão em MB/s fica parada (0,6) e o fps
-  cai quando a célula cresce; comparar fps entre grades diferentes não diz nada.
+As armadilhas de desenvolvimento, sessão gráfica e ferramentas ficavam nesta
+seção; agora moram em [DEBUG.md](DEBUG.md) — arquivo curto, operacional, para
+ser lido antes de rodar ferramenta. O que é número de medição continua em
+[BENCHMARKS.md](BENCHMARKS.md). Este arquivo guarda só a narrativa datada.
 
 ## Git e origem do repositório
 

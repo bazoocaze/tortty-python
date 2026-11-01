@@ -19,8 +19,12 @@ Todos são escritos para leitura de agente; só o README.md é para humano.
 - docs/BACKLOG.md — backlog pendente (vazio hoje).
 - docs/LIMITATIONS.md — o que não é feito e por quê (decisão/limite aceito, não
   fila). Antes de implementar algo "óbvio", checar aqui: pode ser decisão.
-- docs/HISTORY.md — backlog concluído (P1–P18), bugs corrigidos,
-  quirks (armadilhas que não devem ser redescobertas) e a nota de git.
+- docs/HISTORY.md — backlog concluído (P1–P18), bugs corrigidos e a nota de
+  git: só narrativa datada (o registro do dia, não leitura corrente).
+- docs/DEBUG.md — manual operacional: o que pode travar a sessão gráfica,
+  ferramentas de teste manual, verificação com janela, sondas `PYTERM_*` e
+  armadilhas de implementação (GTK/cairo/Pango/parser). **Ler antes de rodar
+  ferramenta com display**; armadilha nova entra aqui, não no HISTORY.
 - docs/BENCHMARKS.md — benchmarks e medição e **o único lugar com número de
   vazão/desenho/parse/pegada**: a carga doom-fire (manchete), o `dmesg` real, a
   escada e as decomposições, a pegada (PSS do app e disco do stack gráfico), o
@@ -149,23 +153,9 @@ o teto de vazão é o preço aceito e se ataca em Python, não reescrevendo em C
   truecolor (fg e bg por célula, pior caso), sem dependência de X.
   python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to ARQ imprime fps e
   MB/s na saída, então dá para comparar dois terminais na mesma grade. Por que,
-  resultados e protocolo: docs/BENCHMARKS.md. Com PYTERM_PROF=1 no ambiente o
-  app imprime, ao fechar a sessão, o custo de parse (on_pty) e de desenho
-  (on_draw) — é o que decompõe a vazão. Com PYTERM_SCROLLLOG=ARQ um chunk que
-  rola mais de meia tela é gravado com jump/top/bottom/alt-screen e os bytes
-  crus (sonda do P19). PYTERM_GEOM=980x640 trava o tamanho da janela (sem isso
-  o WM às vezes abre 80x24 e o número muda; é o que o protocolo de comparação
-  exige). Com PYTERM_DIAG=1 no primeiro draw ele imprime avanço da fonte, célula
-  da grade, resolução e colunas: é o par que tem que bater (bug 13 do HISTORY —
-  grade a 130 dpi e desenho a 96). As duas sondas de custo isolam as etapas: PYTERM_NODRAW=1 desliga o desenho (sobra
-  pty -> grade) e PYTERM_NOPARSE=1 lê o pty e descarta (isola o IO); com
-  PYTERM_PROF=1 o resumo ainda traz bytes lidos e eagain. Com
-  PYTERM_GEOMLOG=1 cada configure imprime posição do cliente, da moldura e os
-  frame extents — foi o que mostrou a janela descendo 30 px por execução (o
-  título contado duas vezes). Com PYTERM_CONFLOG=1 cada reload de configuração
-  aprovado imprime os valores no stderr (prova que o monitor disparou sem
-  depender de olhar o toast). A escada com os números fica em
-  docs/BENCHMARKS.md.
+  resultados e protocolo: docs/BENCHMARKS.md. As sondas de diagnóstico
+  (`PYTERM_PROF/NODRAW/NOPARSE/GEOM/GEOMLOG/DIAG/SCROLLLOG/CONFLOG`) estão na
+  tabela de docs/DEBUG.md; a escada com os números fica em docs/BENCHMARKS.md.
 - tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
   chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
 - Medição não é teste: os números vêm de execução real. O `bench.sh` só roda o
@@ -248,23 +238,9 @@ erros.
   formato; formatar é decisão de quem mexe, não do fluxo de teste.
 - uv run python -m bzmux — o app direto pelo uv (mesmo interpretador do venv).
 
-Teste manual, com display e python3-xlib (em tools/):
-
-- tools/xtest.py SUBCOMANDO — id, geometry, activate, move, click, dclick,
-  wheel, drag, key, type. Coordenadas relativas à janela; a grade começa em
-  y≈58 (barra de abas + lateral). type só aceita texto simples.
-- tools/pixel.py — cor de pixel num PNG: pontos X,Y, --scan X, --row Y. Serve
-  para conferir desenho em captura (import -window).
-
-Fluxo de verificação com janela: ./debug.sh; ferramenta; kill -USR1 $(cat
-/tmp/bzmux.pid) e ler /tmp/bzmux-dump.txt (cabeçalhos de workspace e de aba só
-quando há mais de um; o cabeçalho da viewport diz `(histórico +N)` quando a
-visão está rolada — as linhas do dump são sempre a grade viva). Exemplo:
-
-    python3 tools/xtest.py key ctrl+shift+n     # workspace novo
-    python3 tools/xtest.py dclick 60 28         # duplo clique no cartão 1
-    python3 tools/xtest.py type 'echo ok'       # texto com símbolos
-    kill -USR1 $(cat /tmp/bzmux.pid)            # dumpar a grade
+Teste manual e verificação com janela: **docs/DEBUG.md** (comandos do
+tools/xtest.py, coordenadas da grade, captura com import/pixel.py, fluxo do
+dump por SIGUSR1 e as armadilhas da sessão gráfica).
 
 O app roda no venv do uv, que enxerga o PyGObject do sistema via
 --system-site-packages.

@@ -408,6 +408,9 @@ Foi assim que se achou o bug 12 (três capturas idênticas com 0,3 MB/s correndo
 
 ## Armadilhas
 
+Armadilhas de **ferramenta/sessão** (ponteiro travado, dump que mostra a grade
+viva, achar a janela) moram em [DEBUG.md](DEBUG.md); aqui ficam as de medição.
+
 - **Fonte sem `▀`**: a célula ainda tem bg e fg, então o fogo aparece como
   faixas de cor mesmo sem o glifo; se nem as faixas aparecem, o problema não é o
   glifo.

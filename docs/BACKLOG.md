@@ -162,9 +162,9 @@ seleção com botão do meio e `./bench.sh` — este último só onde houver lei
 de governor/frequência (no mac e no Windows vira outro protocolo, não uma
 linha da escada atual).
 
-Os demais itens (P1–P25, P19, P28, P29 e P31–P34) estão concluídos. Histórico, bugs e quirks:
-[HISTORY.md](HISTORY.md). Status e por onde retomar:
-[../TASK-bzmux.md](../TASK-bzmux.md).
+Os demais itens (P1–P25, P19, P28, P29 e P31–P34) estão concluídos. Histórico e
+bugs: [HISTORY.md](HISTORY.md). Ferramentas e armadilhas: [DEBUG.md](DEBUG.md).
+Status e por onde retomar: [../TASK-bzmux.md](../TASK-bzmux.md).
 
 O que sobra é limite conhecido, não item — caractere largo (CJK/emoji) ocupando
 uma célula só, protocolo de teclado do kitty parcial, sequências não
@@ -197,9 +197,6 @@ Dois bugs achados no caminho, registrados no `docs/HISTORY.md`: o
 disparava) e `no_show_all` bloqueia até o `show_all()` chamado direto no widget
 (a caixa do toast ficava invisível).
 
-Os demais itens (P1–P25, P19, P28, P29 e P31–P34) estão concluídos. Histórico, bugs e quirks:
-[HISTORY.md](HISTORY.md). Status e por onde retomar:
-[../TASK-bzmux.md](../TASK-bzmux.md).
 
 O que sobra é limite conhecido, não item — caractere largo (CJK/emoji) ocupando
 uma célula só, protocolo de teclado do kitty parcial, sequências não
