@@ -8,7 +8,6 @@ resolution-markers = [
 
 [[package]]
 name = "bzmux"
-version = "0.1.0"
 source = { editable = "." }
 
 [package.optional-dependencies]

@@ -1,6 +1,6 @@
 [project]
 name = "bzmux"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Terminal em Python com abas, workspaces e imagens"
 readme = "README.md"
 requires-python = ">=3.9"
@@ -25,6 +25,10 @@ dev = ["pytest>=8", "ruff>=0.16"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+# a versão mora em bzmux/__init__.py (`__version__`), não aqui
+[tool.hatch.version]
+path = "bzmux/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["bzmux"]

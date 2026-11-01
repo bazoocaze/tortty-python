@@ -128,6 +128,10 @@ default embarcado em bzmux/data/bzmux.conf.
 
 ## Convenções
 
+- Versão: incrementar o patch (`0.0.1` -> `0.0.2`) em `bzmux/__init__.py`
+  a cada commit que toque código não-teste (`bzmux/`, `tools/`, scripts,
+  `pyproject.toml`). Commit só de docs ou só de teste não incrementa. É a
+  fonte única: o `pyproject.toml` lê de lá (hatch) e o `--version` mostra.
 - Textos, descrições e comentários concisos; podem ser em português.
 - Nomes de arquivo e símbolos no código (funções, variáveis, classes, constantes)
   em inglês.

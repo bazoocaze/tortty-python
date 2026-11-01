@@ -209,6 +209,7 @@ class TermView(Gtk.DrawingArea):
         self.exit_code = None
         self._draw_pending = False
         self._sync_timer = 0  # teto da transação de synchronized output
+        self._sync_t0 = None  # monotonic da abertura da região (ms no fecho)
         self._prof = {}
         self._prof_bytes = 0  # bytes lidos do master (o que o filho escreveu)
         self._prof_eagain = 0  # BlockingIOError: watch sem byte disponível
@@ -361,15 +362,21 @@ class TermView(Gtk.DrawingArea):
         was_sync = self.term.sync_output
         self.term.feed(self.decoder.decode(data))
         if self.term.sync_output != was_sync:
-            _slog(
-                ev="2026",
-                on=self.term.sync_output,
-                v=self.view_off,
-                pin=self._pin_off,
-                sb=len(self.term.scrollback),
-                scr=self.term.scrolled,
-                gen=self.term.hist_gen,
-            )
+            ev = {
+                "ev": "2026",
+                "on": self.term.sync_output,
+                "v": self.view_off,
+                "pin": self._pin_off,
+                "sb": len(self.term.scrollback),
+                "scr": self.term.scrolled,
+                "gen": self.term.hist_gen,
+            }
+            if self.term.sync_output:
+                self._sync_t0 = time.monotonic()
+            elif self._sync_t0 is not None:
+                ev["ms"] = round((time.monotonic() - self._sync_t0) * 1000)
+                self._sync_t0 = None
+            _slog(**ev)
         # respostas do núcleo (DA/CPR) voltam ao filho
         if self.term.child_out:
             try:

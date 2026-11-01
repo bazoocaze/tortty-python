@@ -142,6 +142,15 @@ def argv_parsing():
     assert cli.parse_args(["bzmux", "--nada"])[5] == "--nada"
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out):
+        assert cli.main(["bzmux", "--version"]) == 0
+    # versão vem de bzmux/__init__.py (fonte única; o pyproject lê de lá)
+    assert out.getvalue() == "bzmux %s\n" % cli.__version__
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert cli.main(["bzmux", "-V"]) == 0
+    assert out.getvalue().startswith("bzmux ")
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
         assert cli.main(["bzmux", "--help"]) == 0
     assert out.getvalue().startswith("uso: bzmux")
     with contextlib.redirect_stderr(err):

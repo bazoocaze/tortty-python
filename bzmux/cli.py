@@ -2,6 +2,7 @@
 
 import sys
 
+from . import __version__
 from .selftest import selftest
 
 USAGE = """\
@@ -16,6 +17,7 @@ uso: bzmux [opções]
   --selftest         roda os checks sem abrir janela
   --install-shortcut cria o atalho no menu do sistema (.desktop + ícone)
   --remove-shortcut  remove o atalho
+  -V, --version      mostra a versão e sai
   -h, --help         mostra esta ajuda e sai"""
 
 
@@ -75,6 +77,9 @@ def _shortcut(installing):
 
 def main(argv=None):
     argv = sys.argv if argv is None else argv
+    if "-V" in argv[1:] or "--version" in argv[1:]:
+        print("bzmux " + __version__)
+        return 0
     if "-h" in argv[1:] or "--help" in argv[1:]:
         print(USAGE)
         return 0

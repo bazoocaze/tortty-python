@@ -22,7 +22,11 @@ trocada sem tocar no núcleo.
 MIT (ver LICENSE).
 """
 
-__all__ = ["Term", "BzmuxWindow", "selftest"]
+# Fonte única da versão: o pyproject lê daqui (hatch) e o `--version` mostra.
+# Incrementar o patch a cada commit que toque código (docs/testes não contam).
+__version__ = "0.0.1"
+
+__all__ = ["Term", "BzmuxWindow", "selftest", "__version__"]
 
 
 def __getattr__(name):
