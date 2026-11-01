@@ -1022,6 +1022,16 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     `redraw_keeps_history_position` (o caminho antigo dá o topo) e no app:
     `histórico +9` antes e depois do repaint.
 
+21. **Cartão da lateral uma troca de aba atrás.** `on_switch_page` atualizava o
+    cartão (título da aba + contagem) chamando `update_card()`, que lê
+    `notebook.get_current_page()` — e dentro do sinal `switch-page` o
+    `Gtk.Notebook` ainda responde a página ANTIGA: o cartão e o título da
+    janela ficavam mostrando a aba anterior. Fix: `update_card(v)` e
+    `sync_title(v)` recebem a view que o sinal entrega, em vez de consultar o
+    notebook. Verificado com sonda temporária em três abas com títulos OSC
+    distintos: cada `alt+N` loga o título da aba NOVA com `cur=` ainda na
+    antiga.
+
 ## Nota de documentação: número só em um lugar
 
 Até 2026-10-27 os números de vazão viviam repetidos em README, LIMITATIONS,

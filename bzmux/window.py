@@ -220,8 +220,11 @@ class Workspace:
         # não chegavam em ninguém). Um idle resolve.
         GLib.idle_add(self._focus_idle, v)
         v.queue_draw()  # aba escondida não recebe size-allocate
-        self.update_card()
-        self.win.sync_title()
+        # dentro do switch-page o notebook ainda responde a página ANTIGA em
+        # get_current_page(): usar a view do sinal, senão cartão e título ficam
+        # uma troca atrás (B21)
+        self.update_card(v)
+        self.win.sync_title(v)
 
     def _focus_idle(self, v):
         # não roubar o foco do Gtk.Entry de renomear o cartão: o clique que
@@ -283,13 +286,14 @@ class Workspace:
         return os.path.basename(view.start_cwd or "") or "bzmux"
 
     # -- cartão da lateral ---------------------------------------------
-    def update_card(self):
+    def update_card(self, v=None):
+        """Cartão da lateral: nome da workspace, título e contagem de abas."""
         try:
             n = self.win.workspaces.index(self) + 1
         except ValueError:
             n = 0
         self.name_label.set_markup(f"<b>{n}</b>  {GLib.markup_escape_text(self.name)}")
-        v = self.view
+        v = v if v is not None else self.view
         title = self.label_text(v) if v is not None else "-"
         k = len(self.views)
         info = f"{title} ({k} aba{'s' if k != 1 else ''})"
@@ -769,9 +773,11 @@ class BzmuxWindow(Gtk.Window):
         return os.getcwd()
 
     # -- título da janela ----------------------------------------------
-    def sync_title(self):
+    def sync_title(self, v=None):
+        """Título da janela; `v` existe porque no switch-page a aba é a do sinal."""
         ws = self.current
-        v = ws.view if ws is not None else None
+        if v is None and ws is not None:
+            v = ws.view
         self.set_title(ws.label_text(v) if (ws and v) else "bzmux")
 
     # -- dump / ciclo de vida ------------------------------------------

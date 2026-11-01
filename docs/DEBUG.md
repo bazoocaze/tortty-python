@@ -124,6 +124,10 @@ resolução e desenhada em outra, bug 13 do HISTORY). `PROF` decompõe a vazão,
 - Página recém-anexada ao `Gtk.Notebook` nasce oculta e `set_current_page` é
   ignorado (`get_current_page()` continua na anterior): `show_all()` na página e
   no rótulo antes de trocar.
+- `get_current_page()` dentro do `switch-page` ainda é a página ANTIGA (o
+  notebook só troca depois de emitir o sinal). Quem atualiza cartão, título ou
+  rótulo no handler tem que usar o `page`/`page_num` do sinal, senão a tela
+  anda uma ação atrás.
 - `grab_focus()` dentro de `switch-page` não pega (a página ainda não está
   mapeada, o foco fica no notebook): agendar com `GLib.idle_add`.
 - `GLib.idle_add` de foco rouba o foco de um `Gtk.Entry`: checar `get_focus()`
