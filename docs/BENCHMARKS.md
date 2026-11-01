@@ -52,9 +52,11 @@ outros docs citam o fato em uma frase e linkam.
 ### Como rodar
 
 ```
-./bench.sh                       # a escada inteira, 300 frames (~10 s)
-./bench.sh --frames 1200         # o protocolo de referência, 4 etapas
+./bench.sh                       # a escada inteira, 300 frames (~20 s)
+./bench.sh --frames 1200         # o protocolo de referência
 ./bench.sh --cols 70 --rows 21   # outra grade (a de 2026-10-27)
+./bench.sh --xvfb                # só o display virtual
+./bench.sh --sem-xvfb            # só o display atual
 python3 tools/doomfire.py                      # 30 fps até Ctrl+C
 python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to /tmp/x.txt
 ```
@@ -66,10 +68,15 @@ python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to /tmp/x.txt
   terminal, e o arquivo evita depender de ler a tela.
 - Grade = tamanho do terminal (`cols × lines`, buffer de `cols × 2·lines`
   pixels); o tool não redimensiona.
-- `bench.sh` roda as quatro etapas (full, `NODRAW`, `NOPARSE+NODRAW`, gerador
-  isolado) e imprime fps, MB/s, bytes/frame, `draw ms/call`, `pty ms/call` e a
-  frequência da CPU por etapa. Precisa de display e não guarda número: os de
+- `bench.sh` roda a escada (full, `NODRAW`, `NOPARSE+NODRAW`) **duas vezes**, no
+  display atual e num Xvfb privado que ele mesmo sobe e mata, mais o gerador
+  isolado: sete linhas. Imprime fps, MB/s, bytes/frame, `draw ms/call`,
+  `pty ms/call` e a frequência da CPU por etapa. Não guarda número: os de
   referência são os daqui.
+- Os dois displays são o ponto: o X real do desktop usa glamor e o Xvfb pinta no
+  pixmap, então a mesma grade custa 3,4x mais desenho no `:0`. Medir os dois na
+  mesma execução separa o que é código do que é servidor — e um valor sozinho,
+  sem o display anotado, não compara com nada.
 - A condição é travada pelo **grid**, não pela janela: `tools/benchrun.py` sobe o
   app com o socket, ajusta com `resize` até `cols×rows` bater no alvo, confere e
   só então digita a carga no pty; grid diferente = etapa sem número (código 3),
@@ -92,11 +99,12 @@ Condição: as três primeiras etapas do `bench.sh`, 1200 frames, fonte 13,
 | display | grade | fps | MB/s | bytes/frame | `draw` |
 |---|---|---|---|---|---|
 | `:0` (X com glamor) | 61×18 | 113,9 | 4,9 | 42,8 KB | 13,9 ms |
+| Xvfb `:96` (sem glamor) | 61×18 | 129,2 | 5,5 | 42,3 KB | 4,2 ms |
 | `:0` (X com glamor) | 70×21 | 53,0 | 3,0 | 57,0 KB | 20,6 ms |
 | Xvfb `:96` (sem glamor) | 70×21 | 111,4 | 6,3 | 56,7 KB | 5,8 ms |
 
-- O mesmo código, o mesmo grid e quase a mesma área de pixels: 5,8 ms em Xvfb e
-  20,6 ms no X real. A diferença é o caminho do servidor — `:0` usa
+- O mesmo código, o mesmo grid e quase a mesma área de pixels: 4,2 ms em Xvfb e
+  13,9 ms no X real (61×18), 5,8 contra 20,6 ms (70×21). A diferença é o caminho do servidor — `:0` usa
   `modesetting` + `glamoregl`, onde cada preenchimento do cairo vira trabalho de
   GL; o Xvfb pinta direto no pixmap.
 - Número de benchmark, portanto, é propriedade do **display** tanto quanto do

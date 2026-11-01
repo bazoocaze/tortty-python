@@ -119,6 +119,8 @@ grade medida numa resolução e desenhada em outra) vem no `state` do socket, co
 - `--cmd` com a carga mede o grid errado: o filho nasce antes do primeiro
   `TIOCSWINSZ` e pode ver o padrão 80×24. Escrever a carga no pty depois que o
   `state` confirmar o alvo é o que tira a corrida.
+- O display entra no número: o X real do desktop (glamor) desenha ~3x mais caro
+  que um Xvfb na mesma grade. `./bench.sh --xvfb` mede no virtual.
 - Geometria salva de execução anterior (`window.json`, inclusive `max`) muda o
   grid do teste: `XDG_STATE_HOME` descartável isola. O `tools/benchrun.py` já
   faz as três coisas.

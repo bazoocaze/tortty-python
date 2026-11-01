@@ -60,7 +60,7 @@ nenhum arquivo solto na raiz. O código:
 - run.sh — roda o app (teste rápido; escolhe o python)
 - debug.sh — desenvolvimento: background, log, --kill/--status
 - run-tests.sh — roda o lint e a bateria de testes
-- bench.sh — escada do doom-fire (medição, precisa de display)
+- bench.sh — escada do doom-fire: mede no display atual e num Xvfb próprio
 - tools/benchrun.py — uma etapa da escada: trava o grid pelo socket, digita a
   carga e imprime o resultado
 - install.sh — instalador (Linux)
@@ -196,8 +196,8 @@ rodar. Aqui só cabe qual usar.
 - ./debug.sh — desenvolvimento: background com log, --kill/--status por PID
   file (nunca pkill -f bzmux, que mata o shell de quem chama).
 - ./run-tests.sh — lint + selftest + pytest, sem display.
-- ./bench.sh — escada do doom-fire; precisa de display, trava o grid pelo
-  socket e não guarda número.
+- ./bench.sh — escada do doom-fire; trava o grid pelo socket, mede no display
+  atual e num Xvfb próprio e não guarda número.
 - bzmux, python3 -m bzmux, uv run python -m bzmux — o app (opções: bzmux -h).
 - uv run pytest -q, uv run ruff check ., uv run ruff format . — bateria e lint
   pelo venv do uv.
