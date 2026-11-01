@@ -89,6 +89,8 @@ nenhum arquivo solto na raiz. O código:
 - tests/ — runner pytest de bzmux/checks.py
 - tools/xtest.py, tools/pixel.py — teste manual, exige X11
 - tools/doomfire.py — carga de medição, não teste
+- tools/uploadbench.py — microbench de desenho: N operações de cairo contra 1
+  upload/composição por frame
 
 O que sustenta essa divisão: o caminho do --selftest importa só palette, term
 (que puxa graphics), kitty_kbd e mouse, e nenhum deles puxa gi/cairo — é isso
