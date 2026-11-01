@@ -258,7 +258,8 @@ Teste manual, com display e python3-xlib (em tools/):
 
 Fluxo de verificação com janela: ./debug.sh; ferramenta; kill -USR1 $(cat
 /tmp/bzmux.pid) e ler /tmp/bzmux-dump.txt (cabeçalhos de workspace e de aba só
-quando há mais de um). Exemplo:
+quando há mais de um; o cabeçalho da viewport diz `(histórico +N)` quando a
+visão está rolada — as linhas do dump são sempre a grade viva). Exemplo:
 
     python3 tools/xtest.py key ctrl+shift+n     # workspace novo
     python3 tools/xtest.py dclick 60 28         # duplo clique no cartão 1

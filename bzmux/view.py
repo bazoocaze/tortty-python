@@ -461,7 +461,10 @@ class TermView(Gtk.DrawingArea):
             lines.append(f"=== scrollback ({len(t.scrollback)}) ===")
             for row in t.scrollback[-40:]:
                 lines.append("".join(c[0] for c in row).rstrip())
-        lines.append(f"=== viewport {t.cols}x{t.rows} ===")
+        # o off vai no cabeçalho: sem ele o dump não conta se a visão está no
+        # histórico (as linhas abaixo são a grade VIVA, não a visão rolada)
+        off = f" (histórico +{self.view_off})" if self.view_off else ""
+        lines.append(f"=== viewport {t.cols}x{t.rows}{off} ===")
         for y in range(t.rows):
             lines.append(t.row_text(y).rstrip())
         if t.graphics.placements or t.graphics.images:
@@ -912,22 +915,26 @@ class TermView(Gtk.DrawingArea):
         t = self.term
         self._state = ev.state
         col, row = self.cell_at(ev.x, ev.y)
-        self.back_to_live()  # clicar sempre volta pro vivo
         btn = mouse.GDK_BUTTONS.get(ev.button)
         if t.mouse_mode and btn is not None:
-            # o app quer saber do mouse: nada de seleção local
+            # o app quer saber do mouse: nada de seleção local. Ele desenha o
+            # vivo, então o clique no histórico não significa nada para ele —
+            # daí voltar pro vivo antes de reportar (B16)
+            self.back_to_live()
             self._held = btn
             self.report_mouse(btn, col, row, True)
             return True
         if ev.button == 1:
             # seleção só nasce com arrasto: um clique não pode pintar a célula
-            # nem sobrescrever o PRIMARY com 1 caractere
+            # nem sobrescrever o PRIMARY com 1 caractere. E clicar no histórico
+            # NÃO volta pro vivo: o arrasto é justamente para copiar dali (B16)
             self.clear_selection()
             self.press_cell = (row, col)
             self.press_at = (ev.x, ev.y)
             self.dragging = True
             return True
         if ev.button == 2:
+            self.back_to_live()  # colar fala com o app: a visão vai pro vivo
             self.paste(Gdk.SELECTION_PRIMARY)
             return True
         return False

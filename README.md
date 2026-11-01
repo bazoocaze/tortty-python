@@ -227,9 +227,11 @@ seu arquivo no `vim`, numa aba nova.
 - **Scrollback** de 1000 linhas no buffer principal (opção `scrollback`), **com tela de
   histórico**: `Shift+PgUp`/`PgDn` (e `Shift+Home`/`End`) deslizam a visão,
   o **wheel** rola a viewport — sem falar com o app quando ele não pediu
-  mouse, e mandando `64`/`65` quando pediu. Volta ao vivo ao digitar, ao
-  clicar, ao rolar até o fim — e **não** porque o filho escreveu: a visão fica
-  ancorada na linha que se está lendo enquanto o app continua escrevendo. Um
+  mouse, e mandando `64`/`65` quando pediu. Volta ao vivo ao digitar, ao colar
+  com o botão do meio, ao clicar quando o app pediu mouse e ao rolar até o fim —
+  e **não** porque o filho escreveu: a visão fica ancorada na linha que se está
+  lendo enquanto o app continua escrevendo. Clicar e arrastar no histórico
+  **não** volta ao vivo: é assim que se copia um trecho antigo. Um
   `↑N` no canto mostra o quanto se voltou; o cursor do app não é desenhado no
   histórico.
 - **Teclado**: letras (incluindo UTF-8), setas, Home/End, PgUp/PgDn,

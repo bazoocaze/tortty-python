@@ -1258,6 +1258,22 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     pega. A primeira leitura foi feita com o notebook na bateria (10,52 → 1,78,
     5,9x); a de cima, na tomada. O sentido do ganho não mudou.
 
+16. **Clicar para arrastar no histórico voltava pro vivo.** Relatado no uso:
+    rolar pra cima e apertar o botão esquerdo para copiar um trecho antigo
+    saltava para o rodapé já no press, então o arrasto selecionava texto de
+    agora. Causa: `on_button_press` chamava `back_to_live()` **antes de qualquer
+    ramo**, inclusive no botão 1 que só arma a seleção local. Fix: a visão fica
+    onde está quando o press arma seleção (botão 1 sem `mouse_mode`) e volta ao
+    vivo só onde o destino é o app — report de mouse (`mouse_mode`, cuja
+    coordenada é do vivo) e paste do botão do meio. Verificado no app real com
+    capturas: visão no topo (`1`), press+arrasto → continua no topo e o PRIMARY
+    recebe `1008` (a linha do histórico sob o arrasto); com `?1000` ligado o
+    clique volta ao vivo (`1183`), e o botão do meio também. Armadilha de
+    manutenção: `scroll_view` chama `clear_selection`, então o `back_to_live`
+    não pode reaparecer no `on_motion` (apagaria o arrasto em curso). Sem check
+    automático — a decisão vive num handler de GTK e exige display; a bateria
+    não cobre `view.py`.
+
 ## Nota de documentação: número só em um lugar
 
 Até 2026-10-27 os números de vazão viviam repetidos em README, LIMITATIONS,
@@ -1272,6 +1288,12 @@ saíram junto: eram de bancada antiga e agora contradiziam o BENCHMARKS.
 
 ## Quirks registrados (não redescobrir)
 
+- **O dump (`--dump-to`/SIGUSR1) mostra a grade VIVA, não a visão rolada.**
+  `dump_text` usa `Term.row_text`, então com a visão no histórico as linhas do
+  dump continuam sendo o rodapé — conferir `view_off` por ele dá falso negativo
+  (na investigação do bug 16 o dump sugeriu que o wheel tinha parado de
+  funcionar, e o wheel estava certo). O `dump_text` passou a pôr
+  `(histórico +N)` no cabeçalho da viewport justamente para isso.
 - **Vazão medida depende do governor da CPU, e muito.** O mesmo doom-fire deu
   0,5 MB/s com `powersave` e 3,4 MB/s com `schedutil` (~6x); o gerador isolado,
   que nem toca no terminal, foi de 256 para 744 fps na mesma troca — é o

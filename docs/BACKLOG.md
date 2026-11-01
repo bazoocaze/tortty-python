@@ -1,36 +1,5 @@
 # bzmux — backlog (pendente)
 
-B16 — Mouse: clicar para arrastar com a visão no histórico volta pro vivo.
-**Bug relatado no uso, reproduzido (2026-10-31), não corrigido.** Reproduzir:
-encher o histórico (`seq 1 200`), rolar pra cima (wheel ou Shift+Home) e apertar
-o botão esquerdo para arrastar um trecho antigo — a tela salta para o rodapé (o
-vivo) no press, então o arrasto seleciona texto de agora, não o que estava à
-vista. Visto nas capturas: com a visão no topo a primeira linha era `1`; depois
-do press, `184` (o vivo).
-
-Causa em `view.py`, `on_button_press`: `self.back_to_live()` é chamado
-**incondicional**, antes de qualquer ramo (comentário "clicar sempre volta pro
-vivo"), inclusive no ramo do botão 1 que só arma a seleção. Um clique que abre
-arrasto não é pedido de "vai pro vivo", é o começo de uma seleção no texto que
-está à vista.
-
-Direção do fix: manter a visão onde está quando o press arma seleção local
-(botão 1 sem `mouse_mode`) e chamar `back_to_live()` só nos casos em que o
-destino é o app (report de mouse em `mouse_mode`) e no paste do botão 2. Duas
-armadilhas: (a) `scroll_view` chama `clear_selection`, então voltar ao vivo no
-*meio* do arrasto apagaria a seleção — o `back_to_live` não pode reaparecer no
-`on_motion`; (b) a seleção vive em coordenadas de tela, então manter a visão
-parada é o que a mantém correta.
-
-Verificação: com o histórico cheio, wheel para cima, press+arrasto no texto
-antigo; a visão tem de ficar no mesmo offset e o PRIMARY tem de receber o
-trecho antigo. Armadilha: o `/tmp/bzmux-dump.txt` (SIGUSR1) mostra a grade
-**viva** (`term.row_text`), não a visão rolada — conferir `view_off` por lá dá
-falso negativo (o wheel funciona e o dump parece parado); o offset só se vê em
-captura de tela. Se o fix quiser poupar a captura, é barato incluir `view_off`
-no cabeçalho do dump. Depois do fix, o resultado entra na lista numerada de
-bugs do HISTORY.md como o próximo número (hoje 15).
-
 P26 — Desenho: `cr.show_glyphs` com glifos pré-computados. **Experimento, não
 compromisso.** É o único caminho que ataca de verdade o custo de emissão:
 2,43 → 0,76 µs (-69%, ~24% do desenho). O preço é sair do Pango: sem fallback
