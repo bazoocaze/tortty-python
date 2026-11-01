@@ -477,6 +477,35 @@ def redraw_keeps_history_position():
     assert _row_text(t.visible_rows(len(t.scrollback))[0]).rstrip() != antes
 
 
+def draw_damage():
+    """P27: o dano diz QUAL linha mudou; rolagem/resize/RIS dizem "tudo"."""
+    t = Term(cols=10, rows=5)
+    t.take_damage()  # o primeiro draw é sempre a grade inteira
+    assert t.take_damage() == set(), "dano deveria ter sido consumido"
+    # um caractere numa linha: só ela
+    t.feed("\x1b[3;1Hx")
+    assert t.take_damage() == {2}, "trocar 1 célula deveria sujar 1 linha"
+    assert t.take_damage() == set()
+    # texto corrido em duas linhas
+    t.feed("\x1b[1;1Habcdefghij\x1b[2;1Hyz")
+    d = t.take_damage()
+    assert d == {0, 1}, d
+    # EL/ED, ICH/DCH/ECH: linha corrente; ED: tudo
+    t.feed("\x1b[2;3H\x1b[K")
+    assert t.take_damage() == {1}
+    t.feed("\x1b[2;1H\x1b[2X")
+    assert t.take_damage() == {1}
+    t.feed("\x1b[2J")
+    assert t.take_damage() is None, "ED2 muda a tela toda"
+    # rolagem, resize e RIS: grade inteira (as linhas mudam de posição)
+    t.feed("\x1b[5;1H\n")
+    assert t.take_damage() is None, "rolagem move toda linha"
+    t.resize(8, 4)
+    assert t.take_damage() is None, "reflow move toda linha"
+    t.feed("\x1bc")
+    assert t.take_damage() is None, "RIS recomeça a grade"
+
+
 def selection_follows_history():
     """B17: a seleção vive no conteúdo — rolar e output não trocam o texto."""
     t = Term(cols=10, rows=5)
@@ -799,6 +828,7 @@ ALL = (
     history,
     scroll_anchor,
     selection_follows_history,
+    draw_damage,
     redraw_keeps_history_position,
     mouse_modes_and_sgr,
     selection,

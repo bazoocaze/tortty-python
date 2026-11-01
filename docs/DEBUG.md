@@ -182,6 +182,12 @@ caminho do socket.
   check `debug_socket` cobre ele com alvo falso.
 
 ## Armadilhas de implementação
+- Dano do desenho: `Term.take_damage()` é a única fonte do que a view repinta.
+  Caminho novo que escreva célula sem `touch(y)` (ou sem `touch_all()`, se mover
+  linhas) não aparece na tela até algo rolar — o bug parece de parse.
+- O laço de `_on_draw` filtra por `cr.clip_extents()`; é isso que faz o spinner
+  de um caractere custar uma linha em vez do frame. Tirar o filtro (ou trocar
+  `queue_draw_area` por `queue_draw`) devolve os 13 ms sem mudar um pixel.
 
 - `show_all()` desfaz `set_visible(False)`: mostra todos os descendentes e um
   widget escondido no construtor volta. Controlar na mão exige

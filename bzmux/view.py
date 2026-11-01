@@ -213,6 +213,7 @@ class TermView(Gtk.DrawingArea):
         self.child_exited = False  # waitpid já chegou?
         self.exit_code = None
         self._draw_pending = False
+        self._cursor_drawn = (0, 0)  # cursor do último draw (linha vai no dano)
         self._sync_timer = 0  # teto da transação de synchronized output
         self._sync_t0 = None  # monotonic da abertura da região (ms no fecho)
         self._prof = {}
@@ -308,7 +309,7 @@ class TermView(Gtk.DrawingArea):
         """Estourou o teto do ?2026: desenha assim mesmo."""
         self._sync_timer = 0
         self._draw_pending = False
-        self.queue_draw()
+        self._queue_damage()
         return False
 
     def _defer_draw(self):
@@ -321,8 +322,44 @@ class TermView(Gtk.DrawingArea):
         if self.term.sync_output:
             self._defer_draw()  # a transação abriu depois do agendamento
             return False
-        self.queue_draw()
+        self._queue_damage()
         return False  # um tiro só
+
+    def _queue_damage(self):
+        """Pede só as linhas que o app sujou, não a grade inteira (P27).
+
+        Trocar um caractere (o spinner do pi) custava o mesmo que repintar a
+        tela toda: 13,7 ms em 61x18, porque o laço do draw varria as 18 linhas
+        e todos os runs. Com o dano do Term viram região do Gdk, e o draw
+        respeita o clip: o mesmo spinner desce para o custo de uma linha.
+        """
+        t = self.term
+        rows = t.take_damage()
+        if (
+            rows is None  # rolagem, resize, RIS, troca de buffer
+            or self.view_off  # histórico: o que está na tela não é a grade
+            or t.sync_output  # transação aberta: quem manda é o fecho
+            or t.graphics.placements  # imagem: o laço de imagens é da grade
+        ):
+            self._cursor_drawn = (t.cx, t.cy)
+            self.queue_draw()
+            return
+        rows.add(t.cy)  # o cursor sai e volta: as duas linhas mudam
+        rows.add(self._cursor_drawn[1])
+        self._cursor_drawn = (t.cx, t.cy)
+        cw, ch = self.metrics()
+        cw, ch = int(cw), int(ch)
+        p = self.padding
+        larg = max(1, self.get_allocated_width() - 2 * p)
+        # linhas vizinhas viram UMA área: um spinner é 1 retângulo só
+        linhas = sorted(y for y in rows if 0 <= y < t.rows)
+        i = 0
+        while i < len(linhas):
+            j = i + 1
+            while j < len(linhas) and linhas[j] == linhas[j - 1] + 1:
+                j += 1
+            self.queue_draw_area(p, linhas[i] * ch + p, larg, (j - i) * ch)
+            i = j
 
     def on_pty(self, fd, cond):
         if not _PROF:
@@ -873,6 +910,10 @@ class TermView(Gtk.DrawingArea):
             # daqui pra baixo as coordenadas são da GRADE: o padding (P34)
             # vira só translação, inclusive para o mouse (cell_at desconta)
             cr.translate(self.padding, self.padding)
+        # clip (já na coordenada da grade): com dano por linha o Gdk entrega
+        # só a faixa que mudou — sem isso o laço desenharia a tela toda de
+        # qualquer jeito e o custo do spinner voltaria (P27)
+        clip_x0, clip_y0, clip_x1, clip_y1 = cr.clip_extents()
         sel = self.sel_range()
         rows = self.visible_rows()
         # sobra sub-célula: quase nunca a janela é múltiplo exato de (cw, ch).
@@ -883,6 +924,8 @@ class TermView(Gtk.DrawingArea):
         og_h = max(0, self.get_allocated_height() - 2 * self.padding)
         last_y = len(rows) - 1
         for y, row in enumerate(rows):
+            if y * ch >= clip_y1 or (y + 1) * ch <= clip_y0:
+                continue  # linha fora do dano
             x = 0
             while x < t.cols:
                 cell = row[x]
@@ -899,6 +942,9 @@ class TermView(Gtk.DrawingArea):
                     ):
                         break
                     j += 1
+                if j * cw <= clip_x0 or x * cw >= clip_x1:
+                    x = j
+                    continue  # run fora do dano
                 # a cor vira RGB ANTES de inverter: trocar os índices e só
                 # depois converter transformava o texto default (256) em
                 # "cor 1" (vermelho), porque 256/257 são sentinelas e não

@@ -107,6 +107,9 @@ class Term:
         self.hist_gen = 0
         self.scrollback = []
         self.scrollback_limit = 1000  # teto de linhas do histórico (P34)
+        # dano do desenho (P27): linhas com célula alterada desde o último
+        # draw; dirty_all = grade inteira (rolagem, resize, RIS, alt-screen)
+        self.dirty, self.dirty_all = set(), True
         # reflow (P3): row_wrapped[i] = "esta linha continua na de baixo"
         # (quebra mole, não '\n'). É o que permite re-quebrar no resize em vez
         # de recortar. sb_wrapped é o mesmo, paralelo ao scrollback.
@@ -172,6 +175,7 @@ class Term:
         """
         if (cols, rows) == (self.cols, self.rows):
             return
+        self.touch_all()  # tudo se move com o reflow
         if self.alt_grid is None:
             self._reflow(cols, rows)
         else:
@@ -340,6 +344,23 @@ class Term:
         self.graphics.drop_above(-len(self.scrollback))
         return True
 
+    def touch(self, y):
+        """Marca a linha como alterada: o host só precisa desenhar essa."""
+        self.dirty.add(y)
+
+    def touch_all(self):
+        """Grade inteira mudou (rolagem, resize, RIS, troca de buffer)."""
+        self.dirty_all = True
+
+    def take_damage(self):
+        """Linhas alteradas desde o último draw; None = a grade inteira."""
+        if self.dirty_all:
+            self.dirty.clear()
+            self.dirty_all = False
+            return None
+        linhas, self.dirty = self.dirty, set()
+        return linhas
+
     def _trim_scrollback(self):
         """Corta o histórico no teto (chamado quando o teto muda e no scroll)."""
         n = self.scrollback_limit
@@ -348,6 +369,7 @@ class Term:
             del self.sb_wrapped[: max(0, len(self.sb_wrapped) - n)]
 
     def scroll_up(self):
+        self.touch_all()  # a tela desliza: toda linha muda de conteúdo
         self.scrolled += 1
         # rolagem de tela cheia: a linha que sai pelo topo vai pro histórico,
         # então a imagem que estava nela continua existindo (com linha
@@ -412,6 +434,7 @@ class Term:
         if self.charset_dec:
             ch = DEC_SPECIAL.get(ch, ch)
         self.grid[self.cy][self.cx] = [ch, self.fg, self.bg, self.flags]
+        self.dirty.add(self.cy)
         if self.cx == self.cols - 1:
             self.wrap_pending = True
         else:
@@ -424,6 +447,7 @@ class Term:
         self.wrap_pending = False
 
     def erase_display(self, n):
+        self.touch_all()
         if n == 2 or n == 3:
             for y in range(self.rows):
                 self.grid[y] = [self.blank_cell() for _ in range(self.cols)]
@@ -446,6 +470,7 @@ class Term:
                 self.grid[y] = [self.blank_cell() for _ in range(self.cols)]
 
     def erase_line(self, n):
+        self.dirty.add(self.cy)
         if n == 2:
             self.grid[self.cy] = [self.blank_cell() for _ in range(self.cols)]
         elif n == 1:
@@ -456,6 +481,7 @@ class Term:
                 self.grid[self.cy][x] = self.blank_cell()
 
     def insert_lines(self, n):
+        self.touch_all()
         for _ in range(n):
             self.grid.pop(self.bottom)
             self.grid.insert(self.cy, [self.blank_cell() for _ in range(self.cols)])
@@ -463,6 +489,7 @@ class Term:
             self.row_wrapped.insert(self.cy, False)
 
     def delete_lines(self, n):
+        self.touch_all()
         for _ in range(n):
             self.grid.pop(self.cy)
             self.grid.insert(self.bottom, [self.blank_cell() for _ in range(self.cols)])
@@ -574,6 +601,7 @@ class Term:
                 self.app_cursor = on
             elif p in (47, 1047, 1049):
                 # a troca de buffer muda o mapa absoluto: âncora velha morre
+                self.touch_all()  # o buffer inteiro troca
                 if on and self.alt_grid is None:
                     self.abs_gen += 1
                     self.alt_grid = self.grid
@@ -683,16 +711,19 @@ class Term:
             self.delete_lines(get(0, 1) or 1)
         elif final == "@":
             k = get(0, 1) or 1
+            self.dirty.add(self.cy)
             row = self.grid[self.cy]
             row[self.cx : self.cx] = [self.blank_cell()] * k
             del row[self.cols :]
         elif final == "P":
             k = get(0, 1) or 1
+            self.dirty.add(self.cy)
             row = self.grid[self.cy]
             del row[self.cx : self.cx + k]
             row.extend([self.blank_cell()] * k)
         elif final == "X":
             k = get(0, 1) or 1
+            self.dirty.add(self.cy)
             for x in range(self.cx, min(self.cols, self.cx + k)):
                 self.grid[self.cy][x] = self.blank_cell()
         elif final == "r":
@@ -779,6 +810,7 @@ class Term:
             avail = self.cols - cx
             k = n - i
             row = self.grid[self.cy]
+            self.dirty.add(self.cy)
             if k >= avail:  # enche até a última coluna: quebra mole
                 row[cx:] = [[c, fg, bg, fl] for c in run[i : i + avail]]
                 self.cx = self.cols - 1

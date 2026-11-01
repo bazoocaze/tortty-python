@@ -894,6 +894,33 @@ seguinte; `shift+PgUp` levou `view_off` de 0 a 28 e `shift+Home` a 273 (topo);
 Check `debug_socket` cobre o `parse_key` (apelidos, modificador inválido, tecla
 vazia) e os verbos novos com alvo falso.
 
+### P27 — Desenho: dano por linha no lugar do redraw completo (2026-11-01)
+
+Trocar **um** caractere custava o mesmo que repintar a tela: `on_pty` chamava
+`request_draw` → `queue_draw()` (widget inteiro) e o laço de `_on_draw` varria
+as 18 linhas e os ~1100 runs sempre. Medido no app, 61x18: 13,5 ms por caractere
+do spinner, igual ao frame cheio.
+
+Feito: o `Term` marca dano — `dirty` (linhas com célula escrita) e `dirty_all`
+(rolagem, resize, reflow, RIS, troca de buffer, ED) — e `take_damage()` devolve
+as linhas ou `None` para "tudo". A view troca `queue_draw()` por
+`queue_draw_area()` das linhas sujas (vizinhas coalescidas num retângulo) e o
+laço do draw filtra por `cr.clip_extents()`: linha fora do clip não é varrida e
+run fora do clip nem é desenhado.
+
+Descartado com número: cache de linha em surface e dirty-rect por pixmap. No
+microbench `tools/uploadbench.py` (frame sintético de 1098 células), frame em
+ImageSurface + 1 `paint` custa 5,6 ms contra 4,0 ms do desenho direto (0,72x), e
+surface do servidor custa 42,6 ms (0,10x) — desenhar em pixmap pequeno sai ~10x
+mais caro que na janela; compor o pixmap parado custa 0,38 ms, mas aí o app nem
+desenha.
+
+Verificado: o spinner cai de 13,5 para ~1,0 ms (uma linha, um run, medido com o
+verbo `prof`); doom-fire de tela cheia fica igual (13,45 → 13,75 ms, dano total
+todo frame); diff de pixels depois de trocar um caractere mostra 12x15 px
+alterados, só a célula. Check `draw_damage` cobre as linhas por caminho (escrita,
+EL, ED, ICH/DCH/ECH, rolagem, resize, RIS).
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.

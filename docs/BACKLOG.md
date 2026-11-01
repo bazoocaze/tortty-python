@@ -26,34 +26,15 @@ overflow protection" e volta `[]`. Se for tentar, o desenho precisa escolher por
 run (ASCII sem `.notdef` → cairo; senão Pango) e a validação é comparação de
 pixels, não o fps.
 
-P27 — Desenho: redesenho parcial (dirty-rect) e cache de linha em surface.
-**Microbench feito (2026-11-01): a ideia como está não se paga.** Evidência em
-`tools/uploadbench.py` (frame sintético de 1098 células em 61x18, display real,
-mediana de 60 frames, `sync` por frame):
-
-- desenho direto na janela (o de hoje): **4,0 ms** por frame;
-- frame num ImageSurface e um `paint`: **5,6 ms** (0,72x — mais lento, os pixels
-  sobem pelo fio);
-- frame num surface do servidor (`create_similar_surface`) e uma composição:
-  **42,6 ms** (0,10x), porque desenhar nos pixmaps pequenos custa ~10x mais por
-  operação que na janela;
-- o mesmo pixmap com só 10% redesenhado: **5,7 ms** (0,71x — ainda perde para o
-  desenho direto);
-- compor o pixmap inteiro sem desenhar nada: **0,38 ms** (10,8x mais rápido que
-  desenhar) — ou seja o cache só ganha se o frame estiver *parado*, e aí o
-  bzmux nem desenha.
-
-O `cProfile` no app (doom-fire, 61x18, 160 draws) mostra que o alvo real é
-outro: o tempo de `_on_draw` é majoritariamente **Python**, não servidor —
-`cell_rgb_f` 368 mil chamadas (2 por run, uma delas só para comparar com
-`DEF_BG`), `"".join(...)` com genexpr 298 mil, um `dict.get` por run. As
-chamadas cairo somam ~40% do draw.
-
-Direção revisada (a confirmar com o mesmo `prof` antes/depois): cortar trabalho
-Python por run — comparar `bg != DEF_BG` em vez de chamar `cell_rgb_f` de novo,
-list comp em vez de genexpr no join, cache do par (fg, bg) → tuplas RGB por
-draw. Estimativa grosseira: 3–4 ms dos 13,7 (25%) só com isso; cache de linha em
-surface e dirty-rect ficam fora até haver número que os justifique.
+P37 — Desenho: cortar trabalho Python por run. O `cProfile` do P27
+(doom-fire, 61x18, 160 draws) mostrou que o custo do `_on_draw` é
+majoritariamente Python, não servidor: `cell_rgb_f` 368 mil chamadas (duas por
+run, e uma delas só para comparar com `DEF_BG`), `"".join(...)` com genexpr 298
+mil, um `dict.get` por run; as chamadas cairo somam ~40%. Candidatos: comparar
+`bg != DEF_BG` em vez de chamar `cell_rgb_f` de novo, list comp no lugar do
+genexpr do join e cache do par (fg, bg) → tuplas RGB por draw. Estimativa
+grosseira: 3–4 ms dos 13,7 num frame de tela cheia. Medir com o verbo `prof`
+antes e depois, e conferir que o doom-fire (pior caso) acompanha.
 
 P30 — Portabilidade gráfica: rodar no Linux, Windows e macOS. **Discussão,
 decisão pendente** (2026-10-28). O estudo (o que é plataforma hoje, os bloqueios
