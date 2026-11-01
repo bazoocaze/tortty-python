@@ -8,6 +8,7 @@ terminal está em `term`.
 
 import codecs
 import io
+import json
 import math
 import os
 import pty
@@ -34,7 +35,22 @@ from .term import Term
 _PROF = bool(os.environ.get("PYTERM_PROF"))  # mede o custo de draw e de pty
 _NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem desenho
 _NOPARSE = bool(os.environ.get("PYTERM_NOPARSE"))  # sonda: só lê o pty e descarta
+_SYNC_LOG = "/tmp/bzmux.debug.log"  # log JSONL do ?2026 x scroll (B22)
 _SYNC_MS = 200  # teto da transação ?2026: app que esquece de fechar não congela
+
+
+def _slog(**ev):
+    """Uma linha JSONL no log de investigação do ?2026 (B22)."""
+    ev["ts"] = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime()) + ".%03d" % (
+        int((time.time() % 1) * 1000)
+    )
+    try:
+        with open(_SYNC_LOG, "a") as f:
+            f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+
+
 DRAG_SLOP = 3  # px de folga: abaixo disso o mouse não "arrastou"
 BLINK_MS = 530  # ritmo do cursor piscando (`cursor_blink`); não é opção
 
@@ -334,7 +350,18 @@ class TermView(Gtk.DrawingArea):
         # não sai do lugar. Só tecla, rolar até o fim ou limpeza do histórico
         # (aí o clamp devolve o vivo) tira ele de lá.
         scrolled_before = self.term.scrolled
+        was_sync = self.term.sync_output
         self.term.feed(self.decoder.decode(data))
+        if self.term.sync_output != was_sync:
+            _slog(
+                ev="2026",
+                on=self.term.sync_output,
+                v=self.view_off,
+                pin=self._pin_off,
+                sb=len(self.term.scrollback),
+                scr=self.term.scrolled,
+                gen=self.term.hist_gen,
+            )
         # respostas do núcleo (DA/CPR) voltam ao filho
         if self.term.child_out:
             try:
@@ -369,6 +396,7 @@ class TermView(Gtk.DrawingArea):
                         data[:600],
                     )
                 )
+        v_before = self.view_off
         if self.term.hist_gen != self._hist_gen:
             # `CSI 3J`: o histórico acabou (o repaint do pi começa assim). A
             # âncora absoluta morre, mas a distância do vivo ainda vale — quem
@@ -384,6 +412,15 @@ class TermView(Gtk.DrawingArea):
                 self._pin_off = 0  # chegou na distância: volta ao modo âncora
         elif self.view_off:
             self.view_off = self.term.anchored_view_off(self._anchor)
+        if self.term.sync_output and self.view_off != v_before:
+            _slog(
+                ev="pos",
+                v0=v_before,
+                v1=self.view_off,
+                pin=self._pin_off,
+                sb=len(self.term.scrollback),
+                scr=self.term.scrolled,
+            )
         if self.term.bells:  # BEL: a janela decide visual/audível (P34)
             self.term.bells = 0
             if self.on_bell:
@@ -611,6 +648,8 @@ class TermView(Gtk.DrawingArea):
             return False  # alt-screen não tem histórico que rolar
         off = max(0, min(len(t.scrollback), self.view_off + delta))
         if off != self.view_off:
+            if t.sync_output:
+                _slog(ev="wheel", d=delta, v0=self.view_off, v1=off, pin=self._pin_off)
             self._pin_off = 0  # o usuário escolheu: a posição dele manda
             self.view_off = off
             # a âncora é absoluta (P32): o output que chegar depois não arranca
@@ -757,6 +796,14 @@ class TermView(Gtk.DrawingArea):
 
     def _on_draw(self, area, cr):
         t = self.term
+        if t.sync_output:
+            _slog(
+                ev="draw",
+                v=self.view_off,
+                pin=self._pin_off,
+                sb=len(t.scrollback),
+                scr=t.scrolled,
+            )
         cw, ch = self.metrics()
         cw, ch = int(cw), int(ch)
         # um layout por draw, reaproveitado em cada run (criar por run custaria
