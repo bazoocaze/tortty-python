@@ -14,11 +14,11 @@ uso: bzmux [opções]
   --dump-to ARQUIVO  salva a grade visível ao sair
   --debug-log ARQ    log JSONL do ?2026 x scroll (default: a opção `debug_log`;
                      `off` desliga)
+  --debug-socket ARQ socket Unix de introspecção (JSON por linha; `auto` =
+                     $XDG_RUNTIME_DIR/bzmux-<pid>.sock). Desligado por omissão
   --selftest         roda os checks sem abrir janela
   --install-shortcut cria o atalho no menu do sistema (.desktop + ícone)
   --remove-shortcut  remove o atalho
-  --debug-socket ARQ socket Unix de introspecção (JSON por linha; `auto` =
-                     $XDG_RUNTIME_DIR/bzmux-<pid>.sock). Desligado por omissão
   -V, --version      mostra a versão e sai
   -h, --help         mostra esta ajuda e sai"""
 
