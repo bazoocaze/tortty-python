@@ -142,6 +142,7 @@ class Workspace:
         v = TermView(
             cmd=cmd if cmd is not None else self.win.cmd,
             cwd=self.win.current_cwd(self),
+            shell=self.win.shell,
             font_family=self.win.font_family,
             font_size=self.win.font_size,
             padding=self.win.padding,
@@ -359,7 +360,9 @@ class BzmuxWindow(Gtk.Window):
         # previsíveis. Sem `--cmd`, cada aba nasce com o `shell` da configuração.
         self.config = config_mod.load(config_path)
         self._cmd_fixo = cmd is not None  # --cmd não é sobrescrito pela config
-        self.cmd = cmd if cmd is not None else self.config.shell
+        # bruto: vazio herda o $SHELL do ambiente, e quem resolve é a view
+        self.shell = self.config.shell
+        self.cmd = cmd if cmd is not None else self.shell
         self.dump_to = dump_to
         self.quit_after = quit_after
         self.workspaces = []
@@ -605,8 +608,9 @@ class BzmuxWindow(Gtk.Window):
             self.show_toast("Erro na configuração", config_mod.message(novo), erro=True)
             return
         self.config = novo
-        if novo.shell != self.cmd and not getattr(self, "_cmd_fixo", False):
-            self.cmd = novo.shell  # vale para as próximas abas
+        self.shell = novo.shell
+        if not getattr(self, "_cmd_fixo", False):
+            self.cmd = self.shell  # vale para as próximas abas
         self._apply_options()  # fonte/padding/cursor valem em TODAS as abas
         for ws in self.workspaces:
             for v in ws.views:

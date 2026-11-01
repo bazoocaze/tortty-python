@@ -118,9 +118,11 @@ Chave/valor no formato do kitty (`#` comenta). O arquivo do usuário é
 $XDG_CONFIG_HOME/bzmux/bzmux.conf (o -c ARQ troca) e é sempre mesclado sobre o
 default embarcado em bzmux/data/bzmux.conf.
 
-- Chaves, valores default e faixas válidas moram em bzmux/config.py (DEFAULTS).
-  As que mais mudam o uso do dia a dia: font_size (em pontos, não px),
-  scrollback e cursor_shape.
+- Chaves e faixas válidas moram em bzmux/config.py (CHECKS); os valores default,
+  em bzmux/data/bzmux.conf. As que mais mudam o dia a dia: font_size (em pontos,
+  não px), scrollback, cursor_shape.
+- `shell` vazio (o default) herda o `$SHELL` do ambiente; `config.tab_command`
+  decide (comando da aba, `$SHELL` do filho) e o `--cmd` não mexe no `$SHELL`.
 - Editar com o app aberto aplica na hora. Erro é por linha: na carga inicial o
   que validou vale (o toast mostra o primeiro erro), no reload nada muda.
 

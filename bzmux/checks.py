@@ -152,7 +152,7 @@ def config_file():
     # o arquivo de padrões embarca no pacote (mesmo tratamento do ícone)
     assert config.DATA.exists()
     emb = {e.key: e.value for e in config.parse(config.DATA.read_text())}
-    assert emb["shell"] == config.DEFAULT_SHELL
+    assert emb["shell"] == ""  # vazio = herda o $SHELL do ambiente
     # comentário de linha inteira e no fim da linha, espaço, chave repetida
     vals = config.parse("# cabeçalho\n  shell   /bin/sh   # inline\n\nfoo bar\nshell /bin/bash\n")
     assert [(e.key, e.value, e.line) for e in vals] == [
@@ -177,7 +177,22 @@ def config_file():
     assert "linha 1 ignorada" in config.message(cfg)
     # sem arquivo do usuário: valem os padrões, sem erro
     cfg = config.load(os.path.join(d, "nao-existe.conf"))
-    assert (cfg.shell, cfg.ok, cfg.exists) == (config.DEFAULT_SHELL, True, False)
+    assert (cfg.shell, cfg.ok, cfg.exists) == ("", True, False)
+    # a herança é resolvida por effective_shell: config > $SHELL > /bin/bash,
+    # e o valor sai em caminho (vai virar o $SHELL do filho)
+    assert config.effective_shell("/bin/sh") == "/bin/sh"
+    assert config.effective_shell("", {"SHELL": "/bin/bash"}) == "/bin/bash"
+    assert config.effective_shell("", {}) == "/bin/bash"
+    assert config.effective_shell("nao-existe-xyz", {"SHELL": "/x"}) == "/bin/bash"
+    # aba nova: `--cmd` decide o comando e NÃO mexe no $SHELL do filho, e o
+    # reload só alcança as abas seguintes porque o $SHELL já foi exportado
+    # no fork (a aba aberta continua com o shell que rodava)
+    env = {"SHELL": "/bin/sh"}
+    assert config.tab_command(None, "/bin/bash", env) == ("/bin/bash", "/bin/bash")
+    assert config.tab_command(None, "", env) == ("/bin/sh", "/bin/sh")
+    assert config.tab_command(None, "", {}) == ("/bin/bash", "/bin/bash")
+    assert config.tab_command("seq 3", "/bin/bash", env) == ("seq 3", "/bin/bash")
+    assert config.tab_command("seq 3", "", env) == ("seq 3", "/bin/sh")
     # chave desconhecida é erro, mas o resto do arquivo VALE (carga inicial)
     with open(p, "w") as f:
         f.write("foo bar\nshell /bin/sh\n")
@@ -188,7 +203,7 @@ def config_file():
     with open(p, "w") as f:
         f.write("# nada aqui\nshell /nao/existe/xyz\n")
     cfg = config.load(p)
-    assert (cfg.shell, cfg.ok) == (config.DEFAULT_SHELL, False)
+    assert (cfg.shell, cfg.ok) == ("", False)
     assert "linha 2: shell não executável" in config.message(cfg)
 
 

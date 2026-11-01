@@ -131,6 +131,10 @@ resolução e desenhada em outra, bug 13 do HISTORY). `PROF` decompõe a vazão,
 - `sh -c "<cmd>"` não faz exec quando o comando tem argumento: o programa é
   neto do pty e o cwd do `sh` nunca muda. Herdar cwd pelo último descendente
   (`/proc/<pid>/task/<pid>/children`).
+- O filho do `pty.fork` herda o ambiente inteiro, `SHELL` incluído: ele passa a
+  mentir quando o shell configurado é outro (ou quando o config está vazio e o
+  `$SHELL` decide). Exportar o `SHELL` que `config.tab_command` devolve — o
+  `--cmd` troca o comando, não o `SHELL`.
 - `Gtk.EventBox` sem `add_events()` tem máscara vazia (`get_events() == 0`) e o
   clique nunca chega; e `notebook.set_tab_label_text()` troca o widget do
   rótulo (guardar o `Gtk.Label` e mudar o texto dele).

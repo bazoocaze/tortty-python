@@ -18,6 +18,7 @@ import termios
 import time
 
 from . import mouse
+from .config import tab_command
 from .gui import Gdk, GLib, Gtk, Pango, PangoCairo, cairo
 from .keys import encode_key, is_modifier
 from .palette import (
@@ -99,6 +100,7 @@ class TermView(Gtk.DrawingArea):
         self,
         cmd=None,
         cwd=None,
+        shell=None,
         font_family="Monospace",
         font_size=12,
         padding=0,
@@ -188,7 +190,11 @@ class TermView(Gtk.DrawingArea):
         self._closing = False
         self._hungup = False
         self.decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
-        self.spawn(cmd or os.environ.get("SHELL", "/bin/bash"), cwd)
+        # o SHELL do filho é o que roda de fato (config, senão $SHELL), não o
+        # herdado do processo que abriu o bzmux; com `--cmd`, o comando é outro
+        # e o SHELL continua sendo o da config
+        cmd, self.shell = tab_command(cmd, shell)
+        self.spawn(cmd, cwd)
 
     def spawn(self, cmd, cwd=None):
         pid, fd = pty.fork()
@@ -218,6 +224,7 @@ class TermView(Gtk.DrawingArea):
             # sem COLORTERM o app acha que só há 256 cores e arredonda o RGB
             # para o cubo: era isto que fazia cor "não bater" com o kitty
             os.environ["COLORTERM"] = "truecolor"
+            os.environ["SHELL"] = self.shell
             try:
                 os.execlp("sh", "sh", "-c", cmd)
             except Exception:

@@ -195,7 +195,7 @@ o seu arquivo é **mesclado** por cima dele, não o substitui.
 As opções (e os valores de fábrica):
 
 ```
-shell /bin/bash            # programa de cada aba nova (o --cmd vence)
+shell                      # programa de cada aba nova; vazio = $SHELL do ambiente
 font_family Monospace      # só família monoespaçada
 font_size 12               # em PONTOS (o Pango converte pelo DPI)
 cursor_shape block         # block, beam ou underline

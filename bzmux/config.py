@@ -18,7 +18,7 @@ from typing import NamedTuple
 # Só para pacote mal montado (o `data/bzmux.conf` é a fonte normal dos padrões).
 # Também é a lista de chaves conhecidas: chave fora daqui é erro (P33).
 DEFAULTS = {
-    "shell": "/bin/bash",
+    "shell": "",  # vazio = herda o $SHELL do ambiente (ver effective_shell)
     "font_family": "Monospace",
     "font_size": "12",
     "cursor_shape": "block",
@@ -28,7 +28,6 @@ DEFAULTS = {
     "bell": "none",
     "copy_on_select": "off",
 }
-DEFAULT_SHELL = DEFAULTS["shell"]
 DATA = Path(__file__).with_name("data") / "bzmux.conf"
 
 KNOWN = tuple(DEFAULTS)
@@ -87,7 +86,7 @@ def parse(text):
 def check_shell(valor):
     """Devolve a mensagem de erro, ou None. Nome puro é buscado no PATH."""
     if not valor:
-        return "shell vazio"
+        return None  # vazio é escolha: herda o $SHELL (effective_shell)
     if os.sep not in valor:
         if shutil.which(valor) is None:
             return "shell não encontrado: %s" % valor
@@ -165,6 +164,18 @@ CHECKS = {
     "bell": check_bell,
     "copy_on_select": check_copy_on_select,
 }
+
+
+def effective_shell(value, env=None):
+    """SHELL do filho: o da config (vazio herda o ambiente), sempre caminho."""
+    env = os.environ if env is None else env
+    return shutil.which(value or env.get("SHELL") or "/bin/bash") or "/bin/bash"
+
+
+def tab_command(cmd, shell, env=None):
+    """(comando da aba, SHELL do filho): o `--cmd` vence e não mexe no SHELL."""
+    sh = effective_shell(shell, env)
+    return (cmd or sh, sh)
 
 
 class Config:

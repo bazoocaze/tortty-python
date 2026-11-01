@@ -50,8 +50,9 @@ atalhos. O que existe:
 - default embarcado em `bzmux/data/bzmux.conf` (vai no wheel como o ícone);
 - arquivo do usuário em `$XDG_CONFIG_HOME/bzmux/bzmux.conf`, e `-c ARQ` /
   `--config ARQ` troca só esse caminho (o merge com o default continua);
-- `shell` (default `/bin/bash`) vira o comando de cada aba nova; `--cmd` vence.
-  **Mudança de comportamento**: `$SHELL` não é mais consultado;
+- `shell` (vazio no default) vira o comando de cada aba nova; `--cmd` vence.
+  Vazio herda o `$SHELL` do ambiente, e o `$SHELL` entregue ao filho é sempre o
+  shell que roda de fato (antes ficava o herdado, mesmo com outro configurado);
 - auto-reload por `Gio.FileMonitor` com debounce de 250 ms; no reload, erro
   mantém a configuração anterior (nada muda) e o erro vai para um toast de 10 s
   na base da janela (estilo Android, `Gtk.Revealer` + `#toast` no `style.py`);

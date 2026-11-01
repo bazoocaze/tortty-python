@@ -1003,6 +1003,14 @@ Todos foram achados com medição, não por leitura — vale registrar o método
     naquele fix); o check `scrollback_and_bell` agora manda `RIS` e confere que
     o teto sobrevive.
 
+19. **O `$SHELL` do filho não era o shell que rodava.** O `sh -c` do pty herda
+    o ambiente de quem abriu o bzmux, então `SHELL=/usr/bin/zsh` continuava no
+    filho mesmo com `shell /bin/dash` na configuração (e o `dash` era quem
+    executava). Fix: `config.effective_shell` resolve a cadeia config vazio ->
+    `$SHELL` -> `/bin/bash` e devolve caminho; a view exporta esse valor como
+    `SHELL` no filho. Verificado em `Xvfb` com `echo $SHELL` na sessão: vazio
+    + `$SHELL=zsh` dá zsh, `shell /bin/dash` dá dash.
+
 ## Nota de documentação: número só em um lugar
 
 Até 2026-10-27 os números de vazão viviam repetidos em README, LIMITATIONS,
