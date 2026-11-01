@@ -110,6 +110,19 @@ grade medida numa resolução e desenhada em outra) vem no `state` do socket, co
 `advance`, `cell`, `dpi` e `padding`; a configuração carregada também
 (`config`, `errors`), no lugar do antigo `CONFLOG`.
 
+## Medição (doom-fire)
+
+- Número de benchmark se compara por **grid**, não por janela: a célula é fonte ×
+  `Xft.dpi` (130 no desktop do autor, 96 sem o recurso), então a mesma janela dá
+  70×21 ou 98×27. Alvo em células, e o grid vem do `state` (`cols`, `rows`,
+  `cell`, `dpi`).
+- `--cmd` com a carga mede o grid errado: o filho nasce antes do primeiro
+  `TIOCSWINSZ` e pode ver o padrão 80×24. Escrever a carga no pty depois que o
+  `state` confirmar o alvo é o que tira a corrida.
+- Geometria salva de execução anterior (`window.json`, inclusive `max`) muda o
+  grid do teste: `XDG_STATE_HOME` descartável isola. O `tools/benchrun.py` já
+  faz as três coisas.
+
 ## Log do `?2026` (opção `debug_log`)
 
 Uma linha JSONL por evento, com `ts` local em ms:

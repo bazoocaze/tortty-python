@@ -69,11 +69,22 @@ python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to /tmp/x.txt
   isolado) e imprime fps, MB/s, bytes/frame, `draw ms/call`, `pty ms/call` e a
   frequência da CPU por etapa. Precisa de display e não guarda número: os de
   referência são os daqui.
+- A condição é travada pelo **grid**, não pela janela: `tools/benchrun.py` sobe o
+  app com o socket, ajusta com `resize` até `cols×rows` bater no alvo (70×21),
+  confere e só então digita a carga no pty; grid diferente = etapa sem número
+  (código 3), nunca número de outra condição.
+- O grid não sai dos pixels: célula = fonte × dpi, e dpi é o `Xft.dpi` da sessão
+  (`130` no desktop do autor, `96` sem o recurso). A mesma janela de 980x640 é
+  70×21 com 130 e 98×27 com 96 — por isso o alvo é em células.
+- Não digitar a carga antes da janela assentar: com `--cmd` o filho pode medir o
+  padrão 80×24 (o primeiro `TIOCSWINSZ` chega depois) e o número vira de outro
+  grid. É por isso que o `benchrun.py` escreve no pty só depois do `state`
+  confirmar o alvo.
 
 ### O número
 
-Condição: grade 70×21 (1470 células), janela de 980x640 travada com
-`PYTERM_GEOM`, fonte de 13 pontos (o padrão da época), `--fps 0 --frames 1200`,
+Condição: grade 70×21 (1470 células), fonte de 13 pontos (o padrão da época,
+hoje o default é 12), `--fps 0 --frames 1200`,
 um terminal de cada vez, 3 tiros de cada em 2026-10-27, `schedutil` com turbo em
 4,29 GHz.
 
