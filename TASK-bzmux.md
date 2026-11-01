@@ -38,6 +38,11 @@ output) ignorado — o registro está no [`docs/HISTORY.md`](docs/HISTORY.md).
 
 ## Fila
 
+P35 concluído: socket Unix de introspecção (`--debug-socket ARQ`/`auto`) com os
+verbos `state`, `text`, `write`, `log` e `quit` — é por ele que o agente lê a
+tela (inclusive a visão rolada) e digita sem passar pelo X. Registro no
+[`docs/HISTORY.md`](docs/HISTORY.md), uso em [`docs/DEBUG.md`](docs/DEBUG.md).
+
 P33/P34 concluídos: arquivo de configuração com `-c`, default embarcado e
 mesclado, formato do kitty, `Ctrl+Shift+F2` abrindo no `vim`, auto-reload
 validado e as oito opções comuns (`font_family`, `font_size` 12, `cursor_shape`,

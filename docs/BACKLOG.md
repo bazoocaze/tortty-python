@@ -67,35 +67,6 @@ Dois bugs achados no caminho, registrados no `docs/HISTORY.md`: o
 disparava) e `no_show_all` bloqueia até o `show_all()` chamado direto no widget
 (a caixa do toast ficava invisível).
 
-P35 — Socket de introspecção para o agente (`--debug-socket`). O usuário
-principal é o agente de IA, que hoje fala com o app por três caminhos ruins:
-`PYTERM_*` (só na partida e muda o comportamento), arquivo (`--dump-to` só na
-saída; `debug_log` é só escrita e `/tmp` é global, disputado entre a sessão do
-usuário e a de teste) e `tools/xtest.py` (exige display, injeta no X real e já
-travou o desktop por implicit grab). O dump do `SIGUSR1` mostra a grade viva,
-não a visão rolada — justamente o que investigação de scroll precisa.
-
-Decisões tomadas na discussão (2026-11-01):
-
-- socket Unix, não TCP: JSON por linha, um pedido por linha e uma resposta por
-  linha; sem HTTP, sem thread (`GLib.io_add_watch` no fd de escuta e nos
-  clientes, mesma thread da UI, sem corrida com o `Term`).
-- `--debug-socket ARQ` com valor obrigatório e `auto` = arquivo com o pid no
-  nome em `$XDG_RUNTIME_DIR`; só linha de comando (nada na configuração), vale
-  na partida e desligado por omissão. Sem contrato a manter: verbo pode mudar
-  sem aviso.
-- `0600`, conexão só do mesmo uid (`SO_PEERCRED`), `unlink` na saída e do socket
-  órfão antes do `bind` (só se for socket e ninguém estiver ouvindo).
-- Verbos mínimos: `state` (grade, cursor, título, `view_off`, `pin`,
-  `sync_output`, tamanho do histórico), `text` (fatia visível e fatia do
-  histórico por linha absoluta), `write` (bytes crus para o pty, como se
-  digitados) e `log` (liga/desliga/troca o `debug_log` em execução). `tab` e
-  `resize` só se aparecer necessidade real.
-
-Custo estimado: módulo novo com o despacho puro (testável sem display, com alvo
-falso) mais o glue do `GLib`; o resto reaproveita o que o dump e o `view_off` já
-fazem. Ferramenta de debug — registro no DEBUG.md, não no README.
-
 Os demais itens estão concluídos: histórico e bugs em [HISTORY.md](HISTORY.md),
 ferramentas e armadilhas em [DEBUG.md](DEBUG.md), status e por onde retomar em
 [../TASK-bzmux.md](../TASK-bzmux.md).

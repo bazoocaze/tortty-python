@@ -840,6 +840,33 @@ pontos dá célula 13×27 e 75×22, trocar a família re-mediu (13×26, 75×23),
 cursor e o pisca por captura, `copy_on_select` no CLIPBOARD e `scrollback 5`
 deixando 5 linhas.
 
+### P35 — Socket de introspecção para o agente (2026-11-01)
+
+O agente falava com o app por três caminhos ruins: `PYTERM_*` (só na partida e
+muda o comportamento), arquivo (`--dump-to` só na saída, e `/tmp` disputado
+entre a sessão do usuário e a de teste) e `tools/xtest.py` (exige display,
+injeta no X real, já travou o desktop com implicit grab).
+
+Feito: `--debug-socket ARQ` — socket Unix com JSON por linha, atendido na
+thread da UI (`GLib.io_add_watch`, sem thread nova), `auto` =
+`$XDG_RUNTIME_DIR/bzmux-<pid>.sock`, arquivo em `0600` e só o mesmo uid conecta
+(`SO_PEERCRED`); socket órfão de app morto é removido no boot. Verbos: `state`
+(inclusive `view_off`, `pin`, `sync` e `scrolled`, que o dump do `SIGUSR1` não
+mostra), `text` (`view` = o que a tela mostra, `screen` = grade viva,
+`history` = scrollback por linha absoluta), `write` (bytes crus no pty), `log`
+(liga/desliga o `debug_log` em execução) e `quit`. Desligado por omissão, só
+linha de comando, sem contrato a manter.
+
+Descartados: TCP (porta aberta e descoberta de porta sem ganho) e HTTP
+(framing, headers e status para mandar uma linha de JSON).
+
+Verificado em display privado: depois de `write` de `seq 1 200`, `state`
+devolveu `scrolled`/`scrollback` 173 e `history 0` trouxe o primeiro comando;
+vários pedidos na mesma conexão responderam em ordem; `quit` fechou o app e
+apagou o arquivo; socket órfão sumiu no boot; pedido inválido devolve
+`{"ok": false}` em vez de derrubar. Check `debug_socket` cobre o despacho com
+alvo falso, sem display nem socket.
+
 ## Bugs encontrados e corrigidos (histórico útil)
 
 Todos foram achados com medição, não por leitura — vale registrar o método.

@@ -9,7 +9,9 @@ matriz de casos.
 import base64
 import contextlib
 import io
+import json
 import os
+import socket
 import tempfile
 import zlib
 
@@ -124,10 +126,11 @@ def argv_parsing():
     """--help sai sem abrir janela; opção inválida é erro de uso (exit 2)."""
     from . import cli
 
-    assert cli.parse_args(["bzmux"]) == (None, 0, None, None, None, None)
+    assert cli.parse_args(["bzmux"]) == (None, 0, None, None, None, None, None)
     assert cli.parse_args(["bzmux", "--cmd", "mc", "--quit-after", "2"]) == (
         "mc",
         2,
+        None,
         None,
         None,
         None,
@@ -138,8 +141,11 @@ def argv_parsing():
     # --debug-log troca o caminho do log; `off` desliga (vence a config)
     assert cli.parse_args(["bzmux", "--debug-log", "/tmp/x.log"])[4] == "/tmp/x.log"
     assert cli.parse_args(["bzmux", "--debug-log", "off"])[4] == "off"
-    assert cli.parse_args(["bzmux", "--cmd"])[5] == "--cmd"
-    assert cli.parse_args(["bzmux", "--nada"])[5] == "--nada"
+    # socket de introspecção: valor obrigatório, `auto` resolvido depois
+    assert cli.parse_args(["bzmux", "--debug-socket", "auto"])[5] == "auto"
+    assert cli.parse_args(["bzmux", "--debug-socket", "/tmp/b.sock"])[5] == "/tmp/b.sock"
+    assert cli.parse_args(["bzmux", "--cmd"])[6] == "--cmd"
+    assert cli.parse_args(["bzmux", "--nada"])[6] == "--nada"
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out):
         assert cli.main(["bzmux", "--version"]) == 0
@@ -664,6 +670,85 @@ def window_state():
                 os.environ["XDG_STATE_HOME"] = old
 
 
+def debug_socket():
+    """P35: despacho pedido -> resposta do socket de introspecção (sem socket)."""
+    from . import debugsock
+
+    class Alvo:
+        """Alvo falso: registra o que o verbo pediu, sem Gtk."""
+
+        def __init__(self):
+            self.escrito = None
+            self.log = None
+            self.saiu = False
+
+        def debug_state(self):
+            return {"cols": 80, "rows": 24, "view_off": 3, "sync": False}
+
+        def debug_text(self, where="view", start=0, count=40):
+            return ["%s:%d:%d" % (where, start, count)]
+
+        def debug_write(self, data):
+            self.escrito = data
+
+        def debug_log(self, value):
+            self.log = value
+            return value or "off"
+
+        def debug_quit(self):
+            self.saiu = True
+
+    alvo = Alvo()
+
+    def pede(pedido):
+        return json.loads(debugsock.dispatch(alvo, json.dumps(pedido)))
+
+    assert pede({"cmd": "state"}) == {
+        "ok": True,
+        "cols": 80,
+        "rows": 24,
+        "view_off": 3,
+        "sync": False,
+    }
+    # `text` tem default e o pedido manda onde/quantas
+    assert pede({"cmd": "text"})["lines"] == ["view:0:40"]
+    assert pede({"cmd": "text", "where": "history", "start": 5, "count": 2})["lines"] == [
+        "history:5:2"
+    ]
+    # write vai como string crua; log devolve o caminho efetivo; quit sai
+    assert pede({"cmd": "write", "data": "\x1b[A"})["ok"] and alvo.escrito == "\x1b[A"
+    assert pede({"cmd": "log", "value": "/tmp/x.log"})["path"] == "/tmp/x.log"
+    assert pede({"cmd": "quit"})["ok"] and alvo.saiu
+    # erro não levanta: json torto, verbo desconhecido, write sem data
+    assert not json.loads(debugsock.dispatch(alvo, "{"))["ok"]
+    assert not json.loads(debugsock.dispatch(alvo, "[1,2]"))["ok"]
+    r = json.loads(debugsock.dispatch(alvo, json.dumps({"cmd": "nada"})))
+    assert not r["ok"] and "desconhecido" in r["err"]
+    r = json.loads(debugsock.dispatch(alvo, json.dumps({"cmd": "write"})))
+    assert not r["ok"] and "data" in r["err"]
+    r = json.loads(debugsock.dispatch(alvo, json.dumps({"cmd": "text", "start": "x"})))
+    assert not r["ok"]
+    # caminho: `auto` ganha o pid; vazio desliga
+    caminho = debugsock.resolve("auto")
+    assert caminho.endswith("bzmux-%d.sock" % os.getpid())
+    assert debugsock.resolve(None) is None and debugsock.resolve("") is None
+    assert debugsock.resolve("/tmp/x.sock") == "/tmp/x.sock"
+    # caminho ocupado: arquivo comum não é apagado, socket vivo não é roubado
+    d = tempfile.mkdtemp()
+    comum = os.path.join(d, "nao-socket")
+    with open(comum, "w") as f:
+        f.write("x")
+    assert "não é socket" in debugsock._clear_stale(comum)
+    assert os.path.exists(comum)  # não apagou arquivo alheio
+    vivo = os.path.join(d, "vivo.sock")
+    srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    srv.bind(vivo)
+    srv.listen(1)
+    assert "escutando" in debugsock._clear_stale(vivo)
+    srv.close()  # agora é órfão: pode sair
+    assert debugsock._clear_stale(vivo) is None and not os.path.exists(vivo)
+
+
 ALL = (
     parser_text_and_cursor,
     sgr_and_erasing,
@@ -671,6 +756,7 @@ ALL = (
     charset_and_replies,
     csi_with_intermediate,
     argv_parsing,
+    debug_socket,
     kitty_keyboard,
     config_file,
     config_options,

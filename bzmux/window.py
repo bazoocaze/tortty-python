@@ -14,7 +14,7 @@ import signal
 import sys
 
 from . import config as config_mod
-from . import state, style
+from . import debugsock, state, style
 from .gui import Gdk, GdkX11, GLib, Gtk, Pango
 from .view import TermView, set_debug_log
 
@@ -357,7 +357,15 @@ class Workspace:
 
 
 class BzmuxWindow(Gtk.Window):
-    def __init__(self, cmd=None, quit_after=0, dump_to=None, config_path=None, debug_log=None):
+    def __init__(
+        self,
+        cmd=None,
+        quit_after=0,
+        dump_to=None,
+        config_path=None,
+        debug_log=None,
+        debug_socket=None,
+    ):
         super().__init__(title="bzmux")
         # O comando dado na linha de comando é replicado em cada aba nova
         # (decisão do P11): `run.sh --cmd ...` e os testes continuam
@@ -495,6 +503,74 @@ class BzmuxWindow(Gtk.Window):
         GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGUSR1, self._on_dump_signal)
         # SIGTERM fecha como o --quit-after: o dump e o prof saem no fim
         GLib.unix_signal_add(GLib.PRIORITY_HIGH, signal.SIGTERM, self._on_term_signal)
+        # socket de introspecção (P35): só com --debug-socket, desligado por
+        # omissão; `auto` resolve para o arquivo com o pid em XDG_RUNTIME_DIR
+        self._debugsock = None
+        caminho = debugsock.resolve(debug_socket)
+        if caminho:
+            self._debugsock = debugsock.Server(caminho, self)
+            erro = self._debugsock.start()
+            if erro:
+                self._debugsock = None
+                self.show_toast("Socket de debug", erro, erro=True)
+
+    # -- introspecção (--debug-socket, P35) -----------------------------
+    def debug_state(self):
+        """O que o agente precisa ver de uma vez, inclusive o que o dump omite."""
+        v = self.view
+        t = v.term if v is not None else None
+        return {
+            "pid": os.getpid(),
+            "cols": t.cols if t else 0,
+            "rows": t.rows if t else 0,
+            "cursor": [t.cy, t.cx] if t else None,
+            "title": t.title if t else "",
+            "view_off": v.view_off if v is not None else 0,
+            "pin": v._pin_off if v is not None else 0,
+            "sync": bool(t.sync_output) if t else False,
+            "scrolled": t.scrolled if t else 0,
+            "scrollback": len(t.scrollback) if t else 0,
+            "tabs": len(self.views),
+            "workspaces": len(self.workspaces),
+            "config": str(self.config.path),
+            "errors": list(self.config.errors),
+        }
+
+    def debug_text(self, where="view", start=0, count=40):
+        """Linhas do que a tela mostra (`view`), da grade viva ou do histórico."""
+        v = self.view
+        if v is None:
+            return []
+        t = v.term
+        start, count = max(0, int(start)), max(1, min(int(count), 2000))
+        if where == "history":
+            linhas = t.scrollback[start : start + count]
+            return ["".join(c[0] for c in row).rstrip() for row in linhas]
+        if where == "screen":
+            return [t.row_text(y).rstrip() for y in range(start, min(t.rows, start + count))]
+        linhas = t.visible_rows(v.view_off)[start : start + count]
+        return ["".join(c[0] for c in row).rstrip() for row in linhas]
+
+    def debug_write(self, data):
+        """Bytes crus no pty, como se o usuário tivesse digitado."""
+        v = self.view
+        if v is not None and v.master is not None:
+            os.write(v.master, data.encode("utf-8", "replace"))
+
+    def debug_log(self, value):
+        """Liga/desliga/troca o caminho do `debug_log` em execução."""
+        caminho = config_mod.debug_log_path(value)
+        set_debug_log(caminho)
+        return caminho or "off"
+
+    def debug_quit(self):
+        """Fecha o app: o destroy vai no idle, senão a resposta não sai."""
+        GLib.idle_add(self._debug_quit_now)
+        return True
+
+    def _debug_quit_now(self):
+        self.destroy()  # -> on_destroy -> dump, shutdown das views e Gtk.main_quit
+        return False
 
     # -- configuração (P33/P34) ----------------------------------------
     def _apply_options(self):
@@ -884,6 +960,9 @@ class BzmuxWindow(Gtk.Window):
         state.save(s)
 
     def on_destroy(self, *_):
+        if getattr(self, "_debugsock", None) is not None:
+            self._debugsock.stop()  # fecha o socket e apaga o arquivo
+            self._debugsock = None
         self._save_geometry()
         self._closing = True
         for ws in list(self.workspaces):

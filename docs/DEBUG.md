@@ -120,6 +120,30 @@ Uma linha JSONL por evento, com `ts` local em ms:
 - Em teste, sempre `--debug-log /tmp/outro-nome.log`: o arquivo padrão é o da
   sessão do usuário e misturar os dois apaga a evidência dele.
 
+## Socket de introspecção (`--debug-socket`)
+
+Ferramenta para o agente, desligada por omissão: `--debug-socket ARQ`, ou `auto`
+= arquivo com o pid em `$XDG_RUNTIME_DIR`. Arquivo em `0600` e só o mesmo uid
+conecta.
+
+- Um pedido JSON por linha, uma resposta JSON por linha; a mesma conexão aceita
+  vários pedidos seguidos.
+- `{"cmd": "state"}` — grade, cursor, título, `view_off`, `pin`, `sync`,
+  `scrolled`, `scrollback`, abas, workspaces, configuração e erros.
+- `{"cmd": "text", "where": "view", "start": 0, "count": 40}` — `view` é o que
+  a tela mostra (segue `view_off`), `screen` é a grade viva (o que o dump do
+  `SIGUSR1` mostra) e `history` indexa o scrollback por linha absoluta, 0 = a
+  mais antiga.
+- `{"cmd": "write", "data": "seq 1 200\r"}` — bytes crus no pty, como se
+  digitados; tecla que o app consome (PgUp, atalhos) não chega ao filho por
+  aqui.
+- `{"cmd": "log", "value": "/tmp/x.log"}` — liga, troca ou desliga (`off`) o
+  `debug_log` em execução.
+- `{"cmd": "quit"}` — fecha o app; o destroy vai num idle para a resposta sair
+  antes (fazer direto fecha o socket no meio do pedido).
+- Pedido inválido responde `{"ok": false, "err": ...}`; o despacho é puro e o
+  check `debug_socket` cobre ele com alvo falso.
+
 ## Armadilhas de implementação
 
 - `show_all()` desfaz `set_visible(False)`: mostra todos os descendentes e um

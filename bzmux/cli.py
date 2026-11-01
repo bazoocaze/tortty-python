@@ -17,6 +17,8 @@ uso: bzmux [opções]
   --selftest         roda os checks sem abrir janela
   --install-shortcut cria o atalho no menu do sistema (.desktop + ícone)
   --remove-shortcut  remove o atalho
+  --debug-socket ARQ socket Unix de introspecção (JSON por linha; `auto` =
+                     $XDG_RUNTIME_DIR/bzmux-<pid>.sock). Desligado por omissão
   -V, --version      mostra a versão e sai
   -h, --help         mostra esta ajuda e sai"""
 
@@ -24,10 +26,11 @@ uso: bzmux [opções]
 def parse_args(argv):
     """Só leitura de argv — separado para poder testar sem Gtk.
 
-    Devolve (cmd, quit_after, dump_to, config, debug_log, erro), onde erro é a
-    primeira opção desconhecida (ou sem valor) e None quando está tudo certo.
+    Devolve (cmd, quit_after, dump_to, config, debug_log, debug_socket, erro),
+    onde erro é a primeira opção desconhecida (ou sem valor) e None quando está
+    tudo certo.
     """
-    cmd, quit_after, dump_to, conf, dlog = None, 0, None, None, None
+    cmd, quit_after, dump_to, conf, dlog, dsock = None, 0, None, None, None, None
     args = list(argv[1:])
     while args:
         a = args.pop(0)
@@ -41,9 +44,11 @@ def parse_args(argv):
             dump_to = args.pop(0)
         elif a == "--debug-log" and args:
             dlog = args.pop(0)
+        elif a == "--debug-socket" and args:
+            dsock = args.pop(0)
         else:
-            return cmd, quit_after, dump_to, conf, dlog, a
-    return cmd, quit_after, dump_to, conf, dlog, None
+            return cmd, quit_after, dump_to, conf, dlog, dsock, a
+    return cmd, quit_after, dump_to, conf, dlog, dsock, None
 
 
 def run():
@@ -87,7 +92,7 @@ def main(argv=None):
         return selftest()
     if "--install-shortcut" in argv or "--remove-shortcut" in argv:
         return _shortcut("--install-shortcut" in argv)
-    cmd, quit_after, dump_to, conf, dlog, erro = parse_args(argv)
+    cmd, quit_after, dump_to, conf, dlog, dsock, erro = parse_args(argv)
     if erro:
         print(f"bzmux: opção inválida: {erro}\n\n{USAGE}", file=sys.stderr)
         return 2
@@ -120,6 +125,7 @@ def main(argv=None):
         dump_to=dump_to,
         config_path=conf,
         debug_log=dlog,
+        debug_socket=dsock,
     )
     win.show_all()
     # O Marco (MATE) nega present() com timestamp 0 (GDK_CURRENT_TIME): é

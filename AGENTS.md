@@ -81,6 +81,8 @@ nenhum arquivo solto na raiz. O código:
 - bzmux/shortcut.py — atalho do sistema (.desktop + ícone); puro, antes do gi
 - bzmux/state.py — geometria da janela entre execuções (JSON em XDG_STATE_HOME)
 - bzmux/config.py — configuração (chave/valor do kitty); puro, merge c/ default
+- bzmux/debugsock.py — socket Unix de introspecção (P35): despacho puro + glue
+  do GLib; só com `--debug-socket`, verbos em docs/DEBUG.md
 - bzmux/data/ — bzmux.svg (ícone) e bzmux.conf (opções default embarcadas)
 - tests/ — runner pytest de bzmux/checks.py
 - tools/xtest.py, tools/pixel.py — teste manual, exige X11
