@@ -126,10 +126,10 @@ um terminal de cada vez, 3 tiros de cada em 2026-10-27, `schedutil` com turbo em
 
 | | fps | MB/s de escapes | bytes/frame |
 |---|---|---|---|
-| bzmux | 110,4–122,6 | 6,2–6,9 | ~56 KB |
+| pybzmux | 110,4–122,6 | 6,2–6,9 | ~56 KB |
 | kitty 0.48.2 | 675,8–714,2 | 38,5–40,7 | ~56 KB |
 
-- Distância de ~6x (5,6–6,6x tiro a tiro): o bzmux gasta ~7,7 ms por frame de
+- Distância de ~6x (5,6–6,6x tiro a tiro): o pybzmux gasta ~7,7 ms por frame de
   1470 células e o kitty ~1,4 ms — 5,2 µs contra 1 µs por célula.
 - Depois do P34 (2026-10-31) o padrão virou 12 pontos e a janela de 980x640
   passou a 75×22; `font_family`, `font_size` e `window_padding_width` mudam a
@@ -387,7 +387,7 @@ PYTERM_NOPARSE=1 PYTERM_NODRAW=1 PYTERM_PROF=1 ./run.sh --cmd 'python3 \
 # prof: draw 1x 3.4ms/call | pty 2134x 0.06ms/call (137ms)
 ```
 
-## Perfil do bzmux
+## Perfil do pybzmux
 
 - As sondas `PYTERM_*` estão em [DEBUG.md](DEBUG.md); aqui só o que elas produzem
   como número.
@@ -429,7 +429,7 @@ grep prof: /tmp/bzmux.log
 
 1. Um de cada vez: dois terminais desenhando ao mesmo tempo disputam CPU e os dois
    números saem piores.
-2. Mesmas colunas e mesmas linhas nos dois. No bzmux, `PYTERM_GEOM=980x640` (sem
+2. Mesmas colunas e mesmas linhas nos dois. No pybzmux, `PYTERM_GEOM=980x640` (sem
    isso o WM às vezes abre 80×24 e o número muda); no kitty, pedir o mesmo tamanho
    em pixels, já que fonte e DPI são as mesmas:
 
@@ -438,7 +438,7 @@ kitty --override remember_window_size=no --override initial_window_width=980 \
     --override initial_window_height=640 -e ...
 ```
 
-- A janela padrão do bzmux é 980×640, o que dá 70×21 com um workspace e 57×21 com
+- A janela padrão do pybzmux é 980×640, o que dá 70×21 com um workspace e 57×21 com
   dois: abrir ou fechar a lateral muda a grade e o fps, então compare com a mesma
   quantidade de workspaces.
 3. `--fps 0 --frames 1200 --stats-to ARQ` nos dois.
@@ -477,7 +477,7 @@ import -window $(python3 tools/xtest.py id) /tmp/b.png
   restaura pincel, cursor e tela).
 - Medir com `--fps 30` e achar que é a vazão: com ritmo fixo o tool dorme, e o fps
   medido é o alvo, não o limite do terminal.
-- Janela do bzmux não é a grade: `size_request` da lateral e a barra de abas comem
+- Janela do pybzmux não é a grade: `size_request` da lateral e a barra de abas comem
   largura; a grade é o que o dump diz (`=== viewport CxR ===`).
 
 ## Para que serve

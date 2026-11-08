@@ -1,6 +1,6 @@
-# bzmux — limites
+# pybzmux — limites
 
-O que o bzmux **não** faz, e por quê. Separado do backlog (que é fila de
+O que o pybzmux **não** faz, e por quê. Separado do backlog (que é fila de
 trabalho, em [BACKLOG.md](BACKLOG.md)): aqui só entra o que é decisão
 ou consequência aceita do escopo. Se algo desta lista virar tarefa, sai
 daqui e vira item lá.
@@ -17,7 +17,7 @@ consulta por grep, não para leitura corrida. Visão geral do projeto:
   de ser gargalo; sobra o **parse em Python** e o **desenho**, nessa ordem.
 - **Interação não sofre**: tecla custa microssegundos; o limite só aparece em
   volume (cat de log grande, seq 100000, scroll de saída massiva).
-- **Um core por sessão ativa**: sob despejo contínuo o bzmux satura um core. O
+- **Um core por sessão ativa**: sob despejo contínuo o pybzmux satura um core. O
   desenho é coalescido em ~16 ms (60 Hz) de propósito, para o parse não morrer
   de fome.
 - **A metadata não faz claim de desempenho**: a descrição do pacote diz o que o

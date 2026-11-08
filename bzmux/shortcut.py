@@ -9,8 +9,11 @@ import subprocess
 import sys
 from importlib import resources
 
-APP = "bzmux"
+APP = "tortty-python"  # nome do .desktop e do ícone
+NAME = "TorTTY (Python)"  # nome visível no menu do sistema
+EXE = "pybzmux"  # console script que o pacote instala no PATH
 WMCLASS = "Bzmux"  # casa com Gdk.set_program_class no cli
+LEGACY = "pybzmux"  # .desktop/ícone do nome anterior: saem junto
 
 
 def data_home():
@@ -18,17 +21,25 @@ def data_home():
     return os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share")
 
 
-def desktop_path():
-    return os.path.join(data_home(), "applications", APP + ".desktop")
-
-
 def theme_dir():
     """.../icons/hicolor, a raiz que o gtk-update-icon-cache conhece."""
     return os.path.join(data_home(), "icons", "hicolor")
 
 
+def _paths(name):
+    """(.desktop, .svg) de um nome de aplicação."""
+    return (
+        os.path.join(data_home(), "applications", name + ".desktop"),
+        os.path.join(theme_dir(), "scalable", "apps", name + ".svg"),
+    )
+
+
+def desktop_path():
+    return _paths(APP)[0]
+
+
 def icon_path():
-    return os.path.join(theme_dir(), "scalable", "apps", APP + ".svg")
+    return _paths(APP)[1]
 
 
 def exec_path():
@@ -36,7 +47,7 @@ def exec_path():
 
     A sessão gráfica não herda o PATH do shell, então Exec precisa ser absoluto.
     """
-    found = shutil.which(APP)
+    found = shutil.which(EXE)
     if found:
         return os.path.abspath(found)
     argv0 = os.path.abspath(sys.argv[0] or "")
@@ -52,7 +63,7 @@ def entry(exe):
         "[Desktop Entry]\n"
         "Type=Application\n"
         "Version=1.0\n"
-        "Name=bzmux\n"
+        f"Name={NAME}\n"
         "GenericName=Emulador de terminal\n"
         "Comment=Terminal em Python com abas, workspaces e imagens\n"
         f"Exec={exe}\n"
@@ -68,7 +79,7 @@ def entry(exe):
 
 
 def _icon_bytes():
-    return resources.files(__package__).joinpath("data/bzmux.svg").read_bytes()
+    return resources.files(__package__).joinpath("data/tortty-python.svg").read_bytes()
 
 
 def _write(path, data):
@@ -118,14 +129,32 @@ def install():
         )
     _write(desktop_path(), entry(exe).encode())
     _write(icon_path(), _icon_bytes())
+    _unlink_legacy()
     refresh()
     return desktop_path(), icon_path()
 
 
+def _legacy_paths():
+    """(.desktop, .svg) do nome anterior; vazio quando o nome é o mesmo."""
+    return () if LEGACY in ("", APP) else _paths(LEGACY)
+
+
+def _unlink_legacy():
+    """Apaga o atalho do nome anterior; ausência não é erro."""
+    for p in _legacy_paths():
+        try:
+            os.unlink(p)
+        except FileNotFoundError:
+            pass
+
+
 def remove():
-    """Apaga .desktop e ícone; devolve o que existia."""
+    """Apaga .desktop e ícone deste app (e do nome anterior); devolve o que existia.
+
+    Só estes nomes: bzmux.desktop/bzmux.svg são do bzmux em Rust.
+    """
     gone = []
-    for p in (desktop_path(), icon_path()):
+    for p in (desktop_path(), icon_path()) + _legacy_paths():
         try:
             os.unlink(p)
             gone.append(p)

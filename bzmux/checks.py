@@ -11,6 +11,7 @@ import contextlib
 import io
 import json
 import os
+import shutil
 import socket
 import tempfile
 import zlib
@@ -241,7 +242,7 @@ def config_options():
     assert (cfg.cursor_shape, cfg.cursor_blink) == ("block", False)
     assert (cfg.scrollback, cfg.padding) == (1000, 0)
     assert (cfg.bell, cfg.copy_on_select) == ("none", False)
-    assert cfg.debug_log == "/tmp/bzmux.debug.log"
+    assert cfg.debug_log == "/tmp/tortty-python.debug.log"
     # valor válido de cada chave: família com espaço, fonte fracionária
     with open(p, "w") as f:
         f.write(
@@ -651,19 +652,49 @@ def desktop_shortcut():
     assert "Exec=/opt/bin/bzmux" in txt
     assert f"StartupWMClass={shortcut.WMCLASS}" in txt
     assert "Categories=System;TerminalEmulator;" in txt
-    assert "Icon=bzmux" in txt
+    assert "Icon=tortty-python" in txt
+    assert "Name=TorTTY (Python)" in txt  # nome visível no menu (rebrand)
     assert shortcut._icon_bytes().lstrip().startswith(b"<svg")  # o wheel tem o asset
     # XDG_DATA_HOME manda nos caminhos (nada de ~/.local/share na mão)
     old = os.environ.get("XDG_DATA_HOME")
     os.environ["XDG_DATA_HOME"] = "/tmp/xdg-probe"
     try:
-        assert shortcut.desktop_path() == "/tmp/xdg-probe/applications/bzmux.desktop"
-        assert shortcut.icon_path() == "/tmp/xdg-probe/icons/hicolor/scalable/apps/bzmux.svg"
+        assert shortcut.desktop_path() == ("/tmp/xdg-probe/applications/tortty-python.desktop")
+        assert shortcut.icon_path() == (
+            "/tmp/xdg-probe/icons/hicolor/scalable/apps/tortty-python.svg"
+        )
     finally:
         if old is None:
             del os.environ["XDG_DATA_HOME"]
         else:
             os.environ["XDG_DATA_HOME"] = old
+
+
+def shortcut_remove_only_own_name():
+    """remove() apaga o nome atual e o anterior, não o bzmux do Rust."""
+    tmp = tempfile.mkdtemp()
+    old = os.environ.get("XDG_DATA_HOME")
+    os.environ["XDG_DATA_HOME"] = tmp
+    try:
+        made = []
+        for name in (shortcut.APP, shortcut.LEGACY, "bzmux"):
+            for p in (
+                os.path.join(tmp, "applications", name + ".desktop"),
+                os.path.join(tmp, "icons", "hicolor", "scalable", "apps", name + ".svg"),
+            ):
+                os.makedirs(os.path.dirname(p), exist_ok=True)
+                with open(p, "w") as f:
+                    f.write("x")
+                made.append(p)
+        shortcut.remove()
+        left = sorted(os.path.basename(p) for p in made if os.path.exists(p))
+        assert left == ["bzmux.desktop", "bzmux.svg"], left
+    finally:
+        if old is None:
+            del os.environ["XDG_DATA_HOME"]
+        else:
+            os.environ["XDG_DATA_HOME"] = old
+        shutil.rmtree(tmp)
 
 
 # -- geometria lembrada ------------------------------------------------
@@ -790,7 +821,7 @@ def debug_socket():
             raise AssertionError("parse_key aceitou %r" % ruim)
     # caminho: `auto` ganha o pid; vazio desliga
     caminho = debugsock.resolve("auto")
-    assert caminho.endswith("bzmux-%d.sock" % os.getpid())
+    assert caminho.endswith("tortty-python-%d.sock" % os.getpid())
     assert debugsock.resolve(None) is None and debugsock.resolve("") is None
     assert debugsock.resolve("/tmp/x.sock") == "/tmp/x.sock"
     # caminho ocupado: arquivo comum não é apagado, socket vivo não é roubado
@@ -836,5 +867,6 @@ ALL = (
     truecolor,
     style_contrast,
     desktop_shortcut,
+    shortcut_remove_only_own_name,
     window_state,
 )

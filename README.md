@@ -1,11 +1,16 @@
-# bzmux — terminal em Python com abas, workspaces e imagens
+# pybzmux — terminal em Python com abas, workspaces e imagens
 
-> Repositório `pybzmux`; o projeto se chama **bzmux**. Nasceu como `pyterm`
-> dentro do experimento `kitty` e virou repo próprio em 2026-10-25 — por isso
+> Repositório `pybzmux`; esta é a implementação em Python, e o comando que ela
+> instala é `pybzmux`. O nome `bzmux` é da versão Rust do projeto (outro
+> repositório, com a migração em andamento). Aqui `bzmux` continua sendo o nome
+> do módulo Python (`import bzmux`, `python -m bzmux`), dos caminhos de
+> configuração/estado/log e do `WM_CLASS` da janela.
+> Nasceu como `pyterm` dentro do experimento `kitty` e virou repo próprio em
+> 2026-10-25 — por isso
 > os commits antigos falam `pyterm` e os caminhos da época eram `pyterm/...`.
 > A referência de comparação — o `gtkterm`, com o `native-port/` que linka o
 > núcleo C do kitty como `libkittycore.a` — ficou **naquele** repositório: aqui
-> não há C, não há compilação e nada do bzmux é compartilhado com ela.
+> não há C, não há compilação e nada do pybzmux é compartilhado com ela.
 
 Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**,
 sem C e sem compilação. Nasceu como experimento para responder a uma pergunta
@@ -34,10 +39,11 @@ python3 -m bzmux --version    # versão (a mesma de bzmux/__init__.py)
 
 ## Instalar na máquina (pipx, direto do GitHub)
 
-Enquanto não há release, a instalação é do repositório. O `bzmux` usa o
+Enquanto não há release, a instalação é do repositório. O `pybzmux` usa o
 PyGObject do sistema, então o venv isolado precisa **ver** o Gtk3 da distro — é
 isso que o `install.sh` resolve (dependências da distro, o `python3` que enxerga
-o `gi`, pipx e a instalação):
+o `gi`, pipx e a instalação). O comando instalado é `pybzmux`; o nome `bzmux`
+fica para a versão Rust do projeto.
 
 ```sh
 ./install.sh               # do clone: instala, verifica e diz o que fazer
@@ -51,8 +57,10 @@ o `gi` continua visível).
 
 O instalador também cria o atalho no menu do sistema (`~/.local/share/applications`
 + ícone em `hicolor`, respeitando `XDG_DATA_HOME`): `--no-shortcut` pula essa
-parte, e quem já instalou antes roda `bzmux --install-shortcut` uma vez. O
-`WM_CLASS` da janela é fixado no arranque (`bzmux`/`Bzmux`), então o atalho acha
+parte, e quem já instalou antes roda `pybzmux --install-shortcut` uma vez. O
+atalho é `pybzmux.desktop` + `pybzmux.svg`: instalar ou remover o atalho do
+pybzmux nunca toca em `bzmux.desktop`/`bzmux.svg`, que são do bzmux em Rust. O
+`WM_CLASS` da janela é fixado no arranque (`Bzmux`), então o atalho acha
 a janela tanto instalado quanto por `python3 -m bzmux`.
 
 Sem clonar — o repositório é **privado**, então o `curl | bash` clássico ainda
@@ -74,15 +82,15 @@ E o passo a passo à mão, que é o que o script faz por baixo:
 ```sh
 sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0   # Linux (deb)
 pipx install --system-site-packages \
-    "git+ssh://git@github.com:bazoocaze/pybzmux.git"           # comando `bzmux`
-bzmux --selftest && bzmux                                      # confere e abre
+    "git+ssh://git@github.com:bazoocaze/pybzmux.git"           # comando `pybzmux`
+pybzmux --selftest && pybzmux                                   # confere e abre
 ```
 
 O repositório é privado, por isso a URL é `git+ssh` (usa a sua chave; `https`
 exigiria token). A versão no pyproject é fixa, então commit novo não aparece no
 `pipx upgrade`: para atualizar, rode o instalador de novo (ele usa `--force`).
 Sem o `--system-site-packages` o app sai com uma mensagem dizendo o que
-instalar, em vez de traceback (`bzmux --selftest` funciona mesmo assim, sem gi e sem
+instalar, em vez de traceback (`pybzmux --selftest` funciona mesmo assim, sem gi e sem
 display).
 
 O `./bench.sh` imprime fps, MB/s, custo de desenho/parse e a frequência da CPU
@@ -136,8 +144,8 @@ rodar na mão: `uv run python -m bzmux`.
 
 ## Como o código está organizado
 
-`bzmux` é um pacote instalável (`bzmux` no PATH, ou `python -m bzmux` na
-árvore); não há arquivo solto na raiz:
+`bzmux` é o pacote Python: o comando instalado é `pybzmux` (ou
+`python -m bzmux` na árvore); não há arquivo solto na raiz:
 
 ```
 run.sh                   # roda o app (teste rápido; escolhe o python)
@@ -162,7 +170,7 @@ bzmux/
 ├── checks.py    # a bateria de testes
 ├── selftest.py  # runner sem dependências (--selftest)
 ├── cli.py       # argv, -h/--help, arranque e entry point do console script
-└── data/        # bzmux.svg (ícone) e bzmux.conf (opções default)
+└── data/        # bzmux.svg (fonte do ícone) e bzmux.conf (opções default)
 tests/                   # runner pytest de bzmux/checks.py
 tools/                   # xtest.py, pixel.py (manual, precisa de X),
                          # doomfire.py (carga de medição, roda em qualquer um)
@@ -174,8 +182,9 @@ A regra é a dependência apontar para dentro: `term`/`palette` não importam
 sem tocar no núcleo de emulação.
 
 O `debug.sh` controla a instância por **PID file** (`/tmp/bzmux.pid`) de
-propósito: `pkill -f bzmux` casa com a linha de comando de quem chama e
-mata o próprio shell (já aconteceu, deixando janelas órfãs). Ele sobe o app
+propósito: `pkill -f bzmux` casa com a linha de comando de quem chama (e também
+com `pybzmux`) e mata o próprio shell (já aconteceu, deixando janelas órfãs). Ele
+sobe o app
 pelo `run.sh`, que é quem escolhe o interpretador (venv do uv ou o python do
 sistema) — por isso testar à mão e desenvolver usam o mesmo python.
 
@@ -334,7 +343,7 @@ no scrollback e sem tema/paleta configurável. São escolhas — nenhuma delas
 Medido nesta máquina (2026-10-25, depois do bug 13; a linha do doom-fire é
 mais recente e tem data/governor em `docs/BENCHMARKS.md`):
 
-| cenário | bzmux (Python) | núcleo nativo (referência) |
+| cenário | pybzmux (Python) | núcleo nativo (referência) |
 |---|---|---|
 | **uma tecla** (eco de 1 char) | **0,4 µs por caractere** | ~1 ms de ponta a ponta (dominado por desenho) |
 | `seq 1 100000` (575 KiB) | **~0,8 s** | milissegundos |
@@ -347,7 +356,7 @@ que é a fonte da verdade (com data, governor e frequência da CPU). Resumo de u
 linha: o IO do pty não é o gargalo; o parse em Python e o desenho dividem a conta,
 e com governor `powersave` tudo cai 2–5x.
 
-Conclusão honesta: **na interação o bzmux é imperceptível** — digitar, andar
+Conclusão honesta: **na interação o pybzmux é imperceptível** — digitar, andar
 no `mc`, abrir `vim` custa microssegundos por tecla, porque a carga por evento
 é minúscula. A diferença grande só aparece em **volume**: `cat` de log grande,
 `seq 100000`, scroll de saída massiva — aí são centenas de ms contra
@@ -373,7 +382,7 @@ a largura e depois `\r\n`) e argv.
 
 ## Licença
 
-**MIT** (ver `LICENSE`). O `bzmux` é código original, sem uma linha do
+**MIT** (ver `LICENSE`). O `pybzmux` é código original, sem uma linha do
 kitty, então a licença dele não é ditada pelo núcleo: importa apenas `pty`,
 `termios`, `unicodedata`, `gi` (Gtk3, LGPL-2.1+) e `pycairo` (LGPL/MPL).
 Estar no mesmo repositório não contamina — arquivos separados, sem linkagem

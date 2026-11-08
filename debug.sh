@@ -5,11 +5,11 @@
 # Existe porque `pkill -f bzmux` mata o próprio shell de quem chama (o
 # padrão casa com a linha de comando) e já deixou janelas duplicadas abertas.
 # Aqui o controle é por PID file: só mata o processo que NÓS subimos, e o log
-# fica em /tmp/bzmux.log em vez de se perder. O app em si é sempre subido pelo
+# fica em /tmp/tortty-python.log em vez de se perder. O app em si é sempre subido pelo
 # run.sh, que é quem escolhe o interpretador.
 #
 # Uso:
-#   ./debug.sh                 abre em background (log em /tmp/bzmux.log)
+#   ./debug.sh                 abre em background (log em /tmp/tortty-python.log)
 #   ./debug.sh --fg            foreground (vê os erros na hora)
 #   ./debug.sh --kill          fecha a instância aberta por este runner
 #   ./debug.sh --status        diz se há instância e qual o PID
@@ -20,8 +20,8 @@
 set -u
 
 HERE=$(cd "$(dirname "$0")" && pwd)
-PIDFILE=/tmp/bzmux.pid
-LOG=/tmp/bzmux.log
+PIDFILE=/tmp/tortty-python.pid
+LOG=/tmp/tortty-python.log
 
 is_ours() {
     # o PID existe E ainda é um bzmux? (protege contra PID reciclado). As duas

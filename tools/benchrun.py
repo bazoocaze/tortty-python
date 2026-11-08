@@ -175,9 +175,9 @@ def main(argv):
     ap.add_argument("--timeout", type=float, default=0)
     a = ap.parse_args(argv)
 
-    tmp = tempfile.mkdtemp(prefix="bzmux-bench-")
-    conf = os.path.join(tmp, "bzmux.conf")
-    sock = os.path.join(tmp, "bzmux.sock")
+    tmp = tempfile.mkdtemp(prefix="tortty-python-bench-")
+    conf = os.path.join(tmp, "tortty-python.conf")
+    sock = os.path.join(tmp, "tortty-python.sock")
     stats = a.stats or os.path.join(tmp, "stats.txt")
     log = os.path.join(tmp, "app.log")
     with open(conf, "w", encoding="utf-8") as f:

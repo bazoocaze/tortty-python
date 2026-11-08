@@ -1,4 +1,9 @@
-# bzmux
+# pybzmux
+
+Este repositório é a implementação em Python; o comando instalado é `pybzmux`
+(pacote pipx, `.desktop` e ícone). O nome `bzmux` é da versão Rust do projeto,
+em outro repositório; aqui ele segue como nome do módulo (`bzmux/`,
+`python -m bzmux`), dos caminhos de config/estado/log e do `WM_CLASS`.
 
 Terminal em Python puro: pty + parser VT + grade + desenho com cairo + Pango.
 Nasceu como experimento para medir o custo do caminho quente em Python e virou
@@ -53,8 +58,8 @@ explicar uma sonda.
 
 ## Arquitetura
 
-bzmux é um pacote (bzmux/, instalável: `bzmux` no PATH ou `python -m bzmux`);
-nenhum arquivo solto na raiz. O código:
+O pacote bzmux/ instala o comando `pybzmux` e também roda como
+`python -m bzmux`; nenhum arquivo solto na raiz. O código:
 
 - run.sh — roda o app (teste rápido; escolhe o python)
 - debug.sh — desenvolvimento: background, log, --kill/--status
@@ -84,7 +89,8 @@ nenhum arquivo solto na raiz. O código:
 - bzmux/config.py — configuração (chave/valor do kitty); puro, merge c/ default
 - bzmux/debugsock.py — socket Unix de introspecção (P35): despacho puro + glue
   do GLib; só com `--debug-socket`, verbos em docs/DEBUG.md
-- bzmux/data/ — bzmux.svg (ícone) e bzmux.conf (opções default embarcadas)
+- bzmux/data/ — bzmux.svg (fonte do ícone; instala como pybzmux.svg) e
+  bzmux.conf (opções default embarcadas)
 - tests/ — runner pytest de bzmux/checks.py
 - tools/xtest.py, tools/pixel.py — teste manual, exige X11
 - tools/doomfire.py — carga de medição, não teste
@@ -158,6 +164,7 @@ default embarcado em bzmux/data/bzmux.conf.
 - Estilo é do `ruff format` (line-length 88), não de alinhamento manual; o lint
   é `ruff check` com E, F, I, W. Não escolher hand-format em cima do formatter:
   `./run-tests.sh` falha se o arquivo não estiver formatado.
+- Commits: conventional commits, máximo de 3 linhas.
 
 ## Testes
 
@@ -196,11 +203,12 @@ rodar. Aqui só cabe qual usar.
 - ./run.sh — roda o app aqui, em foreground; escolhe o python (venv do uv
   quando ele enxerga o gi, senão o do sistema).
 - ./debug.sh — desenvolvimento: background com log, --kill/--status por PID
-  file (nunca pkill -f bzmux, que mata o shell de quem chama).
+  file (nunca pkill -f bzmux, que casa também com pybzmux e mata o shell de
+  quem chama).
 - ./run-tests.sh — lint + selftest + pytest, sem display.
 - ./bench.sh — escada do doom-fire; trava o grid pelo socket, mede no display
   atual e num Xvfb próprio e não guarda número.
-- bzmux, python3 -m bzmux, uv run python -m bzmux — o app (opções: bzmux -h).
+- pybzmux, python3 -m bzmux, uv run python -m bzmux — o app (opções: pybzmux -h).
 - uv run pytest -q, uv run ruff check ., uv run ruff format . — bateria e lint
   pelo venv do uv.
 

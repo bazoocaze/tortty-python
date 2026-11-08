@@ -1,5 +1,5 @@
 [project]
-name = "bzmux"
+name = "pybzmux"
 dynamic = ["version"]
 description = "Terminal em Python com abas, workspaces e imagens"
 readme = "README.md"
@@ -9,10 +9,10 @@ license-files = ["LICENSE"]
 dependencies = []
 
 # O console script: `pipx install --system-site-packages` instala e o comando
-# `bzmux` aparece no PATH. run() (e nao main()) porque o entry point chama a
+# `pybzmux` aparece no PATH. run() (e nao main()) porque o entry point chama a
 # funcao sem argumentos e precisa fazer sys.exit com o codigo.
 [project.scripts]
-bzmux = "bzmux.cli:run"
+pybzmux = "bzmux.cli:run"
 
 [project.optional-dependencies]
 # so as ferramentas de teste manual (tools/) precisam disto; o app usa o

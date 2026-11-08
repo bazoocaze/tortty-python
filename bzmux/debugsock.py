@@ -31,9 +31,9 @@ KEY_ALIASES = {
 
 
 def auto_path():
-    """`$XDG_RUNTIME_DIR/bzmux-<pid>.sock`; /tmp só como último recurso."""
+    """`$XDG_RUNTIME_DIR/tortty-python-<pid>.sock`; /tmp como último recurso."""
     base = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
-    return os.path.join(base, "bzmux-%d.sock" % os.getpid())
+    return os.path.join(base, "tortty-python-%d.sock" % os.getpid())
 
 
 def resolve(value):

@@ -1,4 +1,4 @@
-# bzmux — desenvolvimento: ferramentas, verificação e armadilhas
+# pybzmux — desenvolvimento: ferramentas, verificação e armadilhas
 
 Manual operacional: ler a primeira seção antes de rodar ferramenta na sessão
 gráfica.
@@ -26,8 +26,8 @@ só se realmente relevante. Sem tabela, itálico, data ou número de medição.
   temporarily unavailable` no `import`). Resolver na hora: `state` do socket
   devolve o `xid`, ou `tools/xtest.py id` sem socket.
 - **`pkill -f bzmux` mata o próprio shell** (o padrão casa com a linha de
-  comando). Usar `./debug.sh --kill`, que confere o PID file contra
-  `/proc/<pid>/cmdline`.
+  comando, e também com `pybzmux`). Usar `./debug.sh --kill`, que confere o PID
+  file contra `/proc/<pid>/cmdline`.
 - **`wmctrl -r bzmux` falha** quando o app muda o título por OSC (mc faz).
   Achar a janela por `_NET_WM_PID` contra o PID do runner.
 - **`<Caps_Lock>` injetado liga a trava de verdade:** o teste seguinte sai em

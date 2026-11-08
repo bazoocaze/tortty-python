@@ -1,4 +1,4 @@
-# bzmux — backlog (pendente)
+# pybzmux — backlog (pendente)
 
 Regras da fila:
 

@@ -1,4 +1,4 @@
-# bzmux — portabilidade gráfica (P30)
+# pybzmux — portabilidade gráfica (P30)
 
 Estudo aberto: rodar em Linux, Windows e macOS. Item na fila:
 [BACKLOG.md](BACKLOG.md). Limites de plataforma já aceitos:

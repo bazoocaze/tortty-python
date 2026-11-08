@@ -1,6 +1,6 @@
 """Configuração (P33): chave/valor no formato do kitty, puro (sem Gtk).
 
-Sempre **merge**: o arquivo `data/bzmux.conf` que embarca com o pacote é a base
+Sempre **merge**: o arquivo `data/tortty-python.conf` que embarca com o pacote é a base
 e o arquivo do usuário entra por cima, chave a chave. O `-c` só troca o caminho
 do arquivo do usuário — a base continua valendo.
 
@@ -15,7 +15,7 @@ import shutil
 from pathlib import Path
 from typing import NamedTuple
 
-# Só para pacote mal montado (o `data/bzmux.conf` é a fonte normal dos padrões).
+# Só para pacote mal montado (o `data/tortty-python.conf` é a fonte normal dos padrões).
 # Também é a lista de chaves conhecidas: chave fora daqui é erro (P33).
 DEFAULTS = {
     "shell": "",  # vazio = herda o $SHELL do ambiente (ver effective_shell)
@@ -27,9 +27,9 @@ DEFAULTS = {
     "window_padding_width": "0",
     "bell": "none",
     "copy_on_select": "off",
-    "debug_log": "/tmp/bzmux.debug.log",  # `off` desliga
+    "debug_log": "/tmp/tortty-python.debug.log",  # `off` desliga
 }
-DATA = Path(__file__).with_name("data") / "bzmux.conf"
+DATA = Path(__file__).with_name("data") / "tortty-python.conf"
 
 KNOWN = tuple(DEFAULTS)
 CURSOR_SHAPES = ("block", "beam", "underline")
@@ -58,9 +58,9 @@ class Entry(NamedTuple):
 
 
 def default_path():
-    """`$XDG_CONFIG_HOME/bzmux/bzmux.conf`; o `-c` substitui este caminho."""
+    """`$XDG_CONFIG_HOME/tortty-python/tortty-python.conf`; o `-c` troca isso."""
     base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
-    return Path(base) / "bzmux" / "bzmux.conf"
+    return Path(base) / "tortty-python" / "tortty-python.conf"
 
 
 def _sem_comentario(linha):

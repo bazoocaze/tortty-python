@@ -4,6 +4,8 @@
 # O app usa o PyGObject do sistema, então o instalador: confere/instala as
 # dependências da distro, acha o python3 que enxerga o gi, garante o pipx e
 # instala por ele com --system-site-packages. No fim roda o --selftest.
+# O comando instalado é `pybzmux`; a sobra do nome antigo (`bzmux`) é removida
+# quando veio do pipx. `bzmux` fica livre para a versão Rust do projeto.
 #
 # Uso (do repositório clonado — caminho recomendado):
 #   ./install.sh              instala (pede sudo só se faltar dependência)
@@ -14,17 +16,20 @@
 #
 # Uso (sem clonar; o repo é privado, então precisa de gh autenticado):
 #   gh api -H "Accept: application/vnd.github.raw" \
-#       /repos/bazoocaze/pybzmux/contents/install.sh | bash
+#       /repos/bazoocaze/tortty-python/contents/install.sh | bash
 #
 # Depois que o repositório for público, o clássico passa a valer:
-#   curl -fsSL https://raw.githubusercontent.com/bazoocaze/pybzmux/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/bazoocaze/tortty-python/main/install.sh | bash
 # (leia antes: `curl -fsSL ... | less` — pipe para shell não tem desfazer)
 #
 # MIT (ver LICENSE).
 set -euo pipefail
 
-REPO=${BZMU_GIT_URL:-git+ssh://git@github.com/bazoocaze/pybzmux.git}
-PKG=bzmux
+REPO=${BZMU_GIT_URL:-git+ssh://git@github.com/bazoocaze/tortty-python.git}
+PKG=pybzmux     # nome do pacote (pipx install/uninstall)
+EXE=pybzmux     # console script instalado no PATH
+OLD_PKG=bzmux   # pacote do nome anterior, desinstalado por este instalador
+OLD_EXE=bzmux   # console script do nome anterior
 
 say()  { printf '%s\n' "$*"; }
 warn() { printf '%s\n' "$*" >&2; }
@@ -45,6 +50,32 @@ done
 
 run() {
     if [ "$DRY" = 1 ]; then say "+ $*"; else "$@"; fi
+}
+
+# -- remove o pacote do nome antigo -------------------------------------------
+# Sai antes do install: o pacote antigo também expunha o app pybzmux, e o
+# uninstall dele apagaria o link que a instalação nova acabou de criar.
+drop_old_pkg() {
+    [ "$OLD_PKG" = "$PKG" ] && return 0
+    if [ "$DRY" = 1 ]; then say "+ ${PIPX[*]} uninstall $OLD_PKG  (se existir)"; return 0; fi
+    "${PIPX[@]}" uninstall "$OLD_PKG" >/dev/null 2>&1 \
+        && say "== desinstalado o pacote antigo: $OLD_PKG" || true
+}
+
+# -- não mexe no que não é do pipx --------------------------------------------
+# $1 é o caminho que `command -v bzmux` dava antes da instalação/desinstalação.
+# Um bzmux que não veio do pipx fica: o nome é da versão Rust do projeto.
+drop_old_exe() {
+    local old="${1:-}" target=""
+    [ -n "$old" ] || return 0
+    [ "$old" = "$(command -v "$EXE" 2>/dev/null)" ] && return 0
+    [ -e "$old" ] || return 0  # o pipx já levou o link antigo junto
+    [ -L "$old" ] && target=$(readlink -f "$old" 2>/dev/null || readlink "$old")
+    case "$old$target" in
+        *pipx*"$OLD_PKG"*|*pipx*"$PKG"*)
+            run rm -f "$old"
+            say "== removido o comando antigo: $old (agora é $EXE)" ;;
+    esac
 }
 
 # -- qual python3 enxerga o gi + cairo ----------------------------------------
@@ -98,9 +129,10 @@ pick_pipx() {
 install() {
     [ "$(uname -s)" = "Linux" ] || die "só Linux por enquanto (Windows/macOS: ver docs/BACKLOG.md, P30)"
 
-    local here="" spec="$REPO"
+    local here="" spec="$REPO" old_exe
+    old_exe=$(command -v "$OLD_EXE" 2>/dev/null) || old_exe=""
     here=$(cd "$(dirname "${BASH_SOURCE[0]:-/dev/null}")" 2>/dev/null && pwd) || here=""
-    if [ -n "$here" ] && [ -f "$here/pyproject.toml" ] && grep -q '^name = "bzmux"' "$here/pyproject.toml"; then
+    if [ -n "$here" ] && [ -f "$here/pyproject.toml" ] && grep -q '^name = "pybzmux"' "$here/pyproject.toml"; then
         spec="$here"
         say "== instalando da árvore local: $here"
     else
@@ -125,29 +157,42 @@ install() {
     fi
 
     # --force: reexecutar atualiza (a versão no pyproject é fixa)
+    drop_old_pkg
     run "${PIPX[@]}" install --force --system-site-packages --python "$PY" "$spec"
 
-    if [ "$DRY" = 1 ]; then say "+ bzmux --selftest"; return 0; fi
-    command -v "$PKG" >/dev/null 2>&1 || die "instalou, mas '$PKG' não está no PATH: adicione ~/.local/bin"
+    if [ "$DRY" = 1 ]; then
+        say "+ $EXE --selftest"
+        drop_old_exe "$old_exe"
+        return 0
+    fi
+    command -v "$EXE" >/dev/null 2>&1 || die "instalou, mas '$EXE' não está no PATH: adicione ~/.local/bin"
     say "== verificação"
-    "$PKG" --selftest | tail -1
+    "$EXE" --selftest | tail -1
+
+    drop_old_exe "$old_exe"
 
     if [ "$SHORTCUT" = 1 ]; then
         say "== atalho no menu do sistema"
-        run "$PKG" --install-shortcut
+        run "$EXE" --install-shortcut
     fi
 
     say
-    say "pronto: rode '$PKG' (atualizar: rode este instalador de novo)"
+    say "pronto: rode '$EXE' (atualizar: rode este instalador de novo)"
 }
 
 uninstall() {
+    local old_exe
+    old_exe=$(command -v "$OLD_EXE" 2>/dev/null) || old_exe=""
     # o atalho sai antes: depois do pipx uninstall o comando não existe mais
-    if command -v "$PKG" >/dev/null 2>&1; then
-        run "$PKG" --remove-shortcut || true
+    if command -v "$EXE" >/dev/null 2>&1; then
+        run "$EXE" --remove-shortcut || true
+    elif command -v "$OLD_EXE" >/dev/null 2>&1; then
+        run "$OLD_EXE" --remove-shortcut || true
     fi
     pick_pipx || die "pipx não encontrado; a instalação já não existe"
     run "${PIPX[@]}" uninstall "$PKG"
+    drop_old_pkg
+    drop_old_exe "$old_exe"
 }
 
 case "$MODE" in

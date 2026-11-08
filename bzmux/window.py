@@ -927,7 +927,7 @@ class BzmuxWindow(Gtk.Window):
 
     # -- dump / ciclo de vida ------------------------------------------
     def dump(self):
-        path = self.dump_to or "/tmp/bzmux-dump.txt"
+        path = self.dump_to or "/tmp/tortty-python-dump.txt"
         parts = []
         multi_ws = len(self.workspaces) > 1
         for wi, ws in enumerate(self.workspaces, 1):

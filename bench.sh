@@ -121,11 +121,11 @@ sobe_xvfb() {
 # Argumentos extras são repassados a ele (--env K=V para as sondas).
 stage() {
     _slug=$1; _label=$2; shift 2
-    _err=/tmp/bzmux-bench-$_slug.err
+    _err=/tmp/tortty-python-bench-$_slug.err
     rm -f "$_err"
     if ! _txt=$(python3 "$HERE/tools/benchrun.py" --frames "$FRAMES" \
             --cols "$COLS" --rows "$ROWS" --font-size "$FONT" \
-            --stats "/tmp/bzmux-bench-$_slug.txt" "$@" 2>"$_err"); then
+            --stats "/tmp/tortty-python-bench-$_slug.txt" "$@" 2>"$_err"); then
         echo "  etapa '$_label' sem número: $(tail -1 "$_err")" >&2
         printf "%-26s %7s %7s %12s %10s %9s %7s\n" "$_label" "-" "-" "-" "-" "-" "-"
         return 0
@@ -175,7 +175,7 @@ if [ "$QUER_XVFB" = 1 ]; then
 fi
 
 # O gerador isolado não abre terminal: mede o teto do próprio gerador.
-_out=/tmp/bzmux-bench-gen.txt
+_out=/tmp/tortty-python-bench-gen.txt
 rm -f "$_out"
 python3 "$HERE/tools/doomfire.py" --fps 0 --frames "$FRAMES" --stats-to "$_out" \
     >/dev/null 2>&1

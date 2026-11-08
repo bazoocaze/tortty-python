@@ -9,13 +9,15 @@ USAGE = """\
 uso: bzmux [opções]
 
   --cmd CMD          comando inicial (default: a opção `shell` da configuração)
-  -c, --config ARQ   arquivo de configuração (default: ~/.config/bzmux/bzmux.conf)
+  -c, --config ARQ   arquivo de configuração
+                     (default: ~/.config/tortty-python/tortty-python.conf)
   --quit-after SEG   fecha sozinho depois de SEG segundos
   --dump-to ARQUIVO  salva a grade visível ao sair
   --debug-log ARQ    log JSONL do ?2026 x scroll (default: a opção `debug_log`;
                      `off` desliga)
   --debug-socket ARQ socket Unix de introspecção (JSON por linha; `auto` =
-                     $XDG_RUNTIME_DIR/bzmux-<pid>.sock). Desligado por omissão
+                     $XDG_RUNTIME_DIR/tortty-python-<pid>.sock). Desligado por
+                     omissão
   --selftest         roda os checks sem abrir janela
   --install-shortcut cria o atalho no menu do sistema (.desktop + ícone)
   --remove-shortcut  remove o atalho
