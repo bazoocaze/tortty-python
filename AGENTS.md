@@ -2,211 +2,215 @@
 
 TorTTY-Python: a terminal emulator in Python. This project is an experimental implementation created from the main TorTTY version (in Rust). The goal of the Python version is to evaluate the behavior of the main version's current and future features, as well as to analyze performance.
 
-Terminal em Python puro: pty + parser VT + grade + desenho com cairo + Pango.
-Nasceu como experimento para medir o custo do caminho quente em Python e virou
-aplicação real de uso diário: shell, mc e vim; mouse com seleção/cópia,
-histórico com wheel, reflow, truecolor, protocolo de teclado e de imagens do
-kitty, bracketed paste, abas e workspaces. A medição continua sendo a régua
-(docs/BENCHMARKS.md); o que não é feito e por quê: docs/LIMITATIONS.md.
-Este arquivo é convenção; o conteúdo muda de lugar conforme o tipo (ver
-Documentação).
+A terminal in pure Python: pty + VT parser + grid + drawing with cairo + Pango.
+It was born as an experiment to measure the cost of the hot path in Python and
+became a real daily-use application: shell, mc and vim; mouse with
+selection/copy, scrollback with the wheel, reflow, truecolor, kitty keyboard and
+image protocols, bracketed paste, tabs and workspaces. Measurement remains the
+yardstick (docs/BENCHMARKS.md); what is not done and why: docs/LIMITATIONS.md.
+This file is convention; content moves elsewhere by type (see Documentation).
 
-## Documentação
+## Documentation
 
-Divisão por tipo de conteúdo — cada fato mora em um só lugar, não duplicar.
-Todos são escritos para leitura de agente; só o README.md é para humano.
+Split by content type — each fact lives in one place only, do not duplicate.
+All are written for agent reading; only README.md is for humans.
 
-- AGENTS.md (este) — convenções, arquitetura, scripts, ferramentas.
-- docs/BACKLOG.md — backlog pendente e as regras da fila (registrar,
-  fechar, para onde vai o que não é item).
-- docs/LIMITATIONS.md — o que não é feito e por quê (decisão/limite aceito, não
-  fila). Antes de implementar algo "óbvio", checar aqui: pode ser decisão.
-- docs/HISTORY.md — backlog concluído, bugs corrigidos e a nota de
-  git: só narrativa datada (o registro do dia, não leitura corrente), com as
-  regras de escrita no topo do próprio arquivo.
-- docs/DEBUG.md — manual operacional: o que pode travar a sessão gráfica,
-  ferramentas de teste manual, verificação com janela, sondas `PYTERM_*` e
-  armadilhas de implementação (GTK/cairo/Pango/parser). **Ler antes de rodar
-  ferramenta com display**; armadilha nova entra aqui, não no HISTORY.
-- docs/PORTABILITY.md — estudo do P30 (Linux/Windows/macOS): o que é
-  plataforma hoje, bloqueios no código, rotas e custo; decisão pendente.
-- docs/BENCHMARKS.md — benchmarks e medição e **o único lugar com número de
-  vazão/desenho/parse/pegada**: a carga doom-fire (manchete), o `dmesg` real, a
-  escada e as decomposições, a pegada (PSS do app e disco do stack gráfico), o
-  protocolo de comparação e as armadilhas (inclui o governor). Os demais docs
-  citam o fato e linkam; não repetem valor.
-- README.md — visão para humano: como rodar, ferramentas, ambiente, o que
-  funciona, limites, medição, licença.
+- AGENTS.md (this one) — conventions, architecture, scripts, tools.
+- docs/BACKLOG.md — pending backlog and the queue rules (record,
+  close, where things that are not items go).
+- docs/LIMITATIONS.md — what is not done and why (accepted decision/limit, not
+  queue). Before implementing something "obvious", check here: it may be a
+  decision.
+- docs/HISTORY.md — completed backlog, fixed bugs and the git
+  note: dated narrative only (the record of the day, not current reading), with
+  the writing rules at the top of the file itself.
+- docs/DEBUG.md — operational manual: what can hang the graphical session,
+  manual test tools, verification with a window, `PYTERM_*` probes and
+  implementation pitfalls (GTK/cairo/Pango/parser). **Read before running a
+  tool with a display**; a new pitfall goes here, not in HISTORY.
+- docs/PORTABILITY.md — study of P30 (Linux/Windows/macOS): what is
+  platform today, blockers in the code, routes and cost; decision pending.
+- docs/BENCHMARKS.md — benchmarks and measurement and **the only place with
+  throughput/drawing/parse/footprint numbers**: the doom-fire load (headline),
+  the real `dmesg`, the ladder and the decompositions, the footprint (app PSS
+  and graphical stack disk), the comparison protocol and the pitfalls
+  (includes the governor). The other docs cite the fact and link; they do not
+  repeat values.
+- README.md — view for humans: how to run, tools, environment, what
+  works, limits, measurement, license.
 
-Cada arquivo acima é indexado em uma linha (o que é, quando usar); o detalhe
-mora nele, não aqui.
+Each file above is indexed in one line (what it is, when to use it); the detail
+lives in it, not here.
 
-Regras da fila (registro, fechamento, para onde vai o que não é item) estão no
-topo de docs/BACKLOG.md.
+Queue rules (record, closing, where things that are not items go) are at the
+top of docs/BACKLOG.md.
 
-**Número de medição mora em um só lugar: docs/BENCHMARKS.md** (com data e
-governor da CPU). Os outros docs citam o fato em uma frase e linkam — não
-repetem valor. Repetir número em cinco arquivos só produz divergência: cada
-re-medição virava uma caçada para achar as cópias. Exceções: o README.md mantém
-a linha do doom-fire na tabela comparativa (é a manchete para humano, um par de
-números), o HISTORY.md registra o número do dia em que fechou um item (registro
-datado, nunca leitura corrente) e o AGENTS.md pode citar valor de exemplo ao
-explicar uma sonda.
+**A measurement number lives in one place only: docs/BENCHMARKS.md** (with date
+and CPU governor). The other docs cite the fact in one sentence and link — they
+do not repeat values. Repeating a number in five files only produces divergence:
+each re-measurement became a hunt to find the copies. Exceptions: the README.md
+keeps the doom-fire line in the comparison table (it is the headline for
+humans, a pair of numbers), the HISTORY.md records the number of the day an item
+was closed (dated record, never current reading) and the AGENTS.md may cite an
+example value when explaining a probe.
 
-## Arquitetura
+## Architecture
 
-O pacote bzmux/ instala o comando `pybzmux` e também roda como
-`python -m bzmux`; nenhum arquivo solto na raiz. O código:
+The bzmux/ package installs the `pybzmux` command and also runs as
+`python -m bzmux`; no loose file at the root. The code:
 
-- run.sh — roda o app (teste rápido; escolhe o python)
-- debug.sh — desenvolvimento: background, log, --kill/--status
-- run-tests.sh — roda o lint e a bateria de testes
-- bench.sh — escada do doom-fire: mede no display atual e num Xvfb próprio
-- tools/benchrun.py — uma etapa da escada: trava o grid pelo socket, digita a
-  carga e imprime o resultado
-- install.sh — instalador (Linux)
-- bzmux/__main__.py — python -m bzmux (chama cli.run)
-- bzmux/__init__.py — fachada com import preguiçoso (bzmux.Term não puxa o Gtk)
-- bzmux/palette.py — célula [char, fg, bg, flags], paleta xterm-256 (int e float),
-  charset DEC
-- bzmux/term.py — grade, cursor, parser VT; não conhece GTK
-- bzmux/keys.py — keyval do X11 -> bytes do filho (dead keys, DECCKM)
-- bzmux/kitty_kbd.py — protocolo de teclado do kitty (CSI ... u)
-- bzmux/mouse.py — protocolo de mouse (SGR e o antigo) — puro
-- bzmux/graphics.py — protocolo de imagens do kitty (APC G) — puro
-- bzmux/gui.py — único import de Gtk/Gdk/GLib/Pango/PangoCairo/cairo
-- bzmux/style.py — tokens de cor do cromo + CSS gerado + contraste (puro)
-- bzmux/view.py — TermView: uma sessão (pty, cairo + Pango, eventos)
-- bzmux/window.py — Workspace + BzmuxWindow (abas, lateral, atalhos globais)
-- bzmux/checks.py — a bateria: asserts puros, sem display
-- bzmux/selftest.py — runner sem dependências do --selftest
-- bzmux/cli.py — argv e arranque (e o entry point do console script)
-- bzmux/shortcut.py — atalho do sistema (.desktop + ícone); puro, antes do gi
-- bzmux/state.py — geometria da janela entre execuções (JSON em XDG_STATE_HOME)
-- bzmux/config.py — configuração (chave/valor do kitty); puro, merge c/ default
-- bzmux/debugsock.py — socket Unix de introspecção (P35): despacho puro + glue
-  do GLib; só com `--debug-socket`, verbos em docs/DEBUG.md
-- bzmux/data/ — bzmux.svg (fonte do ícone; instala como pybzmux.svg) e
-  bzmux.conf (opções default embarcadas)
-- tests/ — runner pytest de bzmux/checks.py
-- tools/xtest.py, tools/pixel.py — teste manual, exige X11
-- tools/doomfire.py — carga de medição, não teste
-- tools/uploadbench.py — microbench de desenho: N operações de cairo contra 1
-  upload/composição por frame
+- run.sh — runs the app (quick test; picks the python)
+- debug.sh — development: background, log, --kill/--status
+- run-tests.sh — runs the lint and the test battery
+- bench.sh — doom-fire ladder: measures on the current display and on its own
+  Xvfb
+- tools/benchrun.py — one rung of the ladder: locks the grid through the
+  socket, types the load and prints the result
+- install.sh — installer (Linux)
+- bzmux/__main__.py — python -m bzmux (calls cli.run)
+- bzmux/__init__.py — facade with lazy import (bzmux.Term does not pull Gtk)
+- bzmux/palette.py — cell [char, fg, bg, flags], xterm-256 palette (int and
+  float), DEC charset
+- bzmux/term.py — grid, cursor, VT parser; does not know GTK
+- bzmux/keys.py — X11 keyval -> child bytes (dead keys, DECCKM)
+- bzmux/kitty_kbd.py — kitty keyboard protocol (CSI ... u)
+- bzmux/mouse.py — mouse protocol (SGR and the old one) — pure
+- bzmux/graphics.py — kitty image protocol (APC G) — pure
+- bzmux/gui.py — the only import of Gtk/Gdk/GLib/Pango/PangoCairo/cairo
+- bzmux/style.py — chrome color tokens + generated CSS + contrast (pure)
+- bzmux/view.py — TermView: one session (pty, cairo + Pango, events)
+- bzmux/window.py — Workspace + BzmuxWindow (tabs, sidebar, global shortcuts)
+- bzmux/checks.py — the battery: pure asserts, no display
+- bzmux/selftest.py — dependency-free runner for --selftest
+- bzmux/cli.py — argv and startup (and the console script entry point)
+- bzmux/shortcut.py — system shortcut (.desktop + icon); pure, before gi
+- bzmux/state.py — window geometry between runs (JSON in XDG_STATE_HOME)
+- bzmux/config.py — configuration (kitty key/value); pure, merge w/ default
+- bzmux/debugsock.py — Unix introspection socket (P35): pure dispatch + GLib
+  glue; only with `--debug-socket`, verbs in docs/DEBUG.md
+- bzmux/data/ — bzmux.svg (icon source; installs as pybzmux.svg) and
+  bzmux.conf (embedded default options)
+- tests/ — pytest runner for bzmux/checks.py
+- tools/xtest.py, tools/pixel.py — manual test, requires X11
+- tools/doomfire.py — measurement load, not a test
+- tools/uploadbench.py — drawing microbench: N cairo operations against 1
+  upload/composition per frame
 
-O que sustenta essa divisão: o caminho do --selftest importa só palette, term
-(que puxa graphics), kitty_kbd e mouse, e nenhum deles puxa gi/cairo — é isso
-que deixa os checks rodarem sem display e sem GTK (keys fica de fora: usa as
-constantes de keyval do Gdk). Cada aba tem o seu Term; a janela só orquestra,
-sem estado de sessão.
+What sustains this split: the --selftest path imports only palette, term
+(which pulls graphics), kitty_kbd and mouse, and none of them pulls gi/cairo —
+that is what lets the checks run without a display and without GTK (keys stays
+out: it uses the Gdk keyval constants). Each tab has its own Term; the window
+only orchestrates, with no session state.
 
-Dentro das duas maiores: term.py tem feed (máquina de estados, com fast path de
-texto e SGR truecolor em ground e o parser lento como fallback), put/chars,
-csi_dispatch/sgr/set_mode e child_out (respostas ao filho, drenadas pelo host);
-view.py tem spawn/on_pty (io_add_watch no master), on_resize (size-allocate →
-Term.resize + TIOCSWINSZ + SIGWINCH), on_draw, on_key, mouse/seleção e
-view_off; window.py tem Workspace (Gtk.Notebook + cartão da lateral) e
-BzmuxWindow (Gtk.Stack + atalhos globais + dump/quit-after/SIGUSR1).
+Inside the two largest: term.py has feed (state machine, with a text fast path
+and truecolor SGR in ground and the slow parser as fallback), put/chars,
+csi_dispatch/sgr/set_mode and child_out (responses to the child, drained by the
+host); view.py has spawn/on_pty (io_add_watch on the master), on_resize
+(size-allocate → Term.resize + TIOCSWINSZ + SIGWINCH), on_draw, on_key,
+mouse/selection and view_off; window.py has Workspace (Gtk.Notebook + sidebar
+card) and BzmuxWindow (Gtk.Stack + global shortcuts + dump/quit-after/SIGUSR1).
 
-Célula é uma lista [char, fg, bg, flags]: fg/bg em índice xterm (0-255,
-256=fg default, 257=bg default), flags bitmask (bold/underline/inverse). O
-desenho agrupa células vizinhas de atributos iguais num run só e cada run vira
-um Pango.Layout cacheado por (texto, negrito): agrupar trouxe o frame uniforme
-de 1920 células para ~2 ms, e o Pango cobrou ~20% num frame de 1360 células com
-37 cores (números em docs/HISTORY.md, P9).
+A cell is a list [char, fg, bg, flags]: fg/bg as an xterm index (0-255,
+256=default fg, 257=default bg), flags bitmask (bold/underline/inverse). The
+drawing groups neighboring cells of equal attributes into a single run and each
+run becomes a Pango.Layout cached by (text, bold): grouping brought the uniform
+frame of 1920 cells to ~2 ms, and Pango charged ~20% on a frame of 1360 cells
+with 37 colors (numbers in docs/HISTORY.md, P9).
 
-Não objetivo: clonar o kitty/gtkterm ou derivar do núcleo C deles — nada daqui
-vem de lá. O experimento mostrou que dá para fazer um terminal inteiro em
-Python, e é assim que ele é usado; isso é resultado, não cota: linguagem e stack
-gráfico são escolha inicial, revisável por requisito
-(ver [docs/PORTABILITY.md](docs/PORTABILITY.md)).
+Not a goal: cloning kitty/gtkterm or deriving from their C core — nothing here
+comes from them. The experiment showed that a whole terminal can be done in
+Python, and that is how it is used; that is a result, not a quota: language and
+graphical stack are an initial choice, revisable by requirement
+(see [docs/PORTABILITY.md](docs/PORTABILITY.md)).
 
-## Configuração
+## Configuration
 
-Chave/valor no formato do kitty (`#` comenta). O arquivo do usuário é
-$XDG_CONFIG_HOME/bzmux/bzmux.conf (o -c ARQ troca) e é sempre mesclado sobre o
-default embarcado em bzmux/data/bzmux.conf.
+Key/value in kitty format (`#` comments). The user file is
+$XDG_CONFIG_HOME/bzmux/bzmux.conf (the -c FILE switches it) and is always merged
+over the default embedded in bzmux/data/bzmux.conf.
 
-- Chaves e faixas válidas moram em bzmux/config.py (CHECKS); os valores default,
-  em bzmux/data/bzmux.conf. As que mais mudam o dia a dia: font_size (em pontos,
-  não px), scrollback, cursor_shape.
-- `shell` vazio (o default) herda o `$SHELL` do ambiente; `config.tab_command`
-  decide (comando da aba, `$SHELL` do filho) e o `--cmd` não mexe no `$SHELL`.
-- `debug_log` (default /tmp/bzmux.debug.log, `off` desliga; `--debug-log ARQ`
-  vence a configuração) é o log JSONL do `?2026` — eventos, campos e uso em
-  docs/DEBUG.md.
-- Editar com o app aberto aplica na hora. Erro é por linha: na carga inicial o
-  que validou vale (o toast mostra o primeiro erro), no reload nada muda.
+- Valid keys and ranges live in bzmux/config.py (CHECKS); the default values,
+  in bzmux/data/bzmux.conf. The ones that most change day to day: font_size (in
+  points, not px), scrollback, cursor_shape.
+- Empty `shell` (the default) inherits the environment `$SHELL`;
+  `config.tab_command` decides (tab command, child `$SHELL`) and `--cmd` does
+  not touch `$SHELL`.
+- `debug_log` (default /tmp/bzmux.debug.log, `off` disables it; `--debug-log
+  FILE` wins over the configuration) is the JSONL log of `?2026` — events,
+  fields and usage in docs/DEBUG.md.
+- Editing with the app open applies immediately. Error is per line: on the
+  initial load what validated holds (the toast shows the first error), on
+  reload nothing changes.
 
-## Convenções
+## Conventions
 
-- Versão: incrementar o patch (`0.0.1` -> `0.0.2`) em `bzmux/__init__.py`
-  quando **fechar um item de backlog** — o commit que fecha o item leva o
-  incremento, não cada commit. Commit de docs, teste ou ajuste avulso não
-  incrementa. É a fonte única: o `pyproject.toml` lê de lá (hatch) e o
-  `--version` mostra.
-- Textos, descrições e comentários concisos; podem ser em português.
-- Nomes de arquivo e símbolos no código (funções, variáveis, classes, constantes)
-  em inglês.
-- Docstrings e comentários no código: no máximo uma linha.
-- Dados com campos nomeados (NamedTuple/dataclass), não tuplas cruas: posição
-  não diz o que é, nome diz.
-- Formato pensado para agente, não precisa ser agradável para humano.
-- Cor de interface só em bzmux/style.py (tokens + CSS gerado); nenhum hex solto
-  no código. Cor de célula do terminal é palette.py — não misturar as duas.
-- Não atualizar a documentação a cada iteração de código. Quando o usuário
-  terminar uma iteração, mencionar discretamente que a doc está pendente; a
-  decisão de sincronizar é dele.
-- Evitar backticks.
-- Estilo é do `ruff format` (line-length 88), não de alinhamento manual; o lint
-  é `ruff check` com E, F, I, W. Não escolher hand-format em cima do formatter:
-  `./run-tests.sh` falha se o arquivo não estiver formatado.
-- Commits: conventional commits, máximo de 3 linhas.
+- Version: bump the patch (`0.0.1` -> `0.0.2`) in `bzmux/__init__.py`
+  when **closing a backlog item** — the commit that closes the item carries the
+  bump, not every commit. A docs, test or one-off adjustment commit does not
+  bump. It is the single source: `pyproject.toml` reads from there (hatch) and
+  `--version` shows it.
+- Texts, descriptions and comments concise; they may be in Portuguese.
+- Filenames and symbols in the code (functions, variables, classes, constants)
+  in English.
+- Docstrings and comments in the code: at most one line.
+- Data with named fields (NamedTuple/dataclass), not raw tuples: position
+  does not say what it is, the name does.
+- Format designed for agents, does not need to be pleasant for humans.
+- Interface color only in bzmux/style.py (tokens + generated CSS); no loose hex
+  in the code. Terminal cell color is palette.py — do not mix the two.
+- Do not update the documentation on every code iteration. When the user
+  finishes an iteration, mention discreetly that the doc is pending; the
+  decision to sync is theirs.
+- Avoid backticks.
+- Style comes from `ruff format` (line-length 88), not manual alignment; the
+  lint is `ruff check` with E, F, I, W. Do not choose hand-format over the
+  formatter: `./run-tests.sh` fails if the file is not formatted.
+- Commits: conventional commits, maximum of 3 lines.
 
-## Testes
+## Tests
 
-- Poucos testes, nas partes mais importantes: parser, protocolos e tudo que já
-  quebrou uma vez (regressão vale mais do que cobertura).
-- Sem suíte exaustiva: nada de matriz de casos por combinação de parâmetros,
-  nada de teste que só reescreve o código na forma de asserção, nada de perseguir
-  cobertura.
-- Um bug corrigido = um check, quando der; não uma bateria em volta dele.
-- Áreas cobertas hoje: parser, SGR/EL/ED, alt-screen e scroll, charset e
-  respostas (DA/CPR), CSI com intermediário, CLI, teclado do kitty, gráficos,
-  reflow, histórico, mouse, seleção, paste, truecolor, contraste do estilo.
-- Teste barato de rodar: um comando (./run-tests.sh), sem display. Os checks
-  ficam em bzmux/checks.py e têm dois runners: o pytest e o
-  python3 -m bzmux --selftest (sem dependências, útil para provar que o caminho
-  dos testes não puxa gi). O que precisar de X11 fica como comando manual em
-  Scripts e ferramentas, não vira infraestrutura.
-- tools/doomfire.py — carga de medição, não teste: doom-fire em meio-bloco
-  truecolor (fg e bg por célula, pior caso), sem dependência de X.
-  python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to ARQ imprime fps e
-  MB/s na saída, então dá para comparar dois terminais na mesma grade. Por que,
-  resultados e protocolo: docs/BENCHMARKS.md. As sondas de diagnóstico
-  (`PYTERM_PROF/NODRAW/NOPARSE/GEOM/GEOMLOG/SCROLLLOG`) estão na
-  tabela de docs/DEBUG.md; a escada com os números fica em docs/BENCHMARKS.md.
-- tools/ é manual, não suíte: xtest.py e pixel.py precisam de display e são
-  chamados à mão durante a verificação. O comando dos testes é ./run-tests.sh.
-- Medição não é teste: os números vêm de execução real. O `bench.sh` só roda o
-  protocolo e imprime o resultado; nenhum valor é guardado no código.
+- Few tests, in the most important parts: parser, protocols and everything that
+  has already broken once (regression is worth more than coverage).
+- No exhaustive suite: no case matrix per parameter combination, no test that
+  only rewrites the code in the form of an assertion, no chasing coverage.
+- One fixed bug = one check, when possible; not a battery around it.
+- Areas covered today: parser, SGR/EL/ED, alt-screen and scroll, charset and
+  responses (DA/CPR), CSI with intermediate, CLI, kitty keyboard, graphics,
+  reflow, scrollback, mouse, selection, paste, truecolor, style contrast.
+- Cheap test to run: one command (./run-tests.sh), no display. The checks
+  live in bzmux/checks.py and have two runners: pytest and
+  python3 -m bzmux --selftest (no dependencies, useful to prove that the test
+  path does not pull gi). What needs X11 stays as a manual command in Scripts
+  and tools, it does not become infrastructure.
+- tools/doomfire.py — measurement load, not a test: doom-fire in truecolor
+  half-block (fg and bg per cell, worst case), with no X dependency.
+  python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to FILE prints fps and
+  MB/s on the output, so two terminals can be compared on the same grid. Why,
+  results and protocol: docs/BENCHMARKS.md. The diagnostic probes
+  (`PYTERM_PROF/NODRAW/NOPARSE/GEOM/GEOMLOG/SCROLLLOG`) are in the
+  docs/DEBUG.md table; the ladder with the numbers stays in docs/BENCHMARKS.md.
+- tools/ is manual, not a suite: xtest.py and pixel.py need a display and are
+  called by hand during verification. The test command is ./run-tests.sh.
+- Measurement is not a test: the numbers come from a real run. `bench.sh` only
+  runs the protocol and prints the result; no value is stored in the code.
 
-## Scripts e ferramentas
+## Scripts and tools
 
-Uso, opções e o porquê de cada script estão no cabeçalho dele — ler antes de
-rodar. Aqui só cabe qual usar.
+Usage, options and the reason for each script are in its header — read before
+running. Only which one to use fits here.
 
-- ./install.sh — instalador Linux: deps da distro, pipx, --selftest no fim.
-- ./run.sh — roda o app aqui, em foreground; escolhe o python (venv do uv
-  quando ele enxerga o gi, senão o do sistema).
-- ./debug.sh — desenvolvimento: background com log, --kill/--status por PID
-  file (nunca pkill -f bzmux, que casa também com pybzmux e mata o shell de
-  quem chama).
-- ./run-tests.sh — lint + selftest + pytest, sem display.
-- ./bench.sh — escada do doom-fire; trava o grid pelo socket, mede no display
-  atual e num Xvfb próprio e não guarda número.
-- pybzmux, python3 -m bzmux, uv run python -m bzmux — o app (opções: pybzmux -h).
-- uv run pytest -q, uv run ruff check ., uv run ruff format . — bateria e lint
-  pelo venv do uv.
+- ./install.sh — Linux installer: distro deps, pipx, --selftest at the end.
+- ./run.sh — runs the app here, in the foreground; picks the python (uv venv
+  when it sees gi, otherwise the system one).
+- ./debug.sh — development: background with log, --kill/--status by PID file
+  (never pkill -f bzmux, which also matches pybzmux and kills the shell of the
+  caller).
+- ./run-tests.sh — lint + selftest + pytest, no display.
+- ./bench.sh — doom-fire ladder; locks the grid through the socket, measures on
+  the current display and on its own Xvfb and does not store a number.
+- pybzmux, python3 -m bzmux, uv run python -m bzmux — the app (options:
+  pybzmux -h).
+- uv run pytest -q, uv run ruff check ., uv run ruff format . — battery and lint
+  through the uv venv.
 
-Teste manual e verificação com janela: docs/DEBUG.md.
+Manual test and verification with a window: docs/DEBUG.md.

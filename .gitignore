@@ -8,3 +8,6 @@ __pycache__/
 # artefatos locais de execucao/agente (nao versionados)
 nohup.out
 .pi/
+
+# IDE
+.idea/

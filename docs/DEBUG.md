@@ -1,313 +1,324 @@
-# pybzmux — desenvolvimento: ferramentas, verificação e armadilhas
+# pybzmux — development: tooling, verification and pitfalls
 
-Manual operacional: ler a primeira seção antes de rodar ferramenta na sessão
-gráfica.
+Operational manual: read the first section before running any tool in the
+graphical session.
 
-Diretivas: título, item, `code`, cerca para sequência de comandos. Um item =
-uma armadilha (sintoma + como evitar). Negrito só em "Sessão real". Backtick
-só se realmente relevante. Sem tabela, itálico, data ou número de medição.
+Directives: title, item, `code`, fence for a command sequence. One item = one
+pitfall (symptom + how to avoid it). Bold only in "Real session". Backtick only
+when truly relevant. No table, italics, date or measurement number.
 
-## Sessão real: o que pode travar tudo
+## Real session: what can hang everything
 
-- **`tools/xtest.py` injeta no X em uso:** ponteiro e botões reais (XTest).
-  Todo `ButtonPress` abre implicit grab que só fecha no `ButtonRelease`: morrer
-  entre os dois deixa o botão apertado, o cursor vira o de quem pegou o grab e
-  o desktop parece travado. `drag` (press + ~8 movimentos + release) é o pior
-  caso; `click`/`dclick`/`wheel`, mesma coisa em janela menor.
-- **Destravar:** `xdotool mouseup 1` (e `2 3 4 5` se o press foi outro).
-  Órfão segurando o grab: `pgrep -af "xtest.py|import"`, matar, repetir.
-- **Regra:** xtest só com a sessão disponível e quando precisar de display,
-  nunca `drag` de rotina, nunca sem release. Para automatizar: Xvfb/Xephyr
-  (ponteiro virtual, nada do usuário para travar).
-- **`xdotool windowactivate` rouba o foco** da pessoa. Não usar para conferir.
-- **`import` sem `-window`** põe o cursor em mira e agarra o ponteiro até o
-  clique de seleção: outro jeito de travar. Sempre `import -window ID`.
-- **ID de janela nunca fixo:** o app reinicia e o ID muda (`Resource
-  temporarily unavailable` no `import`). Resolver na hora: `state` do socket
-  devolve o `xid`, ou `tools/xtest.py id` sem socket.
-- **`pkill -f bzmux` mata o próprio shell** (o padrão casa com a linha de
-  comando, e também com `pybzmux`). Usar `./debug.sh --kill`, que confere o PID
-  file contra `/proc/<pid>/cmdline`.
-- **`wmctrl -r bzmux` falha** quando o app muda o título por OSC (mc faz).
-  Achar a janela por `_NET_WM_PID` contra o PID do runner.
-- **`<Caps_Lock>` injetado liga a trava de verdade:** o teste seguinte sai em
-  maiúsculas. Desligar com outro e conferir com `xset q`.
+- **`tools/xtest.py` injects into the X in use:** real pointer and buttons
+  (XTest). Every `ButtonPress` opens an implicit grab that only closes on
+  `ButtonRelease`: dying between the two leaves the button pressed, the cursor
+  becomes the one of whoever holds the grab and the desktop looks hung. `drag`
+  (press + ~8 movements + release) is the worst case; `click`/`dclick`/`wheel`,
+  same thing in a smaller window.
+- **Unlock:** `xdotool mouseup 1` (and `2 3 4 5` if the press was another one).
+  Orphan holding the grab: `pgrep -af "xtest.py|import"`, kill, repeat.
+- **Rule:** xtest only with the session available and when a display is
+  needed, never a routine `drag`, never without release. To automate:
+  Xvfb/Xephyr (virtual pointer, nothing of the user's to hang).
+- **`xdotool windowactivate` steals the person's focus.** Do not use it to
+  check.
+- **`import` without `-window`** puts the cursor on a crosshair and grabs the
+  pointer until the selection click: another way to hang. Always
+  `import -window ID`.
+- **Window ID never fixed:** the app restarts and the ID changes (`Resource
+  temporarily unavailable` in `import`). Resolve it on the spot: `state` from
+  the socket returns the `xid`, or `tools/xtest.py id` without a socket.
+- **`pkill -f bzmux` kills your own shell** (the pattern matches the command
+  line, and `pybzmux` too). Use `./debug.sh --kill`, which checks the PID file
+  against `/proc/<pid>/cmdline`.
+- **`wmctrl -r bzmux` fails** when the app changes the title via OSC (mc
+  does). Find the window by `_NET_WM_PID` against the runner's PID.
+- **Injected `<Caps_Lock>` turns the lock on for real:** the next test comes
+  out in uppercase. Turn it off with another one and check with `xset q`.
 
-## Ferramentas de teste manual
+## Manual test tooling
 
-Em `tools/`, com o python3 do sistema (`python3-xlib` 0.33 e gi instalados).
+In `tools/`, with the system python3 (`python3-xlib` 0.33 and gi installed).
 
-- `tools/xtest.py SUBCOMANDO` — `id`, `geometry`, `activate`, `move`, `click`,
-  `dclick`, `wheel`, `drag`, `key`, `type`. `type` aceita
-  `/ - . , ; = { } [ ] | ~ ?` e maiúsculas.
-- `tools/pixel.py` — cor de pixel de PNG: `tools/pixel.py shot.png 400,200`,
-  `--scan X` (amostra por faixa de 19 px), `--row Y`. Confere desenho em
-  captura (`import -window`).
+- `tools/xtest.py SUBCOMMAND` — `id`, `geometry`, `activate`, `move`, `click`,
+  `dclick`, `wheel`, `drag`, `key`, `type`. `type` accepts
+  `/ - . , ; = { } [ ] | ~ ?` and uppercase.
+- `tools/pixel.py` — PNG pixel color: `tools/pixel.py shot.png 400,200`,
+  `--scan X` (sample per 19 px band), `--row Y`. Checks drawing in a capture
+  (`import -window`).
 - xdotool (`1:3.20160805`): `search --pid`, `type`, `key`,
-  `mousemove --window`, `click --repeat 2`, `mouseup`. Mesmas coordenadas do
+  `mousemove --window`, `click --repeat 2`, `mouseup`. Same coordinates as
   xtest.
 
-- Coordenada é relativa à janela e a grade não começa em (0,0): lateral
-  (170 px, `SIDEBAR_W`) + aba (~28 px) põem a sessão em `y≈58`. `y=8` é a
-  barra de abas — arrastar ali reordena aba.
-- xwininfo "Absolute upper-left" é a origem do cliente (a que se usa para
-  injetar); `Position` do `xdotool getwindowgeometry` é o frame do WM (11/40 px
-  aqui). Confundir desloca todo clique.
-- Janela por `_NET_WM_PID`: pegar a maior visível. O GTK cria ajudantes 10x10
-  com o mesmo PID; a primeira que aparece devolve 10x10 e `BadMatch` no
-  `set_input_focus`.
-- `import -window root -crop` com geometria de xwininfo exige a janela ativa
-  antes; senão captura o que estiver por cima.
-- `~`, `^` e `` ` `` são dead keys no ABNT2: `type '~nome'` digita `~` e o `n`
-  compõe `ǹ` — comportamento certo (NFC), não falha da ferramenta. Til
-  literal: espaço depois.
-- `.n  Name` e nomes truncados com `~` no mc são do mc (bytes crus: ele escreve
-  `.n  Name` e trunca pela largura do painel), não da renderização.
+- A coordinate is relative to the window and the grid does not start at (0,0):
+  sidebar (170 px, `SIDEBAR_W`) + tab (~28 px) put the session at `y≈58`. `y=8`
+  is the tab bar — dragging there reorders the tab.
+- xwininfo "Absolute upper-left" is the client origin (the one used to
+  inject); `Position` from `xdotool getwindowgeometry` is the WM frame (11/40 px
+  here). Confusing the two shifts every click.
+- Window by `_NET_WM_PID`: take the largest visible one. GTK creates 10x10
+  helpers with the same PID; the first one that shows up returns 10x10 and
+  `BadMatch` in `set_input_focus`.
+- `import -window root -crop` with a xwininfo geometry requires the window
+  active first; otherwise it captures whatever is on top.
+- `~`, `^` and `` ` `` are dead keys on ABNT2: `type '~nome'` types `~` and the
+  `n` composes `ǹ` — correct behavior (NFC), not a tool failure. Literal
+  tilde: a space afterwards.
+- `.n  Name` and names truncated with `~` in mc are mc's (raw bytes: it writes
+  `.n  Name` and truncates by panel width), not rendering's.
 
-## Verificação com janela
+## Verification with a window
 
 ```
-./debug.sh --debug-socket auto              # log em /tmp/bzmux.log + socket
-printf '{"cmd": "text"}\n' | nc -N -U /run/user/$UID/bzmux-*.sock  # a tela
-python3 tools/xtest.py key ctrl+shift+n     # workspace novo (o app consome)
-python3 tools/xtest.py dclick 60 28         # duplo clique no cartão 1
+./debug.sh --debug-socket auto              # log to /tmp/bzmux.log + socket
+printf '{"cmd": "text"}\n' | nc -N -U /run/user/$UID/bzmux-*.sock  # the screen
+python3 tools/xtest.py key ctrl+shift+n     # new workspace (the app consumes it)
+python3 tools/xtest.py dclick 60 28         # double click on card 1
 ```
 
-Roteiro de teste termina com `{"cmd": "quit"}` em vez de `sleep` +
-`--quit-after` + `--kill`: espera-se a resposta que interessa (`state` com
-`scrolled` > 0, por exemplo) e fecha. Digitar texto é `{"cmd": "write", "data":
-"seq 1 200\r"}` — sem display, foco ou risco de grab.
+A test script ends with `{"cmd": "quit"}` instead of `sleep` +
+`--quit-after` + `--kill`: wait for the answer that matters (`state` with
+`scrolled` > 0, for example) and close. Typing text is `{"cmd": "write",
+"data": "seq 1 200\r"}` — no display, focus or grab risk.
 
-- Quem lê a tela é `text` com `where` = `view` (o que a tela mostra, com
-  `view_off`), `screen` (grade viva) ou `history` (scrollback por linha
-  absoluta). O dump do `SIGUSR1` e o `--dump-to` continuam existindo para
-  quando não há socket, e eles são da grade VIVA: conferir scroll por eles dá
-  falso negativo (o offset só aparece no cabeçalho `(histórico +N)`).
-- Pixel continua exigindo captura: `state` devolve o `xid` da janela, então
-  `import -window $(...)` não depende mais de caçar o ID pelo `_NET_WM_PID`.
-- Página oculta do `Gtk.Notebook` não é realocada: mantém o `size-allocate`
-  antigo (lateral aberta estreita de 75 para 62 colunas só na visível) e
-  corrige ao ser mapeada (`on_resize` → `TIOCSWINSZ`/`SIGWINCH`). Larguras
-  diferentes no dump são isso.
-- O app roda no venv do uv (PyGObject do sistema via `--system-site-packages`).
+- Whoever reads the screen is `text` with `where` = `view` (what the screen
+  shows, with `view_off`), `screen` (live grid) or `history` (scrollback by
+  absolute line). The `SIGUSR1` dump and `--dump-to` still exist for when there
+  is no socket, and they are of the LIVE grid: checking scroll by them gives a
+  false negative (the offset only shows up in the `(histórico +N)` header).
+- Pixel still requires a capture: `state` returns the window `xid`, so
+  `import -window $(...)` no longer depends on hunting the ID through
+  `_NET_WM_PID`.
+- A hidden `Gtk.Notebook` page is not reallocated: it keeps the old
+  `size-allocate` (sidebar open narrows 75 to 62 columns only in the visible
+  one) and fixes itself when mapped (`on_resize` →
+  `TIOCSWINSZ`/`SIGWINCH`). Different widths in the dump are that.
+- The app runs in the uv venv (system PyGObject via `--system-site-packages`).
 
-## Sondas do app (`PYTERM_*`)
+## App probes (`PYTERM_*`)
 
-Variável de ambiente na execução (não muda código):
+Environment variable at run time (no code change):
 
-- `PROF=1` — ao fechar, custo de parse (`on_pty`) e desenho (`on_draw`), bytes
-  lidos e eagain.
-- `NODRAW=1` — sem desenho (sobra pty → grade).
-- `NOPARSE=1` — lê o pty e descarta (isola o IO).
-- `GEOM=980x640` — trava o tamanho da janela (senão o WM abre 80x24).
-- `GEOMLOG=1` — cada configure: cliente, moldura e frame extents.
-- `SCROLLLOG=ARQ` — chunk que rola mais de meia tela (jump/top/bottom/
-  alt-screen + bytes crus).
+- `PROF=1` — on close, parse cost (`on_pty`) and drawing cost (`on_draw`),
+  bytes read and eagain.
+- `NODRAW=1` — no drawing (leaves pty → grid).
+- `NOPARSE=1` — reads the pty and discards it (isolates the IO).
+- `GEOM=980x640` — locks the window size (otherwise the WM opens 80x24).
+- `GEOMLOG=1` — every configure: client, frame and frame extents.
+- `SCROLLLOG=ARQ` — chunk that scrolls more than half a screen (jump/top/
+  bottom/alt-screen + raw bytes).
 
-`PROF` decompõe a vazão, `NODRAW`/`NOPARSE` cortam um lado. Escada e números:
-docs/BENCHMARKS.md. Avanço × célula (o par do bug 13 do HISTORY: divergir é
-grade medida numa resolução e desenhada em outra) vem no `state` do socket, com
-`advance`, `cell`, `dpi` e `padding`; a configuração carregada também
-(`config`, `errors`), no lugar do antigo `CONFLOG`.
+`PROF` decomposes throughput, `NODRAW`/`NOPARSE` cut one side off. Ladder and
+numbers: docs/BENCHMARKS.md. Advance × cell (the pair from HISTORY bug 13:
+diverging means a grid measured at one resolution and drawn at another) comes
+in the socket `state`, with `advance`, `cell`, `dpi` and `padding`; the loaded
+configuration too (`config`, `errors`), in place of the old `CONFLOG`.
 
-## Medição (doom-fire)
+## Measurement (doom-fire)
 
-- Número de benchmark se compara por **grid**, não por janela: a célula é fonte ×
-  `Xft.dpi` (130 no desktop do autor, 96 sem o recurso), então a mesma janela dá
-  70×21 ou 98×27. Alvo em células, e o grid vem do `state` (`cols`, `rows`,
-  `cell`, `dpi`).
-- `--cmd` com a carga mede o grid errado: o filho nasce antes do primeiro
-  `TIOCSWINSZ` e pode ver o padrão 80×24. Escrever a carga no pty depois que o
-  `state` confirmar o alvo é o que tira a corrida.
-- O display entra no número: o X real do desktop (glamor) desenha ~3x mais caro
-  que um Xvfb na mesma grade. `./bench.sh --xvfb` mede no virtual.
-- Geometria salva de execução anterior (`window.json`, inclusive `max`) muda o
-  grid do teste: `XDG_STATE_HOME` descartável isola. O `tools/benchrun.py` já
-  faz as três coisas.
+- A benchmark number is compared by **grid**, not by window: the cell is font ×
+  `Xft.dpi` (130 on the author's desktop, 96 without the feature), so the same
+  window gives 70×21 or 98×27. Aim in cells, and the grid comes from `state`
+  (`cols`, `rows`, `cell`, `dpi`).
+- `--cmd` with the load measures the wrong grid: the child is born before the
+  first `TIOCSWINSZ` and may see the 80×24 default. Writing the load into the
+  pty after `state` confirms the target is what removes the race.
+- The display enters the number: the desktop's real X (glamor) draws ~3x more
+  expensively than an Xvfb on the same grid. `./bench.sh --xvfb` measures on the
+  virtual one.
+- Geometry saved from a previous run (`window.json`, including `max`) changes
+  the test grid: a throwaway `XDG_STATE_HOME` isolates it. `tools/benchrun.py`
+  already does the three things.
 
-## Log do `?2026` (opção `debug_log`)
+## `?2026` log (option `debug_log`)
 
-Uma linha JSONL por evento, com `ts` local em ms:
+One JSONL line per event, with local `ts` in ms:
 
-- `debug_log /tmp/bzmux.debug.log` na configuração (default); `off` desliga;
-  `--debug-log ARQ` na linha de comando vence a configuração; reload aplica.
-- `2026` — transição de `sync_output`, com `on`, `v`, `pin`, `sb`, `scr`,
-  `gen`; no fecho leva `ms` (duração da região, `time.monotonic`).
-- `draw` — desenho que escapou com a região aberta (`v`, `pin`, `sb`, `scr`).
-- `pos` — `view_off` mudou dentro da região (`v0`, `v1`, `pin`, ...).
-- `wheel` — roda dentro da região (`d`, `v0`, `v1`, `pin`).
-- `ms > 200` com um `draw` é o teto cumprindo o papel, não frame escapado; `pos`
-  dentro de uma região é o que o bug 22 do HISTORY.md descrevia.
-- Em teste, sempre `--debug-log /tmp/outro-nome.log`: o arquivo padrão é o da
-  sessão do usuário e misturar os dois apaga a evidência dele.
+- `debug_log /tmp/bzmux.debug.log` in the configuration (default); `off` turns
+  it off; `--debug-log ARQ` on the command line beats the configuration; reload
+  applies.
+- `2026` — `sync_output` transition, with `on`, `v`, `pin`, `sb`, `scr`,
+  `gen`; at close it carries `ms` (region duration, `time.monotonic`).
+- `draw` — drawing that escaped with the region open (`v`, `pin`, `sb`, `scr`).
+- `pos` — `view_off` changed inside the region (`v0`, `v1`, `pin`, ...).
+- `wheel` — wheel inside the region (`d`, `v0`, `v1`, `pin`).
+- `ms > 200` with a `draw` is the ceiling doing its job, not an escaped frame;
+  `pos` inside a region is what HISTORY.md bug 22 described.
+- In testing, always `--debug-log /tmp/outro-nome.log`: the default file is the
+  user's session one and mixing the two erases their evidence.
 
-## Socket de introspecção (`--debug-socket`)
+## Introspection socket (`--debug-socket`)
 
-Ferramenta para o agente, desligada por omissão: `--debug-socket ARQ`, ou `auto`
-= arquivo com o pid em `$XDG_RUNTIME_DIR`. Arquivo em `0600` e só o mesmo uid
-conecta; quando abre, a janela mostra um toast de aviso de segurança com o
-caminho do socket.
+Tool for the agent, off by default: `--debug-socket ARQ`, or `auto` = file with
+the pid in `$XDG_RUNTIME_DIR`. File at `0600` and only the same uid connects;
+when it opens, the window shows a security warning toast with the socket path.
 
-- Um pedido JSON por linha, uma resposta JSON por linha; a mesma conexão aceita
-  vários pedidos seguidos.
-- `{"cmd": "state"}` — pid, `xid` da janela, grade, cursor, título, `view_off`,
-  `pin`, `sync`, `scrolled`, `scrollback`, abas, workspaces, configuração,
-  erros, e as métricas da grade (`advance`, `cell`, `dpi`, `padding`, `font`,
+- One JSON request per line, one JSON response per line; the same connection
+  accepts several requests in a row.
+- `{"cmd": "state"}` — pid, window `xid`, grid, cursor, title, `view_off`,
+  `pin`, `sync`, `scrolled`, `scrollback`, tabs, workspaces, configuration,
+  errors, and the grid metrics (`advance`, `cell`, `dpi`, `padding`, `font`,
   `font_size`).
-- `{"cmd": "text", "where": "view", "start": 0, "count": 40}` — `view` é o que
-  a tela mostra (segue `view_off`), `screen` é a grade viva (o que o dump do
-  `SIGUSR1` mostra) e `history` indexa o scrollback por linha absoluta, 0 = a
-  mais antiga.
-- `{"cmd": "write", "data": "seq 1 200\r"}` — bytes crus no pty, como se
-  digitados; tecla que o app consome (PgUp, atalhos) não chega ao filho por
-  aqui.
-- `{"cmd": "keys", "data": "ctrl+shift+p"}` — tecla pelo caminho do app
-  (atalho, `shift+PgUp`, encoder para o filho), não pelo pty; aceita lista.
-  Nome de keysym do X (`Page_Up`, `F2`, `Return`) mais os atalhos `PgUp`,
-  `PgDn`, `Esc`, `Enter`, `Del`, `BS`, `Ins`; modificadores `ctrl`, `shift`,
-  `alt`, `super`. Tecla desconhecida é erro, não silêncio.
-- `{"cmd": "resize", "cols": 100, "rows": 34}` — redimensiona a JANELA e deixa
-  o caminho normal acontecer (allocation, `TIOCSWINSZ`, `SIGWINCH`); o
-  resultado sai no `state` seguinte.
-- `{"cmd": "prof", "on": true}` — liga a medição de custo em execução; sem `on`
-  só devolve os contadores acumulados (pty, draw, bytes, eagain).
-- `{"cmd": "log", "value": "/tmp/x.log"}` — liga, troca ou desliga (`off`) o
-  `debug_log` em execução.
-- `{"cmd": "quit"}` — fecha o app; o destroy vai num idle para a resposta sair
-  antes (fazer direto fecha o socket no meio do pedido).
-- Cliente fecha a conexão, não o servidor: ele fica aberto para receber mais
-  pedidos. Sem `nc -N` (ou `-q 0`) o comando pendura esperando o fim da
-  conexão; EOF do cliente encerra do lado do app.
-- Pedido inválido responde `{"ok": false, "err": ...}`; o despacho é puro e o
-  check `debug_socket` cobre ele com alvo falso.
+- `{"cmd": "text", "where": "view", "start": 0, "count": 40}` — `view` is what
+  the screen shows (follows `view_off`), `screen` is the live grid (what the
+  `SIGUSR1` dump shows) and `history` indexes the scrollback by absolute line,
+  0 = the oldest.
+- `{"cmd": "write", "data": "seq 1 200\r"}` — raw bytes into the pty, as if
+  typed; a key the app consumes (PgUp, shortcuts) does not reach the child
+  through here.
+- `{"cmd": "keys", "data": "ctrl+shift+p"}` — key through the app's path
+  (shortcut, `shift+PgUp`, encoder for the child), not through the pty; accepts
+  a list. X keysym name (`Page_Up`, `F2`, `Return`) plus the shortcuts `PgUp`,
+  `PgDn`, `Esc`, `Enter`, `Del`, `BS`, `Ins`; modifiers `ctrl`, `shift`, `alt`,
+  `super`. An unknown key is an error, not silence.
+- `{"cmd": "resize", "cols": 100, "rows": 34}` — resizes the WINDOW and lets
+  the normal path happen (allocation, `TIOCSWINSZ`, `SIGWINCH`); the result
+  comes out in the next `state`.
+- `{"cmd": "prof", "on": true}` — turns on cost measurement at run time; without
+  `on` it only returns the accumulated counters (pty, draw, bytes, eagain).
+- `{"cmd": "log", "value": "/tmp/x.log"}` — turns on, switches or turns off
+  (`off`) `debug_log` at run time.
+- `{"cmd": "quit"}` — closes the app; the destroy goes in an idle so the
+  response leaves first (doing it directly closes the socket in the middle of
+  the request).
+- The client closes the connection, not the server: it stays open to receive
+  more requests. Without `nc -N` (or `-q 0`) the command hangs waiting for the
+  connection to end; client EOF ends it on the app side.
+- An invalid request answers `{"ok": false, "err": ...}`; the dispatch is pure
+  and the `debug_socket` check covers it with a fake target.
 
-## Armadilhas de implementação
-- Desenho do `_on_draw` é em duas passadas (fundos, depois texto) de propósito:
-  alternar `fill` e `show_layout_line` por run custa ~2x o frame inteiro. Não
-  "simplificar" de volta para um laço único.
-- Dano do desenho: `Term.take_damage()` é a única fonte do que a view repinta.
-  Caminho novo que escreva célula sem `touch(y)` (ou sem `touch_all()`, se mover
-  linhas) não aparece na tela até algo rolar — o bug parece de parse.
-- O laço de `_on_draw` filtra por `cr.clip_extents()`; é isso que faz o spinner
-  de um caractere custar uma linha em vez do frame. Tirar o filtro (ou trocar
-  `queue_draw_area` por `queue_draw`) devolve os 13 ms sem mudar um pixel.
+## Implementation pitfalls
+- `_on_draw`'s drawing is in two passes (backgrounds, then text) on purpose:
+  alternating `fill` and `show_layout_line` per run costs ~2x the whole frame.
+  Do not "simplify" it back into a single loop.
+- Drawing damage: `Term.take_damage()` is the only source of what the view
+  repaints. A new path that writes a cell without `touch(y)` (or without
+  `touch_all()`, if it moves lines) does not show up on screen until something
+  scrolls — the bug looks like a parse one.
+- The `_on_draw` loop filters by `cr.clip_extents()`; that is what makes a
+  one-character spinner cost one line instead of the frame. Removing the filter
+  (or swapping `queue_draw_area` for `queue_draw`) brings back the 13 ms
+  without changing a pixel.
 
-- `show_all()` desfaz `set_visible(False)`: mostra todos os descendentes e um
-  widget escondido no construtor volta. Controlar na mão exige
-  `set_no_show_all(True)` nele.
-- `io_add_watch` sem prioridade usa `DEFAULT` (0), acima de desenho: fd sempre
-  pronto em 0 congela a tela. `PRIORITY_DEFAULT_IDLE` (200) deixa o redraw
-  (120) passar. Vale para `timeout_add` de animação.
-- `background-color` sozinho não pinta no GTK3: se o tema põe `background-image`
-  no nó, a cor é ignorada. Fundo sólido precisa de `background-image: none` (foi
-  o flash do bell "não funcionar").
-- Nó CSS `tab` do `Gtk.Notebook` não é o rótulo: classe no rótulo pinta só o
-  texto e `tab:checked` manda no resto. `label.get_parent()` é o próprio
-  Notebook; dar `set_name` ao rótulo e cuidar do padding nele (P34).
-- O desmapeio da página é do despacho do `Gtk.Notebook`: é dele que o pisca do
-  cursor depende (`unmap`/`map`). Trocar o container e ele volta a rodar em
-  todas as abas.
-- Página recém-anexada ao `Gtk.Notebook` nasce oculta e `set_current_page` é
-  ignorado (`get_current_page()` continua na anterior): `show_all()` na página e
-  no rótulo antes de trocar.
-- `get_current_page()` dentro do `switch-page` ainda é a página ANTIGA (o
-  notebook só troca depois de emitir o sinal). Quem atualiza cartão, título ou
-  rótulo no handler tem que usar o `page`/`page_num` do sinal, senão a tela
-  anda uma ação atrás.
-- `grab_focus()` dentro de `switch-page` não pega (a página ainda não está
-  mapeada, o foco fica no notebook): agendar com `GLib.idle_add`.
-- `GLib.idle_add` de foco rouba o foco de um `Gtk.Entry`: checar `get_focus()`
-  antes, senão o nome digitado vai para o terminal.
-- `CSI 3J` apaga o histórico: a âncora absoluta de rolagem morre com ele. O
-  repaint que limpa reescreve o mesmo texto, então o que vale é a distância do
-  vivo (`Term.hist_gen` marca a limpeza, `pinned_view_off` reconta); guardar a
-  linha absoluta faz a visão saltar pro topo da história nova.
-- `sh -c "<cmd>"` não faz exec quando o comando tem argumento: o programa é
-  neto do pty e o cwd do `sh` nunca muda. Herdar cwd pelo último descendente
-  (`/proc/<pid>/task/<pid>/children`).
-- O filho do `pty.fork` herda o ambiente inteiro, `SHELL` incluído: ele passa a
-  mentir quando o shell configurado é outro (ou quando o config está vazio e o
-  `$SHELL` decide). Exportar o `SHELL` que `config.tab_command` devolve — o
-  `--cmd` troca o comando, não o `SHELL`.
-- `Gtk.EventBox` ignora padding do CSS no tamanho: o fundo pinta, o widget não
-  cresce e o texto encosta na borda. Padding vai na caixa interna (`Gtk.Box`),
-  como no `#toast` atual.
-- `Gtk.EventBox` sem `add_events()` tem máscara vazia (`get_events() == 0`) e o
-  clique nunca chega; e `notebook.set_tab_label_text()` troca o widget do
-  rótulo (guardar o `Gtk.Label` e mudar o texto dele).
-- `Gtk.Box` não tem `reorder()`: é `reorder_child(child, index)`.
-- Em atalho `Ctrl+Shift+1` o keyval chega como `exclam`/`at`, não como `1`
-  (o Gdk dá o símbolo): mapear de volta ou usar a coluna do teclado.
-- `queue_resize()` não re-aloca quando o tamanho do widget não muda: com fonte
-  nova o `size-allocate` não vem e a grade fica com a célula antiga. Chamar
-  `on_resize` direto ao aplicar config.
-- Métrica de fonte sai do contexto Pango do widget (`get_pango_context()`), não
-  de uma `ImageSurface` solta: ponto→pixel usa outra resolução e a grade
-  desalinha.
-- cairo `FORMAT_A1` mede fonte, mas `font_extents()` devolve 5 valores (ascent,
-  descent, height, max_x_advance, max_y_advance).
-- Quebra pendente: emulador não deve contar o `\n` depois de linha cheia como
-  segunda quebra — texto até a última coluna + `\r\n` é o padrão de TUI que
-  desenha até a borda.
-- Célula em branco é compartilhada (P21): `_blank_row()` é
-  `[_BLANK_CELL] * cols`. Escrever substitui a célula
-  (`row[x] = [ch, fg, bg, fl]`), nunca `row[x][2] = ...`: mutação in-place pinta
-  a tela inteira. `blank_cell()` (bg corrente, para `erase_*`) aloca nova de
-  propósito.
-- `lista[-0:]` é a lista inteira: fatiar por teto configurável (`[-limit:]`)
-  deixa de cortar com limite 0. Usar `del lista[:len(lista) - n]`.
-- `chr(kv)` só existe para `0x20–0x7e`, `0xa0–0xff` e `0x01000000+U`; o resto é
-  modificador/função.
-- `create_for_data` do cairo não copia os bytes: o `bytearray` da imagem tem de
-  continuar vivo enquanto a surface existir, senão o desenho sai com lixo.
-- O `Gtk.EventBox` do cartão tem janela própria e pinta por cima da
-  `ListBoxRow`, escondendo o `:selected`: deixá-lo transparente no CSS e pintar
-  o fundo na linha.
-- Atributo de markup (`<span foreground=...>`) ganha do CSS e o rótulo não muda
-  de cor no selecionado: cor vai por classe, markup só com o `<small>`.
-- `row`, `row:hover` e `row:selected` têm de estar no CSS: sem o `:selected`
-  explícito o tema manda, e sem `:hover` o cartão sob o mouse pega o realce
-  claro do tema.
-- Chamada de binding do gi por run custa caro e anula o ganho de trocar a
-  chamada de desenho: decidir na criação da entrada do cache, nunca por run.
-- Baseline do layout vem de `get_baseline()`, não do ascent da fonte: com
-  fallback CJK o layout resolve outra baseline e o texto sobe.
-- Âncora de seleção e de histórico mora em linha **absoluta**
-  (`scrolled - view_off + row`), nunca em fileira de tela: coordenada de tela
-  envelhece ao rolar e ao chegar output. A geração do mapa (`Term.abs_gen`)
-  invalida no reflow, em `CSI 3J` e na troca de buffer do alt-screen, mas
-  **não** no corte do teto do `scrollback` — ali a linha absoluta continua a
-  mesma (P32/B17).
+- `show_all()` undoes `set_visible(False)`: it shows every descendant and a
+  widget hidden in the constructor comes back. Controlling it by hand requires
+  `set_no_show_all(True)` on it.
+- `io_add_watch` without a priority uses `DEFAULT` (0), above drawing: an fd
+  always ready at 0 freezes the screen. `PRIORITY_DEFAULT_IDLE` (200) lets the
+  redraw (120) through. Same for animation `timeout_add`.
+- `background-color` alone does not paint in GTK3: if the theme puts a
+  `background-image` on the node, the color is ignored. A solid background
+  needs `background-image: none` (that was the bell flash "not working").
+- The `Gtk.Notebook` CSS node `tab` is not the label: a class on the label
+  paints only the text and `tab:checked` rules the rest. `label.get_parent()` is
+  the Notebook itself; give the label a `set_name` and handle the padding on it
+  (P34).
+- Page unmapping is the `Gtk.Notebook` dispatch's: the cursor blink depends on
+  it (`unmap`/`map`). Swap the container and it runs on every tab again.
+- A freshly attached `Gtk.Notebook` page is born hidden and `set_current_page`
+  is ignored (`get_current_page()` stays on the previous one): `show_all()` on
+  the page and on the label before switching.
+- `get_current_page()` inside `switch-page` is still the OLD page (the notebook
+  only switches after emitting the signal). Whoever updates card, title or
+  label in the handler must use the signal's `page`/`page_num`, otherwise the
+  screen runs one action behind.
+- `grab_focus()` inside `switch-page` does not take (the page is not mapped yet,
+  focus stays on the notebook): schedule with `GLib.idle_add`.
+- A focus `GLib.idle_add` steals focus from a `Gtk.Entry`: check `get_focus()`
+  first, otherwise the typed name goes to the terminal.
+- `CSI 3J` erases the scrollback: the absolute scroll anchor dies with it. The
+  repaint that clears rewrites the same text, so what counts is the distance
+  from live (`Term.hist_gen` marks the clearing, `pinned_view_off` recounts);
+  storing the absolute line makes the view jump to the top of the new history.
+- `sh -c "<cmd>"` does not exec when the command has an argument: the program
+  is a grandchild of the pty and `sh`'s cwd never changes. Inherit the cwd
+  through the last descendant (`/proc/<pid>/task/<pid>/children`).
+- The `pty.fork` child inherits the whole environment, `SHELL` included: it
+  starts lying when the configured shell is another one (or when the config is
+  empty and `$SHELL` decides). Export the `SHELL` that `config.tab_command`
+  returns — `--cmd` changes the command, not the `SHELL`.
+- `Gtk.EventBox` ignores CSS padding for sizing: the background paints, the
+  widget does not grow and the text touches the border. Padding goes on the
+  inner box (`Gtk.Box`), as in the current `#toast`.
+- A `Gtk.EventBox` without `add_events()` has an empty mask
+  (`get_events() == 0`) and the click never arrives; and
+  `notebook.set_tab_label_text()` swaps the label widget (keep the `Gtk.Label`
+  and change its text).
+- `Gtk.Box` has no `reorder()`: it is `reorder_child(child, index)`.
+- On the `Ctrl+Shift+1` shortcut the keyval arrives as `exclam`/`at`, not as
+  `1` (Gdk gives the symbol): map it back or use the keyboard column.
+- `queue_resize()` does not reallocate when the widget size does not change:
+  with a new font `size-allocate` does not come and the grid keeps the old
+  cell. Call `on_resize` directly when applying config.
+- Font metrics come from the widget's Pango context (`get_pango_context()`),
+  not from a loose `ImageSurface`: point→pixel uses another resolution and the
+  grid misaligns.
+- cairo `FORMAT_A1` measures font, but `font_extents()` returns 5 values
+  (ascent, descent, height, max_x_advance, max_y_advance).
+- Pending wrap: the emulator must not count the `\n` after a full line as a
+  second break — text up to the last column + `\r\n` is the TUI pattern that
+  draws up to the edge.
+- A blank cell is shared (P21): `_blank_row()` is `[_BLANK_CELL] * cols`.
+  Writing replaces the cell (`row[x] = [ch, fg, bg, fl]`), never
+  `row[x][2] = ...`: in-place mutation paints the whole screen. `blank_cell()`
+  (current bg, for `erase_*`) allocates a new one on purpose.
+- `lista[-0:]` is the whole list: slicing by a configurable ceiling
+  (`[-limit:]`) stops cutting at limit 0. Use `del lista[:len(lista) - n]`.
+- `chr(kv)` only exists for `0x20–0x7e`, `0xa0–0xff` and `0x01000000+U`; the
+  rest is modifier/function.
+- cairo's `create_for_data` does not copy the bytes: the image's `bytearray`
+  must stay alive while the surface exists, otherwise the drawing comes out as
+  garbage.
+- The card's `Gtk.EventBox` has its own window and paints over the `ListBoxRow`,
+  hiding the `:selected`: make it transparent in the CSS and paint the
+  background on the row.
+- A markup attribute (`<span foreground=...>`) beats the CSS and the label does
+  not change color on selected: color goes by class, markup only with
+  `<small>`.
+- `row`, `row:hover` and `row:selected` must be in the CSS: without the explicit
+  `:selected` the theme rules, and without `:hover` the card under the mouse
+  takes the theme's light highlight.
+- A gi binding call per run is expensive and cancels the gain of swapping the
+  drawing call: decide at cache entry creation, never per run.
+- Layout baseline comes from `get_baseline()`, not from the font ascent: with a
+  CJK fallback the layout resolves another baseline and the text rises.
+- Selection and scrollback anchor lives on an **absolute** line
+  (`scrolled - view_off + row`), never on a screen row: screen coordinates age
+  as you scroll and as output arrives. The map generation (`Term.abs_gen`)
+  invalidates on reflow, on `CSI 3J` and on the alt-screen buffer switch, but
+  **not** on the `scrollback` ceiling trim — there the absolute line stays the
+  same (P32/B17).
 
-## Instalação (pipx e shell)
+## Installation (pipx and shell)
 
-- O venv do pipx nasce com o python **do próprio pipx**: `uvx pipx` instala num
-  3.12 sem `gi` e `--system-site-packages` não salva — precisa de
-  `--python /usr/bin/python3`. Pipx do apt já usa o do sistema.
-- `pipx install --force` e `reinstall` preservam `include-system-site-packages`
-  mas **ignoram** `--python`: trocar de interpretador exige `uninstall` e
-  instalar de novo.
-- `git+ssh://…` instala o **commit**, não a árvore de trabalho: mudança não
-  commitada não chega no teste.
-- Versão fixa no `pyproject` faz `pipx upgrade` não ver commit novo; atualização
-  é `--force`.
-- `[ -x python3 ]` testa arquivo no cwd, não no PATH: use `command -v`.
-- Função que imprime e é usada como condição vaza no stdout: `if func; then`
-  recebe o valor errado.
+- The pipx venv is born with **pipx's own** python: `uvx pipx` installs into a
+  3.12 without `gi` and `--system-site-packages` does not save it — it needs
+  `--python /usr/bin/python3`. The apt pipx already uses the system one.
+- `pipx install --force` and `reinstall` preserve
+  `include-system-site-packages` but **ignore** `--python`: changing
+  interpreter requires `uninstall` and installing again.
+- `git+ssh://…` installs the **commit**, not the working tree: an uncommitted
+  change does not reach the test.
+- A fixed version in `pyproject` makes `pipx upgrade` miss a new commit; the
+  update is `--force`.
+- `[ -x python3 ]` tests a file in the cwd, not on the PATH: use `command -v`.
+- A function that prints and is used as a condition leaks into stdout:
+  `if func; then` gets the wrong value.
 
-## Medição e perfil
+## Measurement and profiling
 
-Governor, carga e protocolo de medição: docs/BENCHMARKS.md. Do perfil:
+Governor, load and measurement protocol: docs/BENCHMARKS.md. On profiling:
 
-- cProfile não enxerga `gi.FunctionInfo`: `PangoCairo.show_layout` 20.000 vezes
-  não aparece e o tempo cai no self do chamador (`_on_draw` a 46% de "self" sem
-  Pango). Método de objeto cairo (`fill`, `rectangle`) aparece; função de
-  módulo do gi, não. Ele infla quem faz muita chamada Python e derruba o
-  doom-fire: proporção, `perf_counter` por seção; perfil, só para saber quais
-  chamadas existem.
-- As primeiras `on_draw` custam mais (layout, fonte, contexto): medir `draw`
-  com centenas de chamadas ou comparar por razão.
-- Desenho depende de runs, não de células: a mesma contagem com uma cor custa
-  uma fração de dezenas de cores por linha; tela uniforme subestima o pior caso.
-- fps depende da grade: MB/s fica parado e fps cai quando a célula cresce;
-  comparar fps entre grades não diz nada.
+- cProfile does not see `gi.FunctionInfo`: `PangoCairo.show_layout` 20,000 times
+  does not show up and the time falls into the caller's self (`_on_draw` at 46%
+  of "self" without Pango). A cairo object method (`fill`, `rectangle`) shows
+  up; a gi module function does not. It inflates whoever makes many Python
+  calls and sinks doom-fire: proportion, `perf_counter` per section; profile,
+  only to know which calls exist.
+- The first `on_draw` calls cost more (layout, font, context): measure `draw`
+  with hundreds of calls or compare by ratio.
+- Drawing depends on runs, not on cells: the same count with one color costs a
+  fraction of dozens of colors per line; a uniform screen underestimates the
+  worst case.
+- fps depends on the grid: MB/s stays put and fps drops when the cell grows;
+  comparing fps across grids says nothing.

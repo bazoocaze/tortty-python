@@ -1,170 +1,175 @@
-# pybzmux — limites
+# pybzmux — limits
 
-O que o pybzmux **não** faz, e por quê. Separado do backlog (que é fila de
-trabalho, em [BACKLOG.md](BACKLOG.md)): aqui só entra o que é decisão
-ou consequência aceita do escopo. Se algo desta lista virar tarefa, sai
-daqui e vira item lá.
+What pybzmux does **not** do, and why. Separate from the backlog (which is a
+work queue, in [BACKLOG.md](BACKLOG.md)): only what is a decision
+or an accepted consequence of scope goes in here. If something on this list
+becomes a task, it leaves here and becomes an item there.
 
-Cada linha diz o limite, a razão e a consequência prática. Formato pensado para
-consulta por grep, não para leitura corrida. Visão geral do projeto:
-[../README.md](../README.md). Números de medição: [BENCHMARKS.md](BENCHMARKS.md).
+Each line states the limit, the reason and the practical consequence. Format
+designed for grep lookup, not for continuous reading. Project overview:
+[../README.md](../README.md). Measurement numbers: [BENCHMARKS.md](BENCHMARKS.md).
 
-## Desempenho (o custo do caminho em Python)
+## Performance (the cost of the path in Python)
 
-- **Vazão de poucos MB/s, contra ~6x mais do kitty na mesma carga** — não é bug,
-  é a medida, e o par (com data, governor, frequência e a escada que o decompõe)
-  está em [`BENCHMARKS.md`](BENCHMARKS.md). Depois do P20–P22 o IO do pty deixou
-  de ser gargalo; sobra o **parse em Python** e o **desenho**, nessa ordem.
-- **Interação não sofre**: tecla custa microssegundos; o limite só aparece em
-  volume (cat de log grande, seq 100000, scroll de saída massiva).
-- **Um core por sessão ativa**: sob despejo contínuo o pybzmux satura um core. O
-  desenho é coalescido em ~16 ms (60 Hz) de propósito, para o parse não morrer
-  de fome.
-- **A metadata não faz claim de desempenho**: a descrição do pacote diz o que o
-  app tem (abas, workspaces, imagens), não "leve" nem "rápido". Leve é verdade
-  em **pegada** (o número está em [`BENCHMARKS.md`](BENCHMARKS.md)) e falso em
-  vazão, que é o limite acima; claim de velocidade viraria promessa que a
-  própria régua desmente.
+- **Throughput of a few MB/s, against ~6x more from kitty on the same load** —
+  it is not a bug, it is the measurement, and the pair (with date, governor,
+  frequency and the ladder that decomposes it) is in
+  [`BENCHMARKS.md`](BENCHMARKS.md). After P20–P22 the pty IO stopped
+  being the bottleneck; what is left is the **parse in Python** and the
+  **drawing**, in that order.
+- **Interaction does not suffer**: a key costs microseconds; the limit only
+  shows up under volume (cat of a big log, seq 100000, scroll of massive output).
+- **One core per active session**: under continuous dumping pybzmux saturates
+  one core. The drawing is coalesced at ~16 ms (60 Hz) on purpose, so the parse
+  does not starve.
+- **The metadata makes no performance claim**: the package description says what
+  the app has (tabs, workspaces, images), not "light" nor "fast". Light is true
+  in **footprint** (the number is in [`BENCHMARKS.md`](BENCHMARKS.md)) and false
+  in throughput, which is the limit above; a speed claim would become a promise
+  that the ruler itself refutes.
 
-## Modelo de célula e texto
+## Cell model and text
 
-- **Sem `wcwidth`**: caractere largo (CJK, emoji) ocupa **uma** célula. O glifo
-  é desenhado na largura da célula: app que conta coluna dupla (tabela em CJK,
-  `vim` com wide chars) sai desalinhado. Resolver exige mexer no modelo de
-  célula, não no desenho.
-- **Sem combinação de célula para grafema complexo**: cada célula carrega um
-  caractere; marca combinante é desenhada pelo Pango, mas não ocupa célula
-  própria nem altera a contagem de colunas do app.
-- **Ligadura depende da fonte instalada**: o shaping existe (Pango) e a família
-  agora é configurável (`font_family`), mas a Monospace padrão da máquina
-  (DejaVu) quase não tem ligadura — quem quiser precisa ter uma Fira Code ou
-  JetBrains instalada e escolhê-la. Não há `font_features`/`letter_spacing`
-  ligados por opção.
+- **No `wcwidth`**: a wide character (CJK, emoji) takes **one** cell. The glyph
+  is drawn at the cell width: an app that counts double columns (CJK table,
+  `vim` with wide chars) comes out misaligned. Fixing it requires touching the
+  cell model, not the drawing.
+- **No cell combining for a complex grapheme**: each cell carries one
+  character; a combining mark is drawn by Pango, but does not take its own cell
+  nor change the app's column count.
+- **Ligature depends on the installed font**: shaping exists (Pango) and the
+  family is now configurable (`font_family`), but the machine's default
+  Monospace (DejaVu) has almost no ligature — whoever wants it needs a Fira
+  Code or JetBrains installed and to pick it. There is no
+  `font_features`/`letter_spacing` enabled by option.
 
-## Parser VT (o que não é interpretado)
+## VT parser (what is not interpreted)
 
-- **SGR parcial**: implementa 0, 1, 4, 7, 22, 24, 27, 30–37, 39, 40–47, 49,
-  90–97, 100–107, 38/48 (256 e truecolor). **Não** implementa 2 (meia
-  intensidade), 3 (itálico), 5 (pisca), 8 (oculto), 9 (riscado), 21, 53
-  (overline), 58/59 (cor do sublinhado). Quem usa 9 (git diff em alguns temas,
-  `bat`) fica sem o risco.
-- **Bold não vira cor clara**: com paleta de 8/16 cores, `SGR 1` só engrossa o
-  glifo; não há "bold as bright" (que o xterm faz).
-- **Sem `DECAWM` desligado**: autowrap é sempre ligado; `CSI ? 7 l` é ignorado.
-- **Sem origem/margens especiais**: `DECSTBM` (região de scroll) funciona, mas
-  `? 6` (origin mode), `? 3` (80/132), `DECDHL`/`DECDWL` (linha dupla) não.
-- **Sem `REP`** (`CSI b`), sem `DECSTR` (`CSI ! p`) e sem `HTS`/`TBC` (tab stop
-  é fixo de 8 em 8).
-- **Sem double buffering de paleta**: `OSC 4` só responde consulta; não redefine
-  entrada da paleta, e `OSC 104/110/111` (reset) são ignorados.
+- **Partial SGR**: implements 0, 1, 4, 7, 22, 24, 27, 30–37, 39, 40–47, 49,
+  90–97, 100–107, 38/48 (256 and truecolor). **Does not** implement 2 (half
+  intensity), 3 (italic), 5 (blink), 8 (hidden), 9 (strikethrough), 21, 53
+  (overline), 58/59 (underline color). Whoever uses 9 (git diff in some themes,
+  `bat`) gets no line.
+- **Bold does not become bright color**: with an 8/16 color palette, `SGR 1`
+  only thickens the glyph; there is no "bold as bright" (which xterm does).
+- **No `DECAWM` off**: autowrap is always on; `CSI ? 7 l` is ignored.
+- **No origin/special margins**: `DECSTBM` (scroll region) works, but
+  `? 6` (origin mode), `? 3` (80/132), `DECDHL`/`DECDWL` (double line) do not.
+- **No `REP`** (`CSI b`), no `DECSTR` (`CSI ! p`) and no `HTS`/`TBC` (tab stop
+  is fixed in steps of 8).
+- **No palette double buffering**: `OSC 4` only answers a query; it does not
+  redefine a palette entry, and `OSC 104/110/111` (reset) are ignored.
 
-## OSC (o que não é atendido)
+## OSC (what is not served)
 
-- **Sem `OSC 52`** (clipboard): copiar do app para o sistema não vai pela
-  sequência — só pela seleção do mouse (que é local).
-- **Sem `OSC 8`** (hyperlink): a sequência é consumida e descartada; link não
-  fica clicável.
-- **Sem `OSC 7`** (cwd do shell) e sem `OSC 133` (marcas de prompt): o título da
-  aba vem de `OSC 0/2`, não do diretório nem de integração de shell.
-- **Sem notificações** (`OSC 9`, `OSC 777`).
+- **No `OSC 52`** (clipboard): copying from the app to the system does not go
+  through the sequence — only through the mouse selection (which is local).
+- **No `OSC 8`** (hyperlink): the sequence is consumed and discarded; the link
+  does not become clickable.
+- **No `OSC 7`** (shell cwd) and no `OSC 133` (prompt marks): the tab title
+  comes from `OSC 0/2`, not from the directory nor from shell integration.
+- **No notifications** (`OSC 9`, `OSC 777`).
 
-## Mouse e seleção
+## Mouse and selection
 
-- **Seleção só por célula**: sem duplo-clique por palavra, sem triplo-clique por
-  linha, sem modo bloco/retangular.
-- **Sem barra de rolagem clicável**: histórico é teclado (Shift+PgUp/PgDn/Home/
-  End) e wheel; o `↑N` no canto é só indicador.
-- **Sem busca no scrollback**.
-- **Sem protocolo de mouse em pixels** (`? 1016`) nem modo de mouse estendido do
-  urxvt além do SGR/UTF-8/legado já suportados.
-- **Seleção não sobrevive a resize nem a reflow**: âncora e ponta são
-  coordenadas da grade.
+- **Selection by cell only**: no double-click by word, no triple-click by
+  line, no block/rectangular mode.
+- **No clickable scrollbar**: scrollback is keyboard (Shift+PgUp/PgDn/Home/
+  End) and wheel; the `↑N` in the corner is only an indicator.
+- **No search in the scrollback**.
+- **No pixel mouse protocol** (`? 1016`) nor urxvt extended mouse mode
+  beyond the SGR/UTF-8/legacy already supported.
+- **Selection does not survive a resize nor a reflow**: anchor and tip are
+  grid coordinates.
 
-## Teclado
+## Keyboard
 
-- **Protocolo do kitty parcial**: sem `report alternate keys` (flag 4 — o Gdk
-  não entrega o keysym alternativo direto), sem repeat distinguido de press (o
-  Gdk repete como key-press) e sem o modo de teclado numérico.
-- **Layouts não-US**: a tradução keyval→bytes é por tabela; texto vem do
-  `ev.string` do Gdk quando existe, mas atalhos com teclas mortas e layout
-  exótico dependem do que o Gdk entrega.
-- **Sem remapeamento de teclas**: os atalhos são fixos em `bzmux/window.py`,
-  consequência de não haver arquivo de configuração.
-- **Congelar o output (`Ctrl+S`/`Ctrl+Q`) é do tty, não do terminal**: quem
-  para e retoma a entrega de bytes é a *line discipline* do kernel (`IXON` no
-  termios). O app só entrega `0x13`/`0x11` ao filho — e é por isso que não
-  funciona em app em modo raw (`vim`, `mc`, `pi`): eles limpam `IXON`, e todo
-  terminal se comporta assim. Um "pause" nosso (parar de ler o pty) mudaria a
-  semântica e não é feito.
+- **Partial kitty protocol**: no `report alternate keys` (flag 4 — Gdk
+  does not deliver the alternate keysym directly), no repeat distinguished from
+  press (Gdk repeats as key-press) and no numeric keypad mode.
+- **Non-US layouts**: the keyval→bytes translation is by table; text comes from
+  Gdk's `ev.string` when it exists, but shortcuts with dead keys and an exotic
+  layout depend on what Gdk delivers.
+- **No key remapping**: the shortcuts are fixed in `bzmux/window.py`,
+  a consequence of there being no configuration file.
+- **Freezing the output (`Ctrl+S`/`Ctrl+Q`) is the tty's, not the terminal's**:
+  whoever stops and resumes byte delivery is the kernel's *line discipline*
+  (`IXON` in termios). The app only delivers `0x13`/`0x11` to the child — and
+  that is why it does not work in an app in raw mode (`vim`, `mc`, `pi`): they
+  clear `IXON`, and every terminal behaves that way. A "pause" of ours (stop
+  reading the pty) would change the semantics and is not done.
 
-## Gráficos (protocolo de imagens)
+## Graphics (image protocol)
 
-- **Sem animação e sem z-index**: `a=f`/`a=a` são ignorados, `z=` não existe;
-  imagem vai em ordem de chegada, por cima do texto e abaixo do cursor.
-- **Sem fonte externa de dados**: `t=f` (arquivo), `t=t` (temp file) e `t=s`
-  (shared memory) não são lidos — a imagem tem que vir no escape base64.
-- **Sem `f=100` otimizado além do PNG**: PNG é lido direto pelo cairo; RGBA
-  cru passa por uma cópia por causa do stride.
-- **Sem sixel e sem iTerm2 inline images**: só o protocolo do kitty.
+- **No animation and no z-index**: `a=f`/`a=a` are ignored, `z=` does not exist;
+  the image goes in arrival order, above the text and below the cursor.
+- **No external data source**: `t=f` (file), `t=t` (temp file) and `t=s`
+  (shared memory) are not read — the image has to come in the base64 escape.
+- **No optimized `f=100` beyond PNG**: PNG is read directly by cairo; raw RGBA
+  goes through a copy because of the stride.
+- **No sixel and no iTerm2 inline images**: only the kitty protocol.
 
-## Reflow e histórico
+## Reflow and scrollback
 
-- **Reflow só no buffer principal**: em alt-screen (`mc`, `vim`) o resize
-  recorta/preenche de propósito — quem está em tela cheia se redesenha sozinho
-  no SIGWINCH, e re-quebrar por cima do que ele escreveu atrapalharia.
-- **Histórico limitado**: o scrollback tem teto de linhas; o que sai não volta.
-- **Imagem no histórico é podada** quando a linha a que pertence sai do
+- **Reflow only in the main buffer**: in alt-screen (`mc`, `vim`) the resize
+  crops/pads on purpose — whoever is in full screen redraws itself
+  on SIGWINCH, and re-wrapping over what it wrote would get in the way.
+- **Limited scrollback**: the scrollback has a line cap; what leaves does not
+  come back.
+- **Image in the scrollback is pruned** when the line it belongs to leaves the
   scrollback.
-- **O histórico não volta sozinho ao vivo**: depois de rolar, a visão fica
-  ancorada na linha (absoluta) que você parou de ler até uma ação sua — rolar
-  até o fim, uma tecla, ou o app limpar o histórico (`CSI 3J`). Descartados por
-  decisão: retorno por tempo (5 s sem rolar mede a coisa errada: ler é
-  silencioso, e um app que escreve a cada 1 s arrancaria o usuário assim que o
-  prazo vencesse) e *sticky bottom* (voltar quando a visão está a ≤1 linha do
-  fim) — este último cabe no futuro sem mudar a âncora.
+- **The scrollback does not return to live by itself**: after scrolling, the
+  view stays anchored at the (absolute) line where you stopped reading until an
+  action of yours — scroll to the end, a key, or the app clearing the scrollback
+  (`CSI 3J`). Discarded by decision: return by time (5 s without scrolling
+  measures the wrong thing: reading is silent, and an app that writes every 1 s
+  would tear the user away as soon as the deadline expired) and *sticky bottom*
+  (come back when the view is ≤1 line from the end) — the latter fits in the
+  future without changing the anchor.
 
 ## Interface
 
-- **Posição da janela só é lembrada no X11**: no Wayland o cliente não escolhe
-  onde a janela fica, então o arquivo de estado guarda apenas tamanho e
-  maximizado. Não é falta de código, é o protocolo.
-- **Sem tema nem paleta configurável**: o arquivo de configuração (P33/P34)
-  cobre fonte, tamanho, cursor, histórico, padding, bell e cópia, mas **cor** do
-  terminal (`palette.py`) e do cromo (`style.py`) continuam fixas no código —
-  mudar exige editar e reiniciar. Paleta e remapeamento de atalhos são o que
-  falta; fonte em **pontos** (convenção de terminal, convertidos pelo DPI do
-  display), não pixels.
-- **Sem abas/workspaces persistentes**: abas e workspaces vivem só na execução;
-  fechar a janela perde o layout.
-- **Sem modo de cópia/scrollback**: sem editor de texto sobre o histórico.
-- **Sem menu de contexto**: nada de menu na lateral ou na aba, e aba não se
-  reordena arrastando.
-- **Sem DnD de arquivo** na janela.
+- **Window position is only remembered on X11**: on Wayland the client does not
+  choose where the window sits, so the state file stores only size and
+  maximized. It is not a lack of code, it is the protocol.
+- **No configurable theme or palette**: the configuration file (P33/P34)
+  covers font, size, cursor, scrollback, padding, bell and copy, but the
+  **color** of the terminal (`palette.py`) and of the chrome (`style.py`) remain
+  fixed in the code — changing them requires editing and restarting. Palette and
+  shortcut remapping are what is missing; font in **points** (terminal
+  convention, converted by the display's DPI), not pixels.
+- **No persistent tabs/workspaces**: tabs and workspaces live only in the run;
+  closing the window loses the layout.
+- **No copy/scrollback mode**: no text editor over the scrollback.
+- **No context menu**: no menu in the sidebar or in the tab, and a tab does not
+  reorder by dragging.
+- **No file DnD** in the window.
 
-## Escopo (decisão, não falta)
+## Scope (decision, not lack)
 
-- **Não é produto distribuído**: nasceu como experimento para medir o custo do
-  caminho quente em Python e virou aplicação real de uso diário. Tem pacote
-  instalável (`pipx` ou `install.sh`, item P31), mas não tem release, PyPI,
-  instalador para outra plataforma, versionamento semântico nem suporte.
-- **Só Linux, com GTK3 do sistema**: o PyGObject e o cairo vêm da distro e o
-  cromo é GTK3 — macOS e Windows exigiriam levar o stack inteiro, o que é o
-  estudo do P30 em [PORTABILITY.md](PORTABILITY.md). Não é portabilidade
-  prometida para depois; é onde ele roda.
-- **Python puro é decisão, não pendência**: o experimento perguntou se dava
-  para fazer um terminal inteiro em Python e a resposta foi sim — ele é usado
-  no dia a dia assim. O teto de vazão (~6x o kitty) é o preço aceito, e se
-  ataca otimizando o caminho em Python (parse, desenho), não reescrevendo em C.
-- **Núcleo nativo (C ou Rust) não entra**: já foi tentado antes, no experimento
-  irmão que embute o núcleo do kitty como lib C: ~4,9 mil linhas de C escrito à
-  mão e 68 commits em 6 dias, e os bugs caros foram de **fronteira**, não de
-  VT — a tecla indo duas vezes ao pty ao fundir a instrumentação, e o frame de
-  atraso que passou por "não é do app" e custou dois dias para achar, com
-  métricas falsas de até 1,6 s criadas pelo próprio instrumento. O mesmo app em
-  Python saiu em ~3,5 mil linhas, mais rápido e com mais escopo. Atravessar a
-  fronteira (ABI, estado duplicado, debug em duas linguagens, teste que exige
-  build) cobra mais do que o pedaço de código que evita. Se a vazão virar
-  prioridade, a rota é otimizar o Python (P26/P27) ou reescrever o núcleo no
-  mesmo repositório e na mesma linguagem — não colar um núcleo alheio.
-- **Um usuário, uma máquina**: nada de multiplexação de sessão, servidor, ou
-  reconexão.
+- **Not a distributed product**: it was born as an experiment to measure the
+  cost of the hot path in Python and became a real application for daily use. It
+  has an installable package (`pipx` or `install.sh`, item P31), but no release,
+  PyPI, installer for another platform, semantic versioning nor support.
+- **Linux only, with the system GTK3**: PyGObject and cairo come from the distro
+  and the chrome is GTK3 — macOS and Windows would require carrying the whole
+  stack, which is the P30 study in [PORTABILITY.md](PORTABILITY.md). It is not
+  portability promised for later; it is where it runs.
+- **Pure Python is a decision, not a pending item**: the experiment asked
+  whether it was possible to make a whole terminal in Python and the answer was
+  yes — it is used daily like this. The throughput ceiling (~6x kitty) is the
+  accepted price, and it is attacked by optimizing the path in Python (parse,
+  drawing), not by rewriting in C.
+- **Native core (C or Rust) does not enter**: it was tried before, in the
+  sibling experiment that embeds the kitty core as a C lib: ~4.9 thousand lines
+  of hand-written C and 68 commits in 6 days, and the expensive bugs were of the
+  **boundary**, not of VT — the key going twice to the pty when merging the
+  instrumentation, and the one-frame delay that passed as "not the app's" and
+  cost two days to find, with false metrics of up to 1.6 s created by the
+  instrument itself. The same app in Python came out in ~3.5 thousand lines,
+  faster and with more scope. Crossing the boundary (ABI, duplicated state,
+  debugging in two languages, a test that requires a build) charges more than
+  the piece of code it avoids. If throughput becomes a priority, the route is to
+  optimize the Python (P26/P27) or rewrite the core in the same repository and
+  in the same language — not to glue someone else's core.
+- **One user, one machine**: no session multiplexing, server, or reconnection.

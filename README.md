@@ -2,265 +2,274 @@
 
 Minimal functional port of the TorTTY terminal (in Rust) to **Python**. This project is an experimental implementation created from the main TorTTY version: the goal of the Python version is to evaluate the behavior of the main version's current and future features, as well as to analyze performance.
 
-Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**,
-sem C e sem compilação. Nasceu como experimento para responder a uma pergunta
-— *daria pra fazer um terminal inteiro em Python?* — e a resposta foi **sim**:
-é uma aplicação real, usada no dia a dia, e a medição continua sendo a régua. Não é produto distribuído: sem
-release nem suporte (instalar na máquina é uma linha de pipx, em
-[Como rodar](#como-rodar)) — o que não é feito está em
-[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). O backlog pendente está em
-[`docs/BACKLOG.md`](docs/BACKLOG.md); o que já foi feito, os bugs corrigidos e
-as armadilhas de teste em [`docs/HISTORY.md`](docs/HISTORY.md).
+A real terminal (pty + VT parse + grid + cairo) written in **pure Python**,
+with no C and no compilation. It was born as an experiment to answer a question
+— *could you build a whole terminal in Python?* — and the answer was **yes**:
+it is a real application, used every day, and measurement remains the yardstick.
+It is not a distributed product: no release and no support (installing on the
+machine is one pipx line, in [How to run](#how-to-run)) — what is not done is in
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). The pending backlog is in
+[`docs/BACKLOG.md`](docs/BACKLOG.md); what has already been done, the fixed bugs
+and the testing pitfalls are in [`docs/HISTORY.md`](docs/HISTORY.md).
 
-## Como rodar
-
-```sh
-./run.sh                      # abre aqui, para testar (erros na hora)
-./run.sh --cmd 'mc'           # comando inicial
-./run-tests.sh                # ruff + testes, sem janela
-uv run pytest -q              # só a parte pytest
-uv run ruff check .           # só o lint
-uv run ruff format .          # formata (não roda no run-tests)
-python3 -m bzmux --selftest   # os mesmos checks, sem depender de pytest
-python3 -m bzmux --help       # opções, sem abrir janela
-python3 -m bzmux --version    # versão (a mesma de bzmux/__init__.py)
-./bench.sh                    # mede a vazão (doom-fire), ~10 s
-```
-
-## Instalar na máquina (pipx, direto do GitHub)
-
-O `pybzmux` usa o
-PyGObject do sistema, então o venv isolado precisa **ver** o Gtk3 da distro — é
-isso que o `install.sh` resolve (dependências da distro, o `python3` que enxerga
-o `gi`, pipx e a instalação). O comando instalado é `pybzmux`; o nome `bzmux`
-fica para a versão Rust do projeto.
+## How to run
 
 ```sh
-./install.sh               # do clone: instala, verifica e diz o que fazer
-./install.sh --dry-run     # mostra cada comando sem executar
-./install.sh --uninstall   # remove pelo pipx
+./run.sh                      # opens here, to test (errors show up right away)
+./run.sh --cmd 'mc'           # initial command
+./run-tests.sh                # ruff + tests, no window
+uv run pytest -q              # just the pytest part
+uv run ruff check .           # just the lint
+uv run ruff format .          # formats (does not run in run-tests)
+python3 -m bzmux --selftest   # the same checks, without depending on pytest
+python3 -m bzmux --help       # options, without opening a window
+python3 -m bzmux --version    # version (the same one in bzmux/__init__.py)
+./bench.sh                    # measures throughput (doom-fire), ~10 s
 ```
 
-Se o `pipx` não estiver instalado, o script usa o `uvx pipx` em vez de pedir
-`sudo apt install` (o venv da ferramenta é criado com o python do sistema, então
-o `gi` continua visível).
+## Installing on the machine (pipx, straight from GitHub)
 
-O instalador também cria o atalho no menu do sistema (`~/.local/share/applications`
-+ ícone em `hicolor`, respeitando `XDG_DATA_HOME`): `--no-shortcut` pula essa
-parte, e quem já instalou antes roda `pybzmux --install-shortcut` uma vez. O
-atalho é `pybzmux.desktop` + `pybzmux.svg`: instalar ou remover o atalho do
-pybzmux nunca toca em `bzmux.desktop`/`bzmux.svg`, que são do bzmux em Rust. O
-`WM_CLASS` da janela é fixado no arranque (`Bzmux`), então o atalho acha
-a janela tanto instalado quanto por `python3 -m bzmux`.
+`pybzmux` uses the system
+PyGObject, so the isolated venv needs to **see** the distro's Gtk3 — that is
+what `install.sh` solves (distro dependencies, the `python3` that sees
+`gi`, pipx and the installation). The installed command is `pybzmux`; the name
+`bzmux` stays with the Rust version of the project.
 
-Sem clonar — o repositório é **privado**, então o `curl | bash` clássico ainda
-não serve (o raw dá 404 sem autenticação). O equivalente autenticado é:
+```sh
+./install.sh               # from the clone: installs, verifies and says what to do
+./install.sh --dry-run     # shows each command without running it
+./install.sh --uninstall   # removes it through pipx
+```
+
+If `pipx` is not installed, the script uses `uvx pipx` instead of asking for
+`sudo apt install` (the tool's venv is created with the system python, so
+`gi` stays visible).
+
+The installer also creates the shortcut in the system menu (`~/.local/share/applications`
++ icon under `hicolor`, respecting `XDG_DATA_HOME`): `--no-shortcut` skips that
+part, and whoever installed before runs `pybzmux --install-shortcut` once. The
+shortcut is `pybzmux.desktop` + `pybzmux.svg`: installing or removing the pybzmux
+shortcut never touches `bzmux.desktop`/`bzmux.svg`, which belong to the Rust
+bzmux. The window's `WM_CLASS` is fixed at startup (`Bzmux`), so the shortcut
+finds the window both when installed and through `python3 -m bzmux`.
+
+Without cloning — the repository is **private**, so the classic `curl | bash`
+does not work yet (raw gives 404 without authentication). The authenticated
+equivalent is:
 
 ```sh
 gh api -H "Accept: application/vnd.github.raw" \
     /repos/bazoocaze/pybzmux/contents/install.sh | bash
 ```
 
-Quando o repositório for público, o clássico passa a valer:
+Once the repository is public, the classic one starts to apply:
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/bazoocaze/pybzmux/main/install.sh | bash
 ```
 
-E o passo a passo à mão, que é o que o script faz por baixo:
+And the step by step by hand, which is what the script does underneath:
 
 ```sh
 sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0   # Linux (deb)
 pipx install --system-site-packages \
-    "git+ssh://git@github.com:bazoocaze/pybzmux.git"           # comando `pybzmux`
-pybzmux --selftest && pybzmux                                   # confere e abre
+    "git+ssh://git@github.com:bazoocaze/pybzmux.git"           # command `pybzmux`
+pybzmux --selftest && pybzmux                                   # checks and opens
 ```
 
-O repositório é privado, por isso a URL é `git+ssh` (usa a sua chave; `https`
-exigiria token). A versão no pyproject é fixa, então commit novo não aparece no
-`pipx upgrade`: para atualizar, rode o instalador de novo (ele usa `--force`).
-Sem o `--system-site-packages` o app sai com uma mensagem dizendo o que
-instalar, em vez de traceback (`pybzmux --selftest` funciona mesmo assim, sem gi e sem
-display).
+The repository is private, which is why the URL is `git+ssh` (it uses your key;
+`https` would require a token). The version in pyproject is pinned, so a new
+commit does not show up in `pipx upgrade`: to update, run the installer again
+(it uses `--force`). Without `--system-site-packages` the app exits with a
+message saying what to install, instead of a traceback (`pybzmux --selftest`
+works anyway, without gi and without display).
 
-O `./bench.sh` imprime fps, MB/s, custo de desenho/parse e a frequência da CPU
-por etapa; a leitura dos números e o protocolo estão em
+`./bench.sh` prints fps, MB/s, drawing/parse cost and the CPU frequency per
+stage; how to read the numbers and the protocol are in
 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
-## Ambiente (uv)
+## Environment (uv)
 
-O projeto é um ambiente uv (pyproject.toml + uv.lock) e **o app roda no python
-do venv**. O venv é criado sobre o python do sistema com `--system-site-packages`:
-é assim que ele enxerga o PyGObject (gi) da distro, que não se instala por pip
-sem sofrimento. `python-preference = system` garante a mesma versão do python.
+The project is a uv environment (pyproject.toml + uv.lock) and **the app runs on
+the venv's python**. The venv is created on top of the system python with
+`--system-site-packages`: that is how it sees the distro's PyGObject (gi), which
+is not installed by pip without suffering. `python-preference = system`
+guarantees the same python version.
 
 ```sh
-uv venv --system-site-packages   # uma vez (o uv sync não passa essa flag)
+uv venv --system-site-packages   # once (uv sync does not pass this flag)
 uv sync                          # pytest + ruff
-uv run pytest -q                 # testes
+uv run pytest -q                 # tests
 uv run ruff check .              # lint (E, F, I, W)
-uv run ruff format .             # formata
-uv sync --extra tools            # + python-xlib (as tools rodam com python3)
-./run.sh                         # app rodando em .venv/bin/python
+uv run ruff format .             # formats
+uv sync --extra tools            # + python-xlib (the tools run with python3)
+./run.sh                         # app running on .venv/bin/python
 ```
 
-O `run.sh` escolhe o interpretador: `.venv/bin/python` quando ele importa `gi`,
-senão o `python3` do sistema — com um aviso dizendo como recriar o venv. Para
-rodar na mão: `uv run python -m bzmux`.
+`run.sh` picks the interpreter: `.venv/bin/python` when it imports `gi`,
+otherwise the system `python3` — with a warning saying how to recreate the venv.
+To run it by hand: `uv run python -m bzmux`.
 
-## Configuração
+## Configuration
 
-Um arquivo no formato do kitty (`chave valor`, `#` comenta), em
-`~/.config/bzmux/bzmux.conf` (ou o que `-c ARQUIVO` apontar). O que você não
-escrever vem do default que embarca com o programa (`bzmux/data/bzmux.conf`) —
-o seu arquivo é **mesclado** por cima dele, não o substitui.
+One file in the kitty format (`key value`, `#` comments), at
+`~/.config/bzmux/bzmux.conf` (or whatever `-c FILE` points to). What you do not
+write comes from the default embedded in the program
+(`bzmux/data/bzmux.conf`) — your file is **merged** on top of it, it does not
+replace it.
 
 ```sh
-./run.sh -c /tmp/meu.conf     # usa outro arquivo (merge com o default)
+./run.sh -c /tmp/my.conf      # uses another file (merge with the default)
 ```
 
-As opções (e os valores de fábrica):
+The options (and the factory values):
 
 ```
-shell                      # programa de cada aba nova; vazio = $SHELL do ambiente
-font_family Monospace      # só família monoespaçada
-font_size 12               # em PONTOS (o Pango converte pelo DPI)
-cursor_shape block         # block, beam ou underline
-cursor_blink off           # on/off; app que pede cursor (CSI 6 q) manda
-scrollback 1000            # linhas de histórico
-window_padding_width 0     # margem em volta da grade, em px
-bell none                  # none, visual (marca a aba) ou audible
-copy_on_select off         # seleção com o mouse já vai pro clipboard
-debug_log /tmp/bzmux.debug.log  # log JSONL de depuração; off desliga
+shell                      # program of each new tab; empty = the environment's $SHELL
+font_family Monospace      # monospaced family only
+font_size 12               # in POINTS (Pango converts through the DPI)
+cursor_shape block         # block, beam or underline
+cursor_blink off           # on/off; an app that requests a cursor (CSI 6 q) rules
+scrollback 1000            # scrollback lines
+window_padding_width 0     # margin around the grid, in px
+bell none                  # none, visual (marks the tab) or audible
+copy_on_select off         # mouse selection already goes to the clipboard
+debug_log /tmp/bzmux.debug.log  # debug JSONL log; off turns it off
 ```
 
-Editar o arquivo com o app aberto aplica na hora. Erro é por linha: ao abrir, o
-que for válido vale e a chave com problema fica no padrão (um aviso de 10 s na
-base da janela mostra o primeiro erro); ao salvar com o app aberto, qualquer erro
-mantém a configuração que já estava valendo — nada muda. `Ctrl+Shift+F2` abre o
-seu arquivo no `vim`, numa aba nova.
+Editing the file with the app open applies right away. Error is per line: at
+startup, what is valid applies and the key with a problem stays at the default (a
+10 s notice at the bottom of the window shows the first error); when saving with
+the app open, any error keeps the configuration that was already in force —
+nothing changes. `Ctrl+Shift+F2` opens your file in `vim`, in a new tab.
 
-## O que funciona
+## What works
 
-- **pty real** com `forkpty`-equivalente (`pty.fork`), resize por `TIOCSWINSZ`.
-- **Parser VT** com estados ground/esc/csi/osc, SGR (16 cores, 256 e
-  truecolor 24-bit de verdade), cursor (`CUP`/`CUU`/`CUD`/`CUF`/`CUB`/`CNL`/`CPL`/`CHA`),
-  apagamento (`ED`/`EL`/`ECH`), inserção/remoção de linha e caractere
-  (`IL`/`DL`/`ICH`/`DCH`), região de scroll (`DECSTBM`), save/restore
+- **Real pty** with a `forkpty`-equivalent (`pty.fork`), resize through
+  `TIOCSWINSZ`.
+- **VT parser** with ground/esc/csi/osc states, SGR (16 colors, 256 and
+  real 24-bit truecolor), cursor (`CUP`/`CUU`/`CUD`/`CUF`/`CUB`/`CNL`/`CPL`/`CHA`),
+  erasing (`ED`/`EL`/`ECH`), line and character insertion/removal
+  (`IL`/`DL`/`ICH`/`DCH`), scroll region (`DECSTBM`), save/restore
   (`DECSC`/`DECRC`, `CSI s`/`u`), `DECAWM`, cursor on/off (`?25`),
-  **alt-screen** (`?1047`/`?1049`), charset DEC (`ESC ( 0`) para molduras,
-  título por `OSC 0/2`, respostas `DA`/`DA2`/`CPR`/`DECRQM` de volta ao filho,
-  **transação de desenho** (`?2026`, synchronized output: o frame só sai no
-  fecho da transação).
-- **Scrollback** de 1000 linhas no buffer principal (opção `scrollback`), **com tela de
-  histórico**: `Shift+PgUp`/`PgDn` (e `Shift+Home`/`End`) deslizam a visão,
-  o **wheel** rola a viewport — sem falar com o app quando ele não pediu
-  mouse, e mandando `64`/`65` quando pediu. Volta ao vivo ao digitar, ao colar
-  com o botão do meio, ao clicar quando o app pediu mouse e ao rolar até o fim —
-  e **não** porque o filho escreveu: a visão fica ancorada na linha que se está
-  lendo enquanto o app continua escrevendo. Clicar e arrastar no histórico
-  **não** volta ao vivo: é assim que se copia um trecho antigo. Um
-  `↑N` no canto mostra o quanto se voltou; o cursor do app não é desenhado no
-  histórico.
-- **Teclado**: letras (incluindo UTF-8), setas, Home/End, PgUp/PgDn,
-  Insert/Delete, F1–F12, Ctrl+letra, Alt+letra, Shift+Tab. Respeita
-  **DECCKM (`?1`)**: com o modo aplicação ligado (o que `mc`, `vim` e `less`
-  fazem em tela cheia) as setas viram `\EOA`..`\EOD`, como no terminfo de
-  xterm — sem isso o `mc` ignorava as setas.
-- **Só caractere imprimível vira byte**: keyval de modificador e de função
-  fica em `0xff00-0xffff` (`Shift_L`=0xffe1, `Control_L`=0xffe3, `Alt_L`=0xffe9,
-  `Super_L`=0xffeb, `Caps_Lock`=0xffe5, `Menu`=0xff67). Sem esse filtro cada
-  uma dessas teclas virava um caractere sem glifo (a "caixinha" na tela).
-- **Dead keys** (`´ \` ^ ~ ¨ ¸`): guarda a marca e compõe com a letra seguinte
-  por NFC (`~`+`a` → `ã`); dead key + espaço emite o caractere isolado
-  (`~`, `^`, `` ` ``...), a convenção do X11.
-- **256 cores** (`TERM=xterm-256color`): paleta xterm completa (16 base +
-  cubo 6×6×6 + 24 cinzas).
-- **Truecolor 24-bit** (`38;2;r;g;b`/`48;2;…`, e a forma com `:`): o RGB fica na
-  célula marcado no bit 24, sem tabela de cores alocadas — `vim` com
-  `termguicolors`, `bat`, gradiente em texto saem com a cor exata.
-- **Desenho** com cairo + Pango: runs agrupados por atributos, bold,
-  sublinhado, inverso, cursor em bloco, shaping de verdade (árabe ligado,
-  combinações) e fallback de fonte (CJK, emoji em cor).
+  **alt-screen** (`?1047`/`?1049`), DEC charset (`ESC ( 0`) for box drawing,
+  title through `OSC 0/2`, `DA`/`DA2`/`CPR`/`DECRQM` replies back to the child,
+  **drawing transaction** (`?2026`, synchronized output: the frame only goes out
+  at the close of the transaction).
+- **Scrollback** of 1000 lines in the main buffer (`scrollback` option), **with a
+  scrollback view**: `Shift+PgUp`/`PgDn` (and `Shift+Home`/`End`) slide the view,
+  the **wheel** scrolls the viewport — without talking to the app when it did not
+  ask for mouse, and sending `64`/`65` when it did. It goes back to live on
+  typing, on pasting with the middle button, on clicking when the app asked for
+  mouse and on scrolling to the end — and **not** because the child wrote: the
+  view stays anchored on the line being read while the app keeps writing.
+  Clicking and dragging in the scrollback does **not** go back to live: that is
+  how you copy an old excerpt. An `↑N` in the corner shows how far back you went;
+  the app's cursor is not drawn in the scrollback.
+- **Keyboard**: letters (including UTF-8), arrows, Home/End, PgUp/PgDn,
+  Insert/Delete, F1–F12, Ctrl+letter, Alt+letter, Shift+Tab. It respects
+  **DECCKM (`?1`)**: with application mode on (which `mc`, `vim` and `less`
+  do in full screen) the arrows become `\EOA`..`\EOD`, as in the xterm
+  terminfo — without that `mc` ignored the arrows.
+- **Only a printable character becomes a byte**: modifier and function keyvals
+  stay in `0xff00-0xffff` (`Shift_L`=0xffe1, `Control_L`=0xffe3, `Alt_L`=0xffe9,
+  `Super_L`=0xffeb, `Caps_Lock`=0xffe5, `Menu`=0xff67). Without that filter each
+  one of those keys became a character with no glyph (the "little box" on screen).
+- **Dead keys** (`´ \` ^ ~ ¨ ¸`): keeps the mark and composes with the following
+  letter through NFC (`~`+`a` → `ã`); dead key + space emits the isolated
+  character (`~`, `^`, `` ` ``...), the X11 convention.
+- **256 colors** (`TERM=xterm-256color`): full xterm palette (16 base +
+  6×6×6 cube + 24 grays).
+- **24-bit truecolor** (`38;2;r;g;b`/`48;2;…`, and the form with `:`): the RGB
+  stays in the cell marked in bit 24, with no allocated color table — `vim` with
+  `termguicolors`, `bat`, gradients in text come out with the exact color.
+- **Drawing** with cairo + Pango: runs grouped by attributes, bold,
+  underline, inverse, block cursor, real shaping (connected Arabic,
+  combinations) and font fallback (CJK, color emoji).
 - **Kitty keyboard protocol** (`bzmux/kitty_kbd.py`): `CSI > flags u`
-  (push), `CSI < n u` (pop), `CSI = flags ; modo u` (set/add/remove) e
-  `CSI ? u` (query). Com `disambiguate`, Esc/Enter/Tab/Backspace e
-  Ctrl/Alt/Super+tecla saem como `CSI codigo ; mods u`, então `Ctrl+Shift+letra`
-  deixa de se confundir com `Ctrl+letra`; `report event types` acrescenta
-  `:1`/`:2`/`:3`; `report all keys as escape codes` manda tudo em CSI-u;
-  `report associated text` (`16`) anexa o texto da tecla.
-- **Protocolo de gráficos do kitty** (`bzmux/graphics.py`): APC `G` com
-  `a=t`/`a=T`/`a=p`/`a=d`/`a=q`, `f=24` (RGB), `f=32` (RGBA) e `f=100` (PNG),
-  imagem em pedaços (`m=1`), `i`/`c`/`r`/`C=1`/`q`, compressão `o=z` (zlib) e
-  os offsets `X=`/`Y=` em pixels dentro da célula (é assim que o `icat`
-  centraliza e posiciona). O `kitten icat` funciona inteiro, inclusive
-  `--place` e `--scale-up` (detecta via `a=q` + `DA`, transmite em stream ou
-  comprimido e desenha). As imagens rolam junto com o texto **inclusive para
-  dentro do histórico**: `Shift+PgUp`/wheel trazem a imagem de volta na linha
-  certa (a colocação vive na grade e pode ter linha negativa, como no kitty) e
-  são desenhadas por cima das células.
-- **Bracketed paste** (`?2004`): quando o app pede, o `Ctrl+Shift+V`/botão do
-  meio mandam o texto entre `ESC[200~` e `ESC[201~` — o readline/vim sabem que
-  é cola e não executam cada linha. Colar uma linha copiada com o mouse não
-  ganha mais um `\n` no fim (era o que fazia o comando rodar sozinho).
-- **Abas** (`Gtk.Notebook`): `Ctrl+Shift+T` abre, `Ctrl+Shift+W` fecha, `Alt+1`
-  … `Alt+9` seleciona (`Alt+0` = a 10ª), clique do meio no rótulo fecha. O
-  rótulo é o título do app (OSC 0/2) ou, sem OSC, o **cwd** da sessão; aba nova
-  herda o cwd da atual via `/proc/<pid>/cwd`, e cada aba tem o seu `Term`,
-  histórico, seleção e pty (o `P8` virou por aba: a última fecha a janela).
-- **Workspaces** (tipo cmux): cada um com o seu conjunto de abas, numa lateral
-  à esquerda que só aparece com 2+ workspaces. `Ctrl+Shift+N`/`Super+N` cria,
-  `Ctrl+Shift+1`…`9`/`Super+1`…`9` seleciona, `Ctrl+Shift+Q`/`Super+Q` fecha a
-  workspace corrente com todas as abas (ou clique do meio no cartão); **duplo
-  clique** no cartão renomeia (padrão "workspace N"). `Super+q` na última
-  workspace encerra o programa. Se o seu WM usar `Super+dígito` (no GNOME o
-  dash usa), use a variante `Ctrl+Shift`. O cartão
-  mostra `1  <nome>` e, embaixo, a aba ativa e a contagem. Fechar a última aba
-  fecha o workspace; fechar o último workspace fecha o programa.
-- **Fecha quando o shell termina**: `GLib.child_watch_add` reapa o filho (sem
-  zumbi) e fecha a janela no `Ctrl+D`/`exit`; antes de fechar drena o que
-  sobrou no pty (senão some a última tela) e manda `SIGHUP` pro grupo do filho
-  (jobs em background não ficam órfãos).
-- **Geometria lembrada**: posição, tamanho e maximizado ficam em
-  `~/.local/state/bzmux/window.json` (`XDG_STATE_HOME`) e voltam na próxima
-  execução. Se o monitor sumiu ou o arquivo é lixo, a janela abre no padrão; com
-  `PYTERM_GEOM` quem manda é o protocolo de medição (não restaura nem salva).
-  No Wayland só o maximizado é lembrado: posição de janela não existe lá.
-- **Cromo escuro** (`bzmux/style.py`): as cores da interface (lateral dos
-  workspaces, cartões) vêm de uma tabela de tokens e o CSS é gerado dela — sem
-  hex solto no código. A lateral é preta, o workspace ativo fica num verde
-  escuro com texto claro, e o contraste (>= 4.5:1) é conferido por check. A
-  barra de abas também é preta: 1 px separa as abas e a ativa usa o mesmo verde
-  do workspace ativo, com a mesma cor de texto em todas as abas. A
-  paleta da célula do terminal é outra coisa e não se mistura com esta.
-- **Reflow no resize**: linhas que quebraram mole são re-quebradas na largura
-  nova (uma linha longa vira várias ao estreitar, volta a ser uma ao alargar),
-  o cursor fica sobre o mesmo caractere e o scrollback é re-aproveitado. Fundo
-  colorido de barra/status não é cortado junto com o espaço em branco.
-- **Mouse**: reporta pro app quando ele pede (`?1000` clique, `?1002`
-  arrasto, `?1003` movimento, `?1006` coordenadas SGR, `?1004` foco), e fora
-  desses modos faz **seleção local** arrastando — e ela vira cópia:
-  `Ctrl+Shift+C` copia (seleção ou viewport), `Ctrl+Shift+V` cola, e o
-  **botão do meio** cola o PRIMARY (convenção X11). A seleção é vídeo
-  reverso. Clique em `mc`/`vim` chega como `CSI < b ; x ; y M/m`.
+  (push), `CSI < n u` (pop), `CSI = flags ; mode u` (set/add/remove) and
+  `CSI ? u` (query). With `disambiguate`, Esc/Enter/Tab/Backspace and
+  Ctrl/Alt/Super+key come out as `CSI code ; mods u`, so `Ctrl+Shift+letter`
+  stops being confused with `Ctrl+letter`; `report event types` adds
+  `:1`/`:2`/`:3`; `report all keys as escape codes` sends everything as CSI-u;
+  `report associated text` (`16`) appends the key's text.
+- **Kitty graphics protocol** (`bzmux/graphics.py`): APC `G` with
+  `a=t`/`a=T`/`a=p`/`a=d`/`a=q`, `f=24` (RGB), `f=32` (RGBA) and `f=100` (PNG),
+  image in chunks (`m=1`), `i`/`c`/`r`/`C=1`/`q`, `o=z` compression (zlib) and
+  the `X=`/`Y=` offsets in pixels inside the cell (that is how `icat`
+  centers and positions). `kitten icat` works entirely, including
+  `--place` and `--scale-up` (it detects through `a=q` + `DA`, transmits in stream or
+  compressed and draws). Images scroll along with the text **including into
+  the scrollback**: `Shift+PgUp`/wheel bring the image back on the right
+  line (the placement lives in the grid and may have a negative line, as in kitty)
+  and they are drawn on top of the cells.
+- **Bracketed paste** (`?2004`): when the app asks, `Ctrl+Shift+V`/the middle
+  button send the text between `ESC[200~` and `ESC[201~` — readline/vim know it
+  is a paste and do not run each line. Pasting a line copied with the mouse no
+  longer gets one more `\n` at the end (that was what made the command run by
+  itself).
+- **Tabs** (`Gtk.Notebook`): `Ctrl+Shift+T` opens, `Ctrl+Shift+W` closes, `Alt+1`
+  … `Alt+9` selects (`Alt+0` = the 10th), middle click on the label closes. The
+  label is the app title (OSC 0/2) or, without OSC, the session's **cwd**; a new
+  tab inherits the current one's cwd through `/proc/<pid>/cwd`, and each tab has
+  its own `Term`, scrollback, selection and pty (`P8` became per tab: the last
+  one closes the window).
+- **Workspaces** (cmux-like): each with its own set of tabs, in a sidebar
+  on the left that only appears with 2+ workspaces. `Ctrl+Shift+N`/`Super+N`
+  creates, `Ctrl+Shift+1`…`9`/`Super+1`…`9` selects, `Ctrl+Shift+Q`/`Super+Q`
+  closes the current workspace with all tabs (or middle click on the card);
+  **double click** on the card renames it (default "workspace N"). `Super+q` on
+  the last workspace quits the program. If your WM uses `Super+digit` (on GNOME
+  the dash does), use the `Ctrl+Shift` variant. The card
+  shows `1  <name>` and, below it, the active tab and the count. Closing the last
+  tab closes the workspace; closing the last workspace closes the program.
+- **Closes when the shell ends**: `GLib.child_watch_add` reaps the child (no
+  zombie) and closes the window on `Ctrl+D`/`exit`; before closing it drains what
+  is left in the pty (otherwise the last screen disappears) and sends `SIGHUP` to
+  the child's group (background jobs do not stay orphaned).
+- **Remembered geometry**: position, size and maximized stay in
+  `~/.local/state/bzmux/window.json` (`XDG_STATE_HOME`) and come back on the next
+  run. If the monitor is gone or the file is junk, the window opens at the
+  default; with `PYTERM_GEOM` the measurement protocol rules (it neither restores
+  nor saves). On Wayland only maximized is remembered: window position does not
+  exist there.
+- **Dark chrome** (`bzmux/style.py`): the interface colors (workspace sidebar,
+  cards) come from a token table and the CSS is generated from it — with no loose
+  hex in the code. The sidebar is black, the active workspace sits in a dark
+  green with light text, and the contrast (>= 4.5:1) is verified by a check. The
+  tab bar is also black: 1 px separates the tabs and the active one uses the same
+  green as the active workspace, with the same text color in all tabs. The
+  terminal cell palette is another thing and does not mix with this one.
+- **Reflow on resize**: lines that wrapped softly are re-wrapped at the new
+  width (a long line becomes several when narrowing, goes back to one when
+  widening), the cursor stays on the same character and the scrollback is
+  reused. Colored bar/status background is not cut along with the white space.
+- **Mouse**: reports to the app when it asks (`?1000` click, `?1002`
+  drag, `?1003` movement, `?1006` SGR coordinates, `?1004` focus), and outside
+  those modes it does **local selection** by dragging — and it becomes a copy:
+  `Ctrl+Shift+C` copies (selection or viewport), `Ctrl+Shift+V` pastes, and the
+  **middle button** pastes PRIMARY (X11 convention). The selection is reverse
+  video. A click in `mc`/`vim` arrives as `CSI < b ; x ; y M/m`.
 
-Testado com `ls --color`, `mc` (painéis, molduras, barra de teclas, cores,
-setas e resize 68x22 → 110x36 → 70x21 sem sobras) e `vim`/`less` (alt-screen).
+Tested with `ls --color`, `mc` (panels, frames, key bar, colors,
+arrows and resize 68x22 → 110x36 → 70x21 with no leftovers) and `vim`/`less`
+(alt-screen).
 
-## Limites conhecidos
+## Known limits
 
-Lista completa, com a razão de cada um e o que quebra na prática, em
-[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). Em resumo: seleção só por célula
-(sem palavra/bloco), gráficos sem animação/z-index, caractere largo ocupando
-uma célula só (sem `wcwidth`), protocolo de teclado do kitty parcial, sem busca
-no scrollback e sem tema/paleta configurável. São escolhas — nenhuma delas
-é consequência de ser Python, e as que incomodam no uso viram item de backlog.
+Full list, with the reason for each one and what breaks in practice, in
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). In summary: selection only by cell
+(no word/block), graphics without animation/z-index, wide character occupying
+a single cell (no `wcwidth`), partial kitty keyboard protocol, no search
+in the scrollback and no configurable theme/palette. They are choices — none of
+them is a consequence of being Python, and the ones that annoy in use become
+backlog items.
 
-## Licença
+## License
 
-**MIT** (ver `LICENSE`). O `pybzmux` é código original, sem uma linha do
-kitty, então a licença dele não é ditada pelo núcleo: importa apenas `pty`,
-`termios`, `unicodedata`, `gi` (Gtk3, LGPL-2.1+) e `pycairo` (LGPL/MPL).
-Estar no mesmo repositório não contamina — arquivos separados, sem linkagem
-nem import. O lado C, que ficou no outro repositório, continua GPL-3.0-only
-por derivar do kitty.
+**MIT** (see `LICENSE`). `pybzmux` is original code, without a line of
+kitty, so its license is not dictated by the core: it only imports `pty`,
+`termios`, `unicodedata`, `gi` (Gtk3, LGPL-2.1+) and `pycairo` (LGPL/MPL).
+Being in the same repository does not contaminate — separate files, with no
+linking or import. The C side, which stayed in the other repository, remains
+GPL-3.0-only because it derives from kitty.
