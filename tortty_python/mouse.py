@@ -11,6 +11,8 @@ Protocolo xterm:
     1003  + movimento sem botão
     1006  SGR: `CSI < b ; x ; y M` (press) / `m` (release), coordenadas
           1-based em decimal — sem o limite de 223 do protocolo antigo
+    1016  a mesma forma do 1006, com as coordenadas em PIXELS a partir da
+          origem da grade (quem passa col/row preenche com pixels)
     normal (sem 1006): `CSI M` + 3 bytes (b+32, x+32, y+32); release é
           sempre "botão 3" e coordenada acima de 223 não cabe no byte.
 """
@@ -36,12 +38,14 @@ def mods_from_state(shift, alt, ctrl):
     return (MOD_SHIFT if shift else 0) | (MOD_ALT if alt else 0) | (MOD_CTRL if ctrl else 0)
 
 
-def encode(button, col, row, pressed=True, sgr=False, mods=0, motion=False):
+def encode(button, col, row, pressed=True, sgr=False, mods=0, motion=False, pixels=False):
     """Codifica um evento. `col`/`row` são 0-based (viram 1-based aqui).
 
-    Devolve "" quando o evento não deve ser mandado (release de wheel no
-    protocolo antigo, que não existe lá).
+    `pixels` (?1016): `col`/`row` chegam em pixels e a forma é a SGR — não
+    existe protocolo antigo de pixel para onde cair (P46). Devolve "" quando o
+    evento não deve ser mandado (release de wheel no protocolo antigo).
     """
+    sgr = sgr or pixels
     mods &= MOD_SHIFT | MOD_ALT | MOD_CTRL
     if not pressed and not sgr and button in WHEELS:
         return ""  # wheel no protocolo antigo é só press

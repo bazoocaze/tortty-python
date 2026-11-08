@@ -16,7 +16,7 @@ import socket
 import tempfile
 import zlib
 
-from . import kitty_kbd, mouse, shortcut, state, style
+from . import kitty_kbd, mouse, shortcut, state, style, term
 from .palette import (
     BOLD,
     DEF_BG,
@@ -608,6 +608,45 @@ def hyperlinks():
     assert (t.links, t.link) == ([], 0)
 
 
+def notifications():
+    """`OSC 9`/`777` contam e guardam o texto; a barra de progresso não."""
+    t = Term()
+    t.feed("\x1b]9;build done\x07")
+    assert (t.notifs, t.notif_text) == (1, "build done")
+    # `9;4;estado[;%]` é a barra do mintty/ConEmu: engolida, não é recado
+    t.feed("\x1b]9;4;1;50\x07\x1b]9;4;3\x07")
+    assert (t.notifs, t.notif_text) == (1, "build done")
+    # `777;notify;título;corpo` (urxvt) junta os dois; o resto do 777 não é nada
+    t.feed("\x1b]777;notify;make;all done\x07")
+    assert t.notif_text == "make: all done"
+    t.feed("\x1b]777;notify;;body only\x07")
+    assert t.notif_text == "body only"
+    t.feed("\x1b]777;foo;bar\x07\x1b]777\x07\x1b]9;\x07")
+    assert t.notifs == 3  # nada disso conta: nem 777 alheio, nem texto vazio
+    # controle sai do texto (vai para uma linha de tela) e o tamanho tem teto
+    t.feed("\x1b]9;a\nb\tc\x07")
+    assert t.notif_text == "abc"
+    t.feed("\x1b]9;" + "x" * 900 + "\x07")
+    assert len(t.notif_text) == term.NOTIF_MAX
+
+
+def osc7_cwd():
+    """P47: `OSC 7` guarda o cwd do shell, com `%XX` decodificado."""
+    t = Term()
+    assert t.cwd is None  # sem OSC 7 o host pergunta ao /proc
+    t.feed("\x1b]7;file://localhost/home/user\x07")
+    assert t.cwd == "/home/user"
+    t.feed("\x1b]7;file://host/with%20space\x07")
+    assert t.cwd == "/with space"
+    t.feed("\x1b]7;file://host\x07")  # sem caminho não há o que guardar
+    assert t.cwd is None
+    t.feed("\x1b]7;file:///srv\x07")
+    t.feed("\x1b]7;nao-e-url\x07")  # payload fora do formato não apaga
+    assert t.cwd == "/srv"
+    t.feed("\x1b]7;\x07")
+    assert t.cwd is None
+
+
 # -- mouse, seleção e colagem (P1/P7) ----------------------------------
 def mouse_modes_and_sgr():
     """Modos de mouse e a codificação SGR/X10."""
@@ -617,6 +656,23 @@ def mouse_modes_and_sgr():
     assert mouse.encode(mouse.LEFT, 0, 0, True, sgr=True) == "\x1b[<0;1;1M"
     assert mouse.encode(mouse.LEFT, 4, 2, False, sgr=True) == "\x1b[<0;5;3m"
     assert mouse.encode(mouse.LEFT, 0, 0, True) == ("\x1b[M" + chr(32) + chr(33) + chr(33))
+
+
+def pixel_mouse():
+    """P46: `?1016` é a forma SGR com as coordenadas em pixels, sem ?1006."""
+    t = Term()
+    t.feed("\x1b[?1016h")
+    assert t.mouse_px and t.mode_state(1016, True) == 1
+    assert mouse.encode(mouse.LEFT, 123, 456, True, pixels=True) == "\x1b[<0;124;457M"
+    # sem ?1006 a forma continua SGR: não existe protocolo antigo de pixel
+    assert mouse.encode(mouse.LEFT, 3, 4, False, pixels=True) == "\x1b[<0;4;5m"
+    t.feed("\x1b[?1016l")
+    assert not t.mouse_px and t.mode_state(1016, True) == 2
+    # e sem pixel o protocolo antigo continua igual (col/row 0-based + 33)
+    assert mouse.encode(mouse.LEFT, 3, 4, True) == ("\x1b[M" + chr(32) + chr(3 + 33) + chr(4 + 33))
+
+
+# -- `OSC 9`/`777` e `OSC 7`: o que o app avisa (P44/P47) --------------
 
 
 def double_and_triple_click():
@@ -675,6 +731,30 @@ def truecolor():
     t.feed("\x1b[38;2;1;2;3mXYZW")
     t.resize(8, 2)
     assert t.grid[0][0][1] == rgb(1, 2, 3)
+
+
+def ligature_config():
+    """P45: `ligatures` (off/standard/all) e o `font-features` de cada modo."""
+    from . import config
+
+    assert config.LIGATURES == ("off", "standard", "all")
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "tortty-python.conf")
+    cfg = config.load(os.path.join(d, "nao-existe.conf"))
+    assert cfg.ligatures == "standard"  # padrão: ligaduras da fonte, ligadas
+    assert cfg.ligature_features == "liga=1,calt=1"
+    for modo in config.LIGATURES:
+        with open(p, "w") as f:
+            f.write("ligatures %s\n" % modo)
+        cfg = config.load(p)
+        assert cfg.ok, config.message(cfg)
+        assert cfg.ligatures == modo and cfg.ligature_features
+    with open(p, "w") as f:
+        f.write("ligatures none\n")
+    cfg = config.load(p)
+    assert not cfg.ok  # valor inválido é erro de linha, e o padrão vale
+    assert cfg.ligatures == "standard"
+    assert "liga=0" in config.LIGATURE_FEATURES["off"]
 
 
 def style_contrast():
@@ -946,6 +1026,10 @@ ALL = (
     paste_markers,
     truecolor,
     style_contrast,
+    ligature_config,
+    notifications,
+    pixel_mouse,
+    osc7_cwd,
     desktop_shortcut,
     shortcut_remove_only_own_name,
     window_state,

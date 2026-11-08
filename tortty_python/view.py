@@ -144,6 +144,7 @@ class TermView(Gtk.DrawingArea):
         shell=None,
         font_family="Monospace",
         font_size=12,
+        font_features="",
         padding=0,
         cursor_shape="block",
         cursor_blink=False,
@@ -152,13 +153,18 @@ class TermView(Gtk.DrawingArea):
         on_exit=None,
         on_title=None,
         on_bell=None,
+        on_notify=None,
         shortcuts=None,
     ):
         super().__init__()
         self.on_exit = on_exit  # chamada quando o shell sai
         self.on_title = on_title  # chamada quando o título (OSC) muda
         self.on_bell = on_bell  # chamada quando o app manda BEL (P34)
+        self.on_notify = on_notify  # chamada no `OSC 9`/`777` (P44)
         self.shortcuts = shortcuts  # atalhos da janela (prioridade)
+        self.font_features = font_features  # liga/calt do Pango (P45)
+        self._notifs = 0  # `OSC 9`/`777` já entregues ao host
+        self._cwd = None  # último `OSC 7` já refletido no rótulo (P47)
         self._title = DEFAULT_TITLE
         self.app_title = False  # o app já mandou OSC 0/2?
         self.start_cwd = cwd or os.getcwd()
@@ -505,6 +511,14 @@ class TermView(Gtk.DrawingArea):
             self.term.bells = 0
             if self.on_bell:
                 self.on_bell(self)
+        if self.term.notifs != self._notifs:  # `OSC 9`/`777` (P44)
+            self._notifs = self.term.notifs
+            if self.on_notify:
+                self.on_notify(self, self.term.notif_text)
+        if self.term.cwd != self._cwd:  # `OSC 7` (P47): o cwd do shell mudou
+            self._cwd = self.term.cwd
+            if self.on_title:  # o rótulo sem OSC 0/2 é o cwd
+                self.on_title(self, self._title)
         if self.cursor_blink or (self.term.app_cursor_style or (0, 0))[1]:
             self._blink_on = True  # output novo: cursor volta a aparecer
             self._ensure_blink()
@@ -709,6 +723,10 @@ class TermView(Gtk.DrawingArea):
             return cached
         cw, _ = self.metrics()
         al = Pango.AttrList()
+        # ligaduras (P45): atributo de fonte do run, não a fonte inteira — o
+        # shaping de script (árabe, devanágari) continua de qualquer jeito
+        if self.font_features:
+            al.insert(Pango.attr_font_features_new(self.font_features))
         # letter_spacing vale entre glifos (o último não recebe): run de N fecha
         # N*cw com erro menor que 1 px
         al.insert(Pango.attr_letter_spacing_new(round((cw - self._advance) * Pango.SCALE)))
@@ -918,6 +936,7 @@ class TermView(Gtk.DrawingArea):
         """Aplica as opções da configuração sem recriar a sessão."""
         self.font_family = cfg.font_family
         self.font_size = cfg.font_size
+        self.font_features = cfg.ligature_features
         self.padding = cfg.padding
         self.cursor_shape = cfg.cursor_shape
         self.cursor_blink = cfg.cursor_blink
@@ -1264,14 +1283,22 @@ class TermView(Gtk.DrawingArea):
         except OSError:
             pass
 
-    def report_mouse(self, button, col, row, pressed=True, motion=False):
-        """Manda um evento de mouse pro app (o app pediu com ?1000/1002/3)."""
+    def report_mouse(self, button, col, row, pressed=True, motion=False, px=None, py=None):
+        """Manda um evento de mouse pro app (o app pediu com ?1000/1002/3).
+
+        Com `?1016` (P46) o byte leva pixels, não células: quem tem o evento
+        passa `px`/`py` e a conversão (menos o padding) acontece aqui.
+        """
         st = self._state
         mods = mouse.mods_from_state(
             bool(st & Gdk.ModifierType.SHIFT_MASK),
             bool(st & Gdk.ModifierType.MOD1_MASK),
             bool(st & Gdk.ModifierType.CONTROL_MASK),
         )
+        pixels = self.term.mouse_px and px is not None
+        if pixels:
+            col = max(0, int(px - self.padding))
+            row = max(0, int(py - self.padding))
         self._write_child(
             mouse.encode(
                 button,
@@ -1281,6 +1308,7 @@ class TermView(Gtk.DrawingArea):
                 sgr=self.term.mouse_sgr,
                 mods=mods,
                 motion=motion,
+                pixels=pixels,
             )
         )
 
@@ -1312,7 +1340,7 @@ class TermView(Gtk.DrawingArea):
             # daí voltar pro vivo antes de reportar (B16)
             self.back_to_live()
             self._held = btn
-            self.report_mouse(btn, col, row, True)
+            self.report_mouse(btn, col, row, True, px=ev.x, py=ev.y)
             return True
         if ev.button == 1:
             # duplo clique = palavra, triplo = linha lógica (inclusive a que
@@ -1347,7 +1375,7 @@ class TermView(Gtk.DrawingArea):
             self._sb_drag = False
             return True
         if t.mouse_mode and self._held is not None:
-            self.report_mouse(self._held, col, row, False)
+            self.report_mouse(self._held, col, row, False, px=ev.x, py=ev.y)
             self._held = None
             return True
         if ev.button == 1 and self.dragging:
@@ -1403,11 +1431,17 @@ class TermView(Gtk.DrawingArea):
                 self.queue_draw()
             return True
         if t.mouse_mode == 2 and self._held is not None:
-            self.report_mouse(self._held, *self.cell_at(ev.x, ev.y), motion=True)
+            self.report_mouse(self._held, *self.cell_at(ev.x, ev.y), motion=True, px=ev.x, py=ev.y)
             return True
         if t.mouse_mode == 3:
             # movimento sem botão: código 35 (32 + "botão 3")
-            self.report_mouse(mouse.RELEASE, *self.cell_at(ev.x, ev.y), motion=True)
+            self.report_mouse(
+                mouse.RELEASE,
+                *self.cell_at(ev.x, ev.y),
+                motion=True,
+                px=ev.x,
+                py=ev.y,
+            )
             return True
         return False
 
@@ -1427,8 +1461,8 @@ class TermView(Gtk.DrawingArea):
         if self.view_off or not t.mouse_mode:
             return self.scroll_view(3 if back else -3)
         col, row = self.cell_at(ev.x, ev.y)
-        self.report_mouse(btn, col, row, True)
-        self.report_mouse(btn, col, row, False)
+        self.report_mouse(btn, col, row, True, px=ev.x, py=ev.y)
+        self.report_mouse(btn, col, row, False, px=ev.x, py=ev.y)
         return True
 
     def on_focus_in(self, widget, ev):

@@ -21,6 +21,7 @@ DEFAULTS = {
     "shell": "",  # vazio = herda o $SHELL do ambiente (ver effective_shell)
     "font_family": "Monospace",
     "font_size": "12",
+    "ligatures": "standard",
     "cursor_shape": "block",
     "cursor_blink": "off",
     "scrollback": "1000",
@@ -33,6 +34,13 @@ DATA = Path(__file__).with_name("data") / "tortty-python.conf"
 
 KNOWN = tuple(DEFAULTS)
 CURSOR_SHAPES = ("block", "beam", "underline")
+LIGATURES = ("off", "standard", "all")
+# `font-features` do Pango por modo (P45); "all" soma as discricionárias
+LIGATURE_FEATURES = {
+    "off": "liga=0,calt=0",
+    "standard": "liga=1,calt=1",
+    "all": "liga=1,calt=1,dlig=1",
+}
 BELLS = ("none", "visual", "audible")
 BOOLS = {
     "on": True,
@@ -128,6 +136,10 @@ def check_cursor_shape(valor):
     return _enum(valor, "cursor_shape", CURSOR_SHAPES)
 
 
+def check_ligatures(valor):
+    return _enum(valor, "ligatures", LIGATURES)
+
+
 def check_bell(valor):
     return _enum(valor, "bell", BELLS)
 
@@ -170,6 +182,7 @@ CHECKS = {
     "shell": check_shell,
     "font_family": check_font_family,
     "font_size": check_font_size,
+    "ligatures": check_ligatures,
     "cursor_shape": check_cursor_shape,
     "cursor_blink": check_cursor_blink,
     "scrollback": check_scrollback,
@@ -215,6 +228,15 @@ class Config:
     def font_size(self):
         """Em PONTOS (o Pango converte pelo DPI); float aceita 12.5."""
         return float(self._get("font_size"))
+
+    @property
+    def ligatures(self):
+        return self._get("ligatures").lower()
+
+    @property
+    def ligature_features(self):
+        """`font-features` do Pango para o modo de ligaduras (P45)."""
+        return LIGATURE_FEATURES.get(self.ligatures, LIGATURE_FEATURES["standard"])
 
     @property
     def cursor_shape(self):

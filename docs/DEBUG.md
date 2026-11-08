@@ -165,10 +165,13 @@ when it opens, the window shows a security warning toast with the socket path.
 
 - One JSON request per line, one JSON response per line; the same connection
   accepts several requests in a row.
-- `{"cmd": "state"}` — pid, window `xid`, grid, cursor, title, `view_off`,
+- `{"cmd": "state"}` — pid, window `xid`, grid, cursor, title, `notifs`
+  (`OSC 9`/`777` in the tab in front) and `notif_pending` (badges waiting for a
+  visit), `view_off`,
   `pin`, `sync`, `scrolled`, `scrollback`, tabs, workspaces, configuration,
   errors, and the grid metrics (`advance`, `cell`, `dpi`, `padding`, `font`,
-  `font_size`).
+  `font_size`). Note that `title` is the app's `OSC 0/2`, not the window title
+  (that one is the label, `WM_NAME`).
 - `{"cmd": "text", "where": "view", "start": 0, "count": 40}` — `view` is what
   the screen shows (follows `view_off`), `screen` is the live grid (what the
   `SIGUSR1` dump shows) and `history` indexes the scrollback by absolute line,
@@ -227,6 +230,12 @@ when it opens, the window shows a security warning toast with the socket path.
 - `background-color` alone does not paint in GTK3: if the theme puts a
   `background-image` on the node, the color is ignored. A solid background
   needs `background-image: none` (that was the bell flash "not working").
+- Ligatures are not a font property here: `Pango.attr_font_features_new` goes on
+  the run (`AttrList` of the layout), so it has to be reinserted whenever the
+  attrs are rebuilt — putting the string in the `FontDescription` does nothing.
+- Storing `OSC 7` in the `Term` moves nothing by itself: the label/title are
+  only recomputed when the view notices the change, in the same poll that
+  already drains the bell.
 - The `Gtk.Notebook` CSS node `tab` is not the label: a class on the label
   paints only the text and `tab:checked` rules the rest. `label.get_parent()` is
   the Notebook itself; give the label a `set_name` and handle the padding on it

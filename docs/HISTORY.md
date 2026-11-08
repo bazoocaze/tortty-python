@@ -988,6 +988,47 @@ pixel diff); `Ctrl+click` hands the URI to `xdg-open` through the whitelist
 `http`/`https`/`file`/`ftp`/`mailto` — verified with a fake `xdg-open` in the
 `PATH`, which recorded the URL, and `javascript:`/`data:` are refused by check.
 
+### P44 — Notifications `OSC 9` / `OSC 777` (2026-11-09)
+
+The core only counts and keeps the text (`notifs`, `notif_text`, cap
+`NOTIF_MAX`); the window decides, like it already did for the BEL: a
+notification on the front tab is an 8 s toast, on a background tab it is a
+**badge that has no timer** (class `notif` on the tab label) and a `•` on the
+workspace card, plus `set_urgency_hint` on every one of them. Visiting the tab
+acknowledges it. `9;4;state[;%]` (the mintty/ConEmu progress bar) is swallowed:
+a busy TUI repeats it at 1 Hz and would pin the toast forever.
+
+Verified with a real window: notification on a background tab gave
+`notif_pending` 1, closing the tab in front (the other one becomes current)
+gave 0 with `notifs` 1.
+
+### P45 — `ligatures` in the configuration (2026-11-09)
+
+Key `ligatures` with `off`/`standard`/`all` (default `standard`), mapped to a
+Pango `font-features` attribute — `liga=0,calt=0`, `liga=1,calt=1` and
+`liga=1,calt=1,dlig=1`. The attribute goes on the run, not on the font
+description, so script shaping (Arabic, Devanagari) keeps working whatever the
+value; the layout cache is already keyed by (bold, italic) and is reset by
+`apply_config`, so the mode change lands without restarting. Verified with a
+window and a real capture: `a -> b != c fi ffl` draws with `ligatures all`.
+
+### P46 — Pixel mouse protocol (`?1016`) (2026-11-09)
+
+`?1016` tracked as a mode (answered by `DECRQM`). It is the SGR shape with the
+coordinates in pixels, and it decides the shape by itself: there is no legacy
+pixel protocol to fall back to. `mouse.encode` gained `pixels=`, `report_mouse`
+converts the event position (minus the padding) when the app asked for it, and
+the cell path did not change.
+
+### P47 — `OSC 7`: the shell's cwd (2026-11-09)
+
+`file://host/path`, `%XX` decoded, control chars out; a payload outside the form
+does not erase a known cwd and an empty one clears it. The tab label already
+fell back to the spawn directory; now it follows the shell: the view polls
+`term.cwd` in the same place it already polls the bell, so `cd` moves the label
+and the window title. Verified with a window: `OSC 7` to `/tmp` made WM_NAME
+read `tmp`. It is the fallback for `current_cwd` when `/proc` has no answer.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

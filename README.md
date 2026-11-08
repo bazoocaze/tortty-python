@@ -129,6 +129,7 @@ The options (and the factory values):
 shell                      # program of each new tab; empty = the environment's $SHELL
 font_family Monospace      # monospaced family only
 font_size 12               # in POINTS (Pango converts through the DPI)
+ligatures standard         # off, standard (liga/calt) or all (+ discretionary)
 cursor_shape block         # block, beam or underline
 cursor_blink off           # on/off; an app that requests a cursor (CSI 6 q) rules
 scrollback 1000            # scrollback lines

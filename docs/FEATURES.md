@@ -11,7 +11,8 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   (`IL`/`DL`/`ICH`/`DCH`), scroll region (`DECSTBM`), save/restore
   (`DECSC`/`DECRC`, `CSI s`/`u`), `DECAWM`, cursor on/off (`?25`),
   **alt-screen** (`?1047`/`?1049`), DEC charset (`ESC ( 0`) for box drawing,
-  title through `OSC 0/2`, `DA`/`DA2`/`CPR`/`DECRQM` replies back to the child,
+  title through `OSC 0/2`, `OSC 7` (the shell's cwd, which the tab label
+  follows), `DA`/`DA2`/`CPR`/`DECRQM` replies back to the child,
   **drawing transaction** (`?2026`, synchronized output: the frame only goes out
   at the close of the transaction).
 - **Italic and underline styles** (`3`/`23`, `4`/`4:n`/`21`/`24`): single,
@@ -51,6 +52,9 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
 - **Drawing** with cairo + Pango: runs grouped by attributes, bold,
   underline, inverse, block cursor, real shaping (connected Arabic,
   combinations) and font fallback (CJK, color emoji).
+- **Ligatures** (`ligatures` option: off, standard, all): Pango `font-features`
+  (`liga`/`calt`, plus `dlig` in `all`) applied per run, so a code font's `->`
+  and `!=` come out joined while script shaping is untouched.
 - **Kitty keyboard protocol** (`tortty_python/kitty_kbd.py`): `CSI > flags u`
   (push), `CSI < n u` (pop), `CSI = flags ; mode u` (set/add/remove) and
   `CSI ? u` (query). With `disambiguate`, Esc/Enter/Tab/Backspace and
@@ -75,8 +79,10 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   itself).
 - **Tabs** (`Gtk.Notebook`): `Ctrl+Shift+T` opens, `Ctrl+Shift+W` closes, `Alt+1`
   … `Alt+9` selects (`Alt+0` = the 10th), middle click on the label closes. The
-  label is the app title (OSC 0/2) or, without OSC, the session's **cwd**; a new
-  tab inherits the current one's cwd through `/proc/<pid>/cwd`, and each tab has
+  label is the app title (OSC 0/2) or, without OSC, the session's **cwd** —
+  which follows `OSC 7`, so `cd` moves the label; a new
+  tab inherits the current one's cwd through `/proc/<pid>/cwd` (and `OSC 7`
+  when `/proc` has no answer), and each tab has
   its own `Term`, scrollback, selection and pty (`P8` became per tab: the last
   one closes the window).
 - **Workspaces** (cmux-like): each with its own set of tabs, in a sidebar
@@ -88,6 +94,12 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   the dash does), use the `Ctrl+Shift` variant. The card
   shows `1  <name>` and, below it, the active tab and the count. Closing the last
   tab closes the workspace; closing the last workspace closes the program.
+- **Notifications** (`OSC 9`, `777;notify`): on the tab in front it is an 8 s
+  toast; on a background tab it is a **badge on the label** that has no timer
+  (a bell flash would be gone before anyone looked) and a `•` on the workspace
+  card; visiting the tab acknowledges it. The window also asks for urgency.
+  `9;4;state[;%]` (the mintty/ConEmu progress bar) is swallowed — a busy TUI
+  repeats it at 1 Hz and would pin the toast forever.
 - **Closes when the shell ends**: `GLib.child_watch_add` reaps the child (no
   zombie) and closes the window on `Ctrl+D`/`exit`; before closing it drains what
   is left in the pty (otherwise the last screen disappears) and sends `SIGHUP` to
@@ -110,7 +122,8 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   widening), the cursor stays on the same character and the scrollback is
   reused. Colored bar/status background is not cut along with the white space.
 - **Mouse**: reports to the app when it asks (`?1000` click, `?1002`
-  drag, `?1003` movement, `?1006` SGR coordinates, `?1004` focus), and outside
+  drag, `?1003` movement, `?1006` SGR coordinates, `?1016` the same shape with
+  pixel coordinates, `?1004` focus), and outside
   those modes it does **local selection** by dragging — and it becomes a copy:
   `Ctrl+Shift+C` copies (selection or viewport), `Ctrl+Shift+V` pastes, and the
   **middle button** pastes PRIMARY (X11 convention). The selection is reverse

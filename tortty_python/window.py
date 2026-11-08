@@ -33,6 +33,7 @@ def _geom():
 
 TAB_TITLE_CHARS = 20  # aba: largura em chars, não em px (o título trunca)
 BELL_FLASH_MS = 800  # `bell visual`: quanto tempo a aba fica marcada (P34)
+NOTIF_TOAST_S = 8  # `OSC 9`/`777` na aba da frente: quanto tempo fica na tela
 _styled = False  # o provider é da tela: aplica uma vez por processo
 
 
@@ -97,6 +98,7 @@ class Workspace:
         self.name = f"workspace {index}"
         self.views = []
         self._bell_timers = {}  # view -> (fonte do timer, contexto do rótulo)
+        self._notif = set()  # views com badge de atenção (`OSC 9`/`777`, P44)
         self.notebook = Gtk.Notebook()
         self.notebook.set_scrollable(True)
         self.notebook.set_show_border(False)
@@ -146,6 +148,7 @@ class Workspace:
             shell=self.win.shell,
             font_family=self.win.font_family,
             font_size=self.win.font_size,
+            font_features=self.win.font_features,
             padding=self.win.padding,
             cursor_shape=self.win.cursor_shape,
             cursor_blink=self.win.cursor_blink,
@@ -154,6 +157,7 @@ class Workspace:
             on_exit=self.on_view_exit,
             on_title=self.on_view_title,
             on_bell=self.win.on_view_bell,
+            on_notify=self.win.on_view_notify,
             shortcuts=self.win.handle_shortcut,
         )
         self.views.append(v)
@@ -170,6 +174,7 @@ class Workspace:
         box.add(label)
         box.connect("button-press-event", self.on_tab_click, v)
         v.tab_label = label  # atualizado no on_view_title
+        v.tab_box = box  # o EventBox da aba: alvo do bell e do badge (P34/P44)
         self.notebook.append_page(v, box)
         self.notebook.set_tab_reorderable(v, True)
         # página recém-anexada nasce HIDDEN e o notebook ignora o
@@ -187,6 +192,7 @@ class Workspace:
         if view is None:
             return False
         self._clear_bell(view)
+        self._notif.discard(view)  # o rótulo vai embora com a remoção da página
         view.shutdown()
         if view in self.views:
             self.views.remove(view)
@@ -221,6 +227,8 @@ class Workspace:
         # não chegavam em ninguém). Um idle resolve.
         GLib.idle_add(self._focus_idle, v)
         v.queue_draw()  # aba escondida não recebe size-allocate
+        # visitar a aba reconhece o aviso (`OSC 9`/`777`, P44)
+        self.clear_notif(v)
         # dentro do switch-page o notebook ainda responde a página ANTIGA em
         # get_current_page(): usar a view do sinal, senão cartão e título ficam
         # uma troca atrás (B21)
@@ -275,6 +283,29 @@ class Workspace:
             GLib.source_remove(ent[0])
             ent[1].remove_class("bell")
 
+    def mark_notif(self, view):
+        """`OSC 9`/`777` numa aba que não está na frente (P44): badge.
+
+        Diferente do flash do bell, o badge não tem timer: fica até a aba ser
+        visitada, senão o aviso pisca e some enquanto ninguém olha.
+        """
+        box = getattr(view, "tab_box", None)
+        if box is None or view in self._notif:
+            return
+        self._notif.add(view)
+        box.get_style_context().add_class("notif")
+        self.update_card()
+
+    def clear_notif(self, view):
+        """Visitar a aba reconhece o aviso: tira o badge dela."""
+        if view not in self._notif:
+            return
+        self._notif.discard(view)
+        box = getattr(view, "tab_box", None)
+        if box is not None:
+            box.get_style_context().remove_class("notif")
+        self.update_card()
+
     def label_text(self, view):
         """Rótulo da aba: título do app ou, sem OSC, o cwd da sessão.
 
@@ -284,7 +315,10 @@ class Workspace:
         """
         if view.app_title and view._title:
             return view._title
-        return os.path.basename(view.start_cwd or "") or "TorTTY (Python)"
+        # sem OSC 0/2: o cwd do shell — `OSC 7` quando ele avisa (P47), senão o
+        # diretório com que a sessão nasceu
+        cwd = view.term.cwd or view.start_cwd
+        return os.path.basename(cwd or "") or "TorTTY (Python)"
 
     # -- cartão da lateral ---------------------------------------------
     def update_card(self, v=None):
@@ -298,6 +332,8 @@ class Workspace:
         title = self.label_text(v) if v is not None else "-"
         k = len(self.views)
         info = f"{title} ({k} aba{'s' if k != 1 else ''})"
+        if self._notif:  # aviso esperando visita (`OSC 9`/`777`, P44)
+            info = "• " + info
         self.info_label.set_markup(_card_info(info))
         self.card.set_tooltip_text(f"{n}. {self.name}\n{info}")
 
@@ -535,6 +571,8 @@ class TorttyWindow(Gtk.Window):
             "rows": t.rows if t else 0,
             "cursor": [t.cy, t.cx] if t else None,
             "title": t.title if t else "",
+            "notifs": t.notifs if t else 0,  # `OSC 9`/`777` na aba da frente
+            "notif_pending": len(self.current._notif) if self.current else 0,
             "view_off": v.view_off if v is not None else 0,
             "pin": v._pin_off if v is not None else 0,
             "sync": bool(t.sync_output) if t else False,
@@ -645,6 +683,7 @@ class TorttyWindow(Gtk.Window):
         cfg = self.config
         self.font_family = cfg.font_family
         self.font_size = cfg.font_size
+        self.font_features = cfg.ligature_features
         self.padding = cfg.padding
         self.cursor_shape = cfg.cursor_shape
         self.cursor_blink = cfg.cursor_blink
@@ -674,6 +713,24 @@ class TorttyWindow(Gtk.Window):
                 if view in ws.views:
                     ws.flash_tab(view)
                     break
+
+    def on_view_notify(self, view, text):
+        """`OSC 9`/`777` (P44): a aba da frente mostra, a de trás ganha badge.
+
+        A urgência vai sempre: quem decide piscar a janela é o WM, e o aviso
+        pode chegar com o terminal atrás de outra janela.
+        """
+        gdkwin = self.get_window()
+        if gdkwin is not None:
+            gdkwin.set_urgency_hint(True)
+        ws = self.current
+        if ws is not None and view is ws.view:
+            self.show_toast("Notification", text, segundos=NOTIF_TOAST_S)
+            return
+        for w in self.workspaces:
+            if view in w.views:
+                w.mark_notif(view)  # badge: fica até a visita
+                break
 
     def show_toast(self, titulo, detalhe="", erro=False, aviso=False, segundos=None):
         """Aviso flutuante na base da janela, como no Android."""
@@ -916,6 +973,8 @@ class TorttyWindow(Gtk.Window):
                     return os.readlink(f"/proc/{pid}/cwd")
                 except OSError:
                     pass
+        if v is not None and v.term.cwd:
+            return v.term.cwd  # OSC 7: o shell disse onde está (P47)
         return os.getcwd()
 
     # -- título da janela ----------------------------------------------

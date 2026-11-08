@@ -18,6 +18,7 @@ CARD_SEL_INFO_FG = "#cfe3d5"  # linha de baixo sobre o verde
 TAB_BAR_BG = "#000000"  # barra de abas (o vazio ao lado das abas)
 TAB_ACTIVE_BG = "#1f4d2e"  # aba ativa: mesmo verde do workspace ativo
 BELL_BG = "#5c4a12"  # `bell visual`: flash da aba (mesmo tom do aviso)
+NOTIF_BG = "#1f3a5c"  # badge de atenção na aba (`OSC 9`/`777`, P44)
 TAB_SEP = "#333333"  # linha de 1 px entre as abas
 TOAST_BG = "#1f4d2e"  # fundo do toast de aviso (mesmo verde do cartão ativo)
 TOAST_FG = "#ffffff"  # título do toast
@@ -53,6 +54,8 @@ notebook > header > tabs > tab:hover { background-color: %(CARD_HOVER_BG)s; }
 notebook > header > tabs > tab:checked { background-color: %(TAB_ACTIVE_BG)s; }
 /* `bell visual`: o rótulo da aba é um Gtk.EventBox (é ele que pinta) */
 .bell { background-color: %(BELL_BG)s; background-image: none; }
+/* aviso esperando visita (`OSC 9`/`777`): sem timer, cores do próprio rótulo */
+#tablabel.notif { background-color: %(NOTIF_BG)s; background-image: none; }
 #toast {
   background-color: %(TOAST_BG)s; color: %(TOAST_FG)s; border-radius: 14px;
   border: 1px solid %(TOAST_ACCENT)s;

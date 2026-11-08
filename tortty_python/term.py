@@ -6,6 +6,7 @@ abrir janela (e sem display). Quem desenha é `window.TorttyWindow`.
 
 import re
 from typing import NamedTuple
+from urllib.parse import unquote
 
 from .graphics import Graphics
 from .palette import (
@@ -38,6 +39,18 @@ _BLANK_CELL = [" ", DEF_FG, DEF_BG, 0]
 # Independente do estado do terminal — só o parse dos números é cacheado.
 _CSI_CACHE = {}
 _CSI_MAX = 1024
+
+# `OSC 9`/`777`: teto do texto guardado — um app que notifica em laço não pode
+# crescer isto sem limite (o texto é para uma linha de toast/badge).
+NOTIF_MAX = 512
+
+
+def _osc_progress(arg):
+    """`9;4;estado[;%]`: progresso do mintty/ConEmu, não uma mensagem (P44)."""
+    parts = arg.split(";")
+    return parts[0] == "4" and 2 <= len(parts) <= 3 and all(p.isdigit() for p in parts[1:])
+
+
 # CSI curto inteiro no buffer: corpo sem intermediários, final em 0x40-0x7e.
 # Tudo que não casar aqui (chunk partido, intermediário, dígito Unicode) cai
 # no parser lento, que continua sendo o dono da gramática.
@@ -142,8 +155,14 @@ class Term:
         # DECSCUSR (CSI 6 q): (forma, pisca) pedido pelo app; None = config
         self.app_cursor_style = None
         self.bells = 0  # BEL contados (o host decide visual/audível)
+        # notificação do app (`OSC 9`/`777`, P44): o texto e o contador ficam
+        # aqui; quem decide toast, badge e urgência é a janela
+        self.notifs = 0
+        self.notif_text = ""
+        self.cwd = None  # `OSC 7`: diretório do shell (fallback do /proc)
         self.mouse_mode = 0  # ?1000=1 ?1002=2 ?1003=3 (0 = off)
         self.mouse_sgr = False  # ?1006: coordenadas SGR
+        self.mouse_px = False  # ?1016: SGR com coordenadas em pixels
         self.focus_report = False  # ?1004: avisar foco in/out
         self.bracketed_paste = False  # ?2004: colar com marcadores
         self.sync_output = False  # ?2026: transação de desenho aberta
@@ -709,6 +728,10 @@ class Term:
                 self.mouse_mode = {1000: 1, 1002: 2, 1003: 3}[p] if on else 0
             elif private and p == 1006:
                 self.mouse_sgr = on  # coordenadas SGR (>223 e release)
+            elif private and p == 1016:
+                # SGR com pixels: não existe protocolo antigo de pixel, então
+                # quem liga isto já força a forma SGR (P46)
+                self.mouse_px = on
             elif private and p == 1004:
                 self.focus_report = on  # CSI I / CSI O no foco
             elif private and p in (1005, 1015):
@@ -738,6 +761,8 @@ class Term:
                 return 1 if self.mouse_mode == {1000: 1, 1002: 2, 1003: 3}[p] else 2
             if p == 1006:
                 return 1 if self.mouse_sgr else 2
+            if p == 1016:
+                return 1 if self.mouse_px else 2
             if p == 1004:
                 return 1 if self.focus_report else 2
             if p == 2004:
@@ -1035,6 +1060,15 @@ class Term:
         self.state = "ground"
         if o[:2] in ("0;", "2;"):
             self.title = o[2:]
+        elif o.startswith("7;"):
+            self._osc_cwd(o[2:])
+        elif o.startswith("9;"):
+            # `9;4;estado[;%]` é a barra de progresso do mintty/ConEmu (um TUI
+            # ocupado manda isso a 1 Hz): engolir, não virar toast
+            if not _osc_progress(o[2:]):
+                self._notify(o[2:])
+        elif o.startswith("777;"):
+            self._osc_notify777(o[4:])
         elif o.startswith("8;"):
             # OSC 8 ; params ; URI: URI vazio fecha o link corrente
             parts = o.split(";", 2)
@@ -1059,6 +1093,49 @@ class Term:
                     r, g, b = PALETTE256[n]
                     out += f"\x1b]4;{n};rgb:{r * 257:04x}/{g * 257:04x}/{b * 257:04x}\x1b\\"
             self.child_out += out.encode()
+
+    def _notify(self, text):
+        """Notificação do app (P44): texto limpo e contador.
+
+        O host é quem decide (toast na aba da frente, badge na de trás); aqui
+        só entra o que uma linha de tela aguenta.
+        """
+        clean = "".join(c for c in text if c >= " " and c != "\x7f")[:NOTIF_MAX]
+        if not clean:
+            return
+        self.notif_text = clean
+        self.notifs += 1
+
+    def _osc_notify777(self, arg):
+        """`OSC 777;notify;título;corpo` (urxvt): só `notify` é recado."""
+        parts = arg.split(";", 2)
+        if parts[0] != "notify":
+            return
+        title = parts[1] if len(parts) > 1 else ""
+        body = parts[2] if len(parts) > 2 else ""
+        if not title:
+            self._notify(body)
+        elif body:
+            self._notify(title + ": " + body)
+        else:
+            self._notify(title)
+
+    def _osc_cwd(self, arg):
+        """`OSC 7`: `file://host/caminho` do shell, já decodificado (P47).
+
+        Com `/proc` respondendo isto é só um atalho; sem ele (processo que não
+        é descendente do pty) é o que sobra. Payload fora do formato não apaga
+        o que já se sabia.
+        """
+        if not arg:
+            self.cwd = None
+            return
+        if not arg.startswith("file://"):
+            return
+        rest = arg[len("file://") :]
+        path = rest[rest.find("/") :] if "/" in rest else ""
+        clean = "".join(c for c in unquote(path) if c >= " " and c != "\x7f")
+        self.cwd = clean or None
 
     def _kbd_protocol(self, params, prefix):
         """CSI > flags u (push) / CSI < n u (pop) / CSI = flags ; modo u (set)

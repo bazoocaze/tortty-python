@@ -32,11 +32,11 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
 - **No cell combining for a complex grapheme**: each cell carries one
   character; a combining mark is drawn by Pango, but does not take its own cell
   nor change the app's column count.
-- **Ligature depends on the installed font**: shaping exists (Pango) and the
-  family is now configurable (`font_family`), but the machine's default
-  Monospace (DejaVu) has almost no ligature — whoever wants it needs a Fira
-  Code or JetBrains installed and to pick it. There is no
-  `font_features`/`letter_spacing` enabled by option.
+- **Ligature depends on the installed font**: shaping exists (Pango) and both
+  the family (`font_family`) and the ligature mode (`ligatures`: off, standard,
+  all) are configurable, but the machine's default Monospace (DejaVu) has
+  almost no ligature — whoever wants it needs a Fira Code or JetBrains
+  installed and to pick it. There is no `letter_spacing` option.
 
 ## VT parser (what is not interpreted)
 
@@ -62,9 +62,13 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
 - **`OSC 8` ignores the parameters**: the `id=`/`key=value` part is accepted and
   discarded, and there is no hover without `Ctrl` (the underline only appears
   with the modifier held, so the screen matches what a plain capture shows).
-- **No `OSC 7`** (shell cwd) and no `OSC 133` (prompt marks): the tab title
-  comes from `OSC 0/2`, not from the directory nor from shell integration.
-- **No notifications** (`OSC 9`, `OSC 777`).
+- **`OSC 7` is a fallback, not the source**: the cwd of a new tab comes from
+  `/proc` (last descendant) and only then from the sequence, which needs a
+  shell that emits it — the app does not ship shell integration. **No `OSC
+  133`** (prompt marks).
+- **Notifications stay inside the window**: `OSC 9` and `777;notify` become a
+  toast/badge plus window urgency; there is no desktop notification daemon and
+  the `9;4` progress form is swallowed, not shown as a progress bar.
 
 ## Mouse and selection
 
@@ -73,8 +77,9 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
 - **The scrollbar has no hover and no context menu**: click and drag only, no
   "jump to mark".
 - **No search in the scrollback**.
-- **No pixel mouse protocol** (`? 1016`) nor urxvt extended mouse mode
-  beyond the SGR/UTF-8/legacy already supported.
+- **No urxvt extended mouse mode** (`? 1015`) and no UTF-8 coordinates
+  (`? 1005`) beyond the SGR/legacy already supported: `? 1016` (the SGR shape
+  with pixels) exists, those two do not.
 - **Selection does not survive a resize nor a reflow**: anchor and tip are
   grid coordinates.
 
