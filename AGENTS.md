@@ -178,7 +178,8 @@ is always merged over the default embedded in tortty_python/data/tortty-python.c
 - One fixed bug = one check, when possible; not a battery around it.
 - Areas covered today: parser, SGR/EL/ED, alt-screen and scroll, charset and
   responses (DA/CPR), CSI with intermediate, CLI, kitty keyboard, graphics,
-  reflow, scrollback, mouse, selection, paste, truecolor, style contrast.
+  reflow, scrollback, mouse, selection, paste, truecolor, style contrast,
+  italic and underline styles, click picks (word/logical line), hyperlinks.
 - Cheap test to run: one command (./run-tests.sh), no display. The checks
   live in tortty_python/checks.py and have two runners: pytest and
   python3 -m tortty_python --selftest (no dependencies, useful to prove that the test

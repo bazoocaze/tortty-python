@@ -147,12 +147,12 @@ nothing changes. `Ctrl+Shift+F2` opens your file in `vim`, in a new tab.
 ## Known limits
 
 Full list, with the reason for each one and what breaks in practice, in
-[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). In summary: selection only by cell
-(no word/block), graphics without animation/z-index, wide character occupying
-a single cell (no `wcwidth`), partial kitty keyboard protocol, no search
-in the scrollback and no configurable theme/palette. They are choices — none of
-them is a consequence of being Python, and the ones that annoy in use become
-backlog items.
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). In summary: no rectangular
+selection, graphics without animation/z-index, wide character occupying a
+single cell (no `wcwidth`), partial kitty keyboard protocol, no search in the
+scrollback and no configurable theme/palette. They are choices — none of them is
+a consequence of being Python, and the ones that annoy in use become backlog
+items.
 
 ## Documentation
 

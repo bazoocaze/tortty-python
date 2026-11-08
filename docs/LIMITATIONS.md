@@ -40,9 +40,9 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
 
 ## VT parser (what is not interpreted)
 
-- **Partial SGR**: implements 0, 1, 4, 7, 22, 24, 27, 30–37, 39, 40–47, 49,
-  90–97, 100–107, 38/48 (256 and truecolor). **Does not** implement 2 (half
-  intensity), 3 (italic), 5 (blink), 8 (hidden), 9 (strikethrough), 21, 53
+- **Partial SGR**: implements 0, 1, 3, 4 (with `4:n`), 7, 21, 22, 23, 24, 27,
+  30–37, 39, 40–47, 49, 90–97, 100–107, 38/48 (256 and truecolor). **Does not**
+  implement 2 (half intensity), 5 (blink), 8 (hidden), 9 (strikethrough), 53
   (overline), 58/59 (underline color). Whoever uses 9 (git diff in some themes,
   `bat`) gets no line.
 - **Bold does not become bright color**: with an 8/16 color palette, `SGR 1`
@@ -59,18 +59,19 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
 
 - **No `OSC 52`** (clipboard): copying from the app to the system does not go
   through the sequence — only through the mouse selection (which is local).
-- **No `OSC 8`** (hyperlink): the sequence is consumed and discarded; the link
-  does not become clickable.
+- **`OSC 8` ignores the parameters**: the `id=`/`key=value` part is accepted and
+  discarded, and there is no hover without `Ctrl` (the underline only appears
+  with the modifier held, so the screen matches what a plain capture shows).
 - **No `OSC 7`** (shell cwd) and no `OSC 133` (prompt marks): the tab title
   comes from `OSC 0/2`, not from the directory nor from shell integration.
 - **No notifications** (`OSC 9`, `OSC 777`).
 
 ## Mouse and selection
 
-- **Selection by cell only**: no double-click by word, no triple-click by
-  line, no block/rectangular mode.
-- **No clickable scrollbar**: scrollback is keyboard (Shift+PgUp/PgDn/Home/
-  End) and wheel; the `↑N` in the corner is only an indicator.
+- **No block/rectangular selection** (and no selection by column): dragging,
+  double and triple click cover only whole cells of a line.
+- **The scrollbar has no hover and no context menu**: click and drag only, no
+  "jump to mark".
 - **No search in the scrollback**.
 - **No pixel mouse protocol** (`? 1016`) nor urxvt extended mouse mode
   beyond the SGR/UTF-8/legacy already supported.

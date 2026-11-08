@@ -6,7 +6,7 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
 - **Real pty** with a `forkpty`-equivalent (`pty.fork`), resize through
   `TIOCSWINSZ`.
 - **VT parser** with ground/esc/csi/osc states, SGR (16 colors, 256 and
-  real 24-bit truecolor), cursor (`CUP`/`CUU`/`CUD`/`CUF`/`CUB`/`CNL`/`CPL`/`CHA`),
+  real 24-bit truecolor, bold, italic and underline styles), cursor (`CUP`/`CUU`/`CUD`/`CUF`/`CUB`/`CNL`/`CPL`/`CHA`),
   erasing (`ED`/`EL`/`ECH`), line and character insertion/removal
   (`IL`/`DL`/`ICH`/`DCH`), scroll region (`DECSTBM`), save/restore
   (`DECSC`/`DECRC`, `CSI s`/`u`), `DECAWM`, cursor on/off (`?25`),
@@ -14,6 +14,9 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   title through `OSC 0/2`, `DA`/`DA2`/`CPR`/`DECRQM` replies back to the child,
   **drawing transaction** (`?2026`, synchronized output: the frame only goes out
   at the close of the transaction).
+- **Italic and underline styles** (`3`/`23`, `4`/`4:n`/`21`/`24`): single,
+  double, curly, dotted and dashed underline, drawn by style (not a fake color),
+  and italic from the real face — `bat`/`diff` with italic work.
 - **Scrollback** of 1000 lines in the main buffer (`scrollback` option), **with a
   scrollback view**: `Shift+PgUp`/`PgDn` (and `Shift+Home`/`End`) slide the view,
   the **wheel** scrolls the viewport — without talking to the app when it did not
@@ -23,7 +26,11 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   view stays anchored on the line being read while the app keeps writing.
   Clicking and dragging in the scrollback does **not** go back to live: that is
   how you copy an old excerpt. An `↑N` in the corner shows how far back you went;
-  the app's cursor is not drawn in the scrollback.
+  the app's cursor is not drawn in the scrollback. A **scrollbar** of 8 px
+  sits over the last column while there is scrollback (proportional thumb,
+  translucent): clicking on the track jumps, dragging walks the history. It does
+  not exist in alt-screen (there is nothing to scroll) and it answers before the
+  mouse report, so it works inside `mc` and `vim`.
 - **Keyboard**: letters (including UTF-8), arrows, Home/End, PgUp/PgDn,
   Insert/Delete, F1–F12, Ctrl+letter, Alt+letter, Shift+Tab. It respects
   **DECCKM (`?1`)**: with application mode on (which `mc`, `vim` and `less`
@@ -108,6 +115,15 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   `Ctrl+Shift+C` copies (selection or viewport), `Ctrl+Shift+V` pastes, and the
   **middle button** pastes PRIMARY (X11 convention). The selection is reverse
   video. A click in `mc`/`vim` arrives as `CSI < b ; x ; y M/m`.
+- **Click picks**: dragging selects cell by cell, **double click** selects the
+  word (until white space, so a path comes out whole) and **triple click** the
+  whole logical line — a line that broke softly is glued back and comes out
+  without the trailing space. The pick already goes to PRIMARY (and to
+  CLIPBOARD with `copy_on_select`).
+- **Hyperlinks** (`OSC 8`): the link travels in the cell (interned URI, an extra
+  field only on linked cells). With `Ctrl` held, every link on screen is
+  underlined; `Ctrl+click` hands the URI to `xdg-open` — only `http`, `https`,
+  `file`, `ftp` and `mailto`, since the URI comes from the child.
 
 Tested with `ls --color`, `mc` (panels, frames, key bar, colors,
 arrows and resize 68x22 → 110x36 → 70x21 with no leftovers) and `vim`/`less`

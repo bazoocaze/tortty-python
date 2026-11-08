@@ -943,6 +943,51 @@ the noise that the same version already has between runs (the layout sits in a
 cache created with the font options of the first draw, and the socket toast
 interferes with captures — use a screen without a toast when comparing).
 
+### P40 — SGR italic and underline styles (2026-11-08)
+
+`3`/`23` (italic from the real face, through Pango) and `4`/`4:n`/`21`/`24`
+(single, double, curly, dotted, dashed). `flags` gained bit `ITALIC` and the
+style in three bits, so the run grouping keeps working with one comparison;
+the underline is drawn per run, at run width, in cairo (`set_dash` for the
+dotted and dashed ones). Pango cache went from 2 to 4 slots (bold × italic).
+
+`4:n` is preserved as a tuple during the SGR parse: the old sub-parameter
+flattening turned `4:3` into `4;3`, which would read as "underline + italic".
+Check `sgr_italic_and_underline_styles` covers exactly that.
+
+### P41 — Double click picks the word, triple the logical line (2026-11-08)
+
+`Term.word_span` stops at white space only, so a whole path comes out on double
+click, and a click on a space run selects the run. `Term.logical_line_span`
+walks the soft-wrap flags up and down to glue the line back and trims the
+trailing space. The pick already goes to PRIMARY and to CLIPBOARD
+(`copy_on_select`).
+
+Bug found while verifying with a real window: a double click behaved as a
+triple. `Clipboard.store()` runs a nested X loop and the **same press** comes
+back to the widget (same time, same coordinate), so the click counter saw three
+events out of two clicks; a repeated press is now discarded before the counting.
+
+### P42 — Scrollbar over the last column (2026-11-08)
+
+8 px over the grid, only while there is scrollback, translucent track (10%) and
+thumb (55%) so the text underneath still reads. Click on the track jumps,
+dragging walks the history; the hit test comes before the mouse report, so it
+works inside `mc` and `vim`. Hidden in alt-screen: there is nothing to scroll,
+and the bar would invite a click that does nothing. Verified with the socket
+verb `state`: click went `view_off` 0 → 28 (the maximum) and a drag held 21 of
+28 while the button was down.
+
+### P43 — OSC 8 hyperlinks (2026-11-08)
+
+`8;params;URI` with the URI interned in a table: the cell carries an int in a
+lazy **fifth field that only exists on linked cells**, so the hot path did not
+change (measured: 9.1/8.9 MB/s before, 9.0/8.8 MB/s after, within the noise).
+`Ctrl` underlines every link on screen (169 px changed on a line with links, by
+pixel diff); `Ctrl+click` hands the URI to `xdg-open` through the whitelist
+`http`/`https`/`file`/`ftp`/`mailto` — verified with a fake `xdg-open` in the
+`PATH`, which recorded the URL, and `javascript:`/`data:` are refused by check.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

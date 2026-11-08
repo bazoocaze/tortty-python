@@ -95,6 +95,15 @@ A test script ends with `{"cmd": "quit"}` instead of `sleep` +
   one) and fixes itself when mapped (`on_resize` →
   `TIOCSWINSZ`/`SIGWINCH`). Different widths in the dump are that.
 - The app runs in the uv venv (system PyGObject via `--system-site-packages`).
+- Manual check of the picks and of the hyperlinks, in the app itself, without
+  any tool: the line below prints an OSC 8 link with a BEL terminator. Double
+  click must take one word (a path comes out whole), triple click the whole
+  logical line, `Ctrl` must underline the links and `Ctrl+click` open the URI
+  (put a fake `xdg-open` first in the `PATH` to see the argument instead of
+  opening a browser).
+  ```
+  printf '\e]8;;https://example.com\e\\example\e]8;;\e\\\n'
+  ```
 
 ## App probes (`PYTERM_*`)
 
@@ -200,6 +209,14 @@ when it opens, the window shows a security warning toast with the socket path.
   one-character spinner cost one line instead of the frame. Removing the filter
   (or swapping `queue_draw_area` for `queue_draw`) brings back the 13 ms
   without changing a pixel.
+- `Gtk.Clipboard.store()` runs a nested loop in the X server, and the **same**
+  button press comes back to the widget (same `ev.time`, same coordinate). A
+  click counter that trusts the events sees a double click as a triple: discard
+  the repeated press before counting (`view._press_time`/`_press_xy`).
+- A cell with a hyperlink has a **fifth** field (`[ch, fg, bg, flags, link]`)
+  and a cell without has four: unpack `cell[0]`..`cell[3]`, never
+  `a, b, c, d = cell` (that `ValueError` killed the draw as soon as a link
+  appeared).
 
 - `show_all()` undoes `set_visible(False)`: it shows every descendant and a
   widget hidden in the constructor comes back. Controlling it by hand requires
