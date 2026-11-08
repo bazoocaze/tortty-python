@@ -650,7 +650,9 @@ def desktop_shortcut():
     """O .desktop tem que casar com o WM_CLASS e o ícone viajar no pacote."""
     txt = shortcut.entry("/opt/bin/bzmux")
     assert "Exec=/opt/bin/bzmux" in txt
-    assert f"StartupWMClass={shortcut.WMCLASS}" in txt
+    assert "StartupWMClass=tortty-python" in txt
+    # a classe igual ao nome do .desktop é o que agrupa a janela no dock
+    assert shortcut.WMCLASS == shortcut.APP
     assert "Categories=System;TerminalEmulator;" in txt
     assert "Icon=tortty-python" in txt
     assert "Name=TorTTY (Python)" in txt  # nome visível no menu (rebrand)

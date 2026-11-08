@@ -12,7 +12,7 @@ from importlib import resources
 APP = "tortty-python"  # nome do .desktop e do ícone
 NAME = "TorTTY (Python)"  # nome visível no menu do sistema
 EXE = "pybzmux"  # console script que o pacote instala no PATH
-WMCLASS = "Bzmux"  # casa com Gdk.set_program_class no cli
+WMCLASS = "tortty-python"  # WM_CLASS: casa com APP e com StartupWMClass
 LEGACY = "pybzmux"  # .desktop/ícone do nome anterior: saem junto
 
 

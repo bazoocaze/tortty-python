@@ -2,7 +2,7 @@
 
 import sys
 
-from . import __version__
+from . import __version__, shortcut
 from .selftest import selftest
 
 USAGE = """\
@@ -60,8 +60,6 @@ def run():
 
 def _shortcut(installing):
     """--install-shortcut / --remove-shortcut: só arquivos, sem Gtk."""
-    from . import shortcut
-
     if not installing:
         gone = shortcut.remove()
         if gone:
@@ -118,8 +116,8 @@ def main(argv=None):
     # WM_CLASS estável: o padrão do GLib vem do argv[0] e muda entre o console
     # script (pybzmux), o `-m bzmux` (__main__.py) e o venv — com ele instável o
     # atalho do sistema não acha a janela. Casa com StartupWMClass do .desktop.
-    GLib.set_prgname("bzmux")
-    Gdk.set_program_class("Bzmux")
+    GLib.set_prgname(shortcut.APP)
+    Gdk.set_program_class(shortcut.WMCLASS)
 
     win = BzmuxWindow(
         cmd=cmd,

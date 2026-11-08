@@ -50,7 +50,8 @@ The installer also creates the shortcut in the system menu (`~/.local/share/appl
 part, and whoever installed before runs `pybzmux --install-shortcut` once. The
 shortcut is `tortty-python.desktop` + `tortty-python.svg`: installing or removing
 it never touches `bzmux.desktop`/`bzmux.svg`, which belong to the Rust
-bzmux. The window's `WM_CLASS` is fixed at startup (`Bzmux`), so the shortcut
+bzmux. The window's `WM_CLASS` is fixed at startup (`tortty-python`), so the
+shortcut
 finds the window both when installed and through `python3 -m bzmux`.
 
 Without cloning — the repository is **private**, so the classic `curl | bash`
