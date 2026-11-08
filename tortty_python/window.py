@@ -1,6 +1,6 @@
 """A janela GTK: workspaces (P12) e, dentro de cada um, abas (P11).
 
-    BzmuxWindow  Gtk.Box[ lateral (Gtk.ListBox) | Gtk.Stack ]
+    TorttyWindow  Gtk.Box[ lateral (Gtk.ListBox) | Gtk.Stack ]
     Workspace     um Gtk.Notebook + as TermView dele + o cartão da lateral
 
 Cada workspace tem o seu conjunto de abas (`Gtk.Stack` e não trocar páginas do
@@ -16,6 +16,7 @@ import sys
 from . import config as config_mod
 from . import debugsock, state, style
 from .gui import Gdk, GdkX11, GLib, Gtk, Pango
+from .term import DEFAULT_TITLE
 from .view import TermView, set_debug_log, set_prof
 
 SIDEBAR_W = 170  # largura fixa (arrastável fica pra depois)
@@ -278,7 +279,7 @@ class Workspace:
         """Rótulo da aba: título do app ou, sem OSC, o cwd da sessão.
 
         O bash não manda OSC 0/2 por padrão, então todas as abas ficariam
-        "bzmux"; o diretório é a informação que o usuário usa pra saber onde
+        com o título padrão; o diretório é a informação que o usuário usa pra saber onde
         está (o `Alt+N` já dá o número, por isso não tem prefixo numérico).
         """
         if view.app_title and view._title:
@@ -356,7 +357,7 @@ class Workspace:
         return False
 
 
-class BzmuxWindow(Gtk.Window):
+class TorttyWindow(Gtk.Window):
     def __init__(
         self,
         cmd=None,
@@ -923,7 +924,7 @@ class BzmuxWindow(Gtk.Window):
         ws = self.current
         if v is None and ws is not None:
             v = ws.view
-        self.set_title(ws.label_text(v) if (ws and v) else "bzmux")
+        self.set_title(ws.label_text(v) if (ws and v) else DEFAULT_TITLE)
 
     # -- dump / ciclo de vida ------------------------------------------
     def dump(self):

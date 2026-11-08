@@ -154,7 +154,7 @@ escada() {
 
 GRADE="?"
 TELA_REAL="${DISPLAY:-${WAYLAND_DISPLAY:-?}}"
-echo "bzmux bench — doom-fire, $FRAMES frames ($(date '+%Y-%m-%d %H:%M'))"
+echo "tortty-python bench — doom-fire, $FRAMES frames ($(date '+%Y-%m-%d %H:%M'))"
 printf '%-26s %7s %7s %12s %10s %9s %7s\n' \
     "etapa" "fps" "MB/s" "bytes/frame" "draw ms" "pty ms" "GHz méd/pico"
 

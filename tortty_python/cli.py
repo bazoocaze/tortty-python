@@ -1,4 +1,4 @@
-"""Linha de comando: `bzmux [--cmd CMD] [--quit-after SEG] ...`."""
+"""Linha de comando: `tortty-python [--cmd CMD] [--quit-after SEG] ...`."""
 
 import sys
 
@@ -6,7 +6,7 @@ from . import __version__, shortcut
 from .selftest import selftest
 
 USAGE = """\
-usage: pybzmux [options]
+usage: tortty-python [options]
 
   --cmd CMD          initial command (default: the config `shell` option)
   -c, --config FILE  configuration file (default:
@@ -70,7 +70,7 @@ def _shortcut(installing):
     try:
         desktop, icon = shortcut.install()
     except RuntimeError as e:
-        print(f"pybzmux: {e}", file=sys.stderr)
+        print(f"tortty-python: {e}", file=sys.stderr)
         return 1
     print(f"shortcut: {desktop}\nicon:     {icon}")
     bad = shortcut.validate(desktop)
@@ -83,7 +83,7 @@ def _shortcut(installing):
 def main(argv=None):
     argv = sys.argv if argv is None else argv
     if "-V" in argv[1:] or "--version" in argv[1:]:
-        print("pybzmux " + __version__)
+        print("tortty-python " + __version__)
         return 0
     if "-h" in argv[1:] or "--help" in argv[1:]:
         print(USAGE)
@@ -94,32 +94,32 @@ def main(argv=None):
         return _shortcut("--install-shortcut" in argv)
     cmd, quit_after, dump_to, conf, dlog, dsock, erro = parse_args(argv)
     if erro:
-        print(f"pybzmux: invalid option: {erro}\n\n{USAGE}", file=sys.stderr)
+        print(f"tortty-python: invalid option: {erro}\n\n{USAGE}", file=sys.stderr)
         return 2
     # import tardio: --selftest e --help rodam sem tocar em Gtk/PyGObject
     try:
         from .gui import Gdk, GdkX11, GLib, Gtk
-        from .window import BzmuxWindow
+        from .window import TorttyWindow
     except ModuleNotFoundError as e:
         if e.name not in ("gi", "cairo"):
             raise
         print(
-            f"pybzmux: missing {e.name} (PyGObject/Gtk3 + pycairo from the system).\n"
+            f"tortty-python: missing {e.name} (PyGObject/Gtk3 + pycairo from the system).\n"
             "  Linux (deb): sudo apt install python3-gi python3-gi-cairo "
             "gir1.2-gtk-3.0\n"
             "  installed by pipx/isolated venv: use --system-site-packages\n"
-            "  (or run 'pybzmux --selftest', which needs no display nor gi)",
+            "  (or run 'tortty-python --selftest', which needs no display nor gi)",
             file=sys.stderr,
         )
         return 1
 
     # WM_CLASS estável: o padrão do GLib vem do argv[0] e muda entre o console
-    # script (pybzmux), o `-m bzmux` (__main__.py) e o venv — com ele instável o
+    # script (tortty-python), o `-m tortty_python` (__main__.py) e o venv — com ele instável o
     # atalho do sistema não acha a janela. Casa com StartupWMClass do .desktop.
     GLib.set_prgname(shortcut.APP)
     Gdk.set_program_class(shortcut.WMCLASS)
 
-    win = BzmuxWindow(
+    win = TorttyWindow(
         cmd=cmd,
         quit_after=quit_after,
         dump_to=dump_to,

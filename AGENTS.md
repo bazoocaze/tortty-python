@@ -58,8 +58,8 @@ example value when explaining a probe.
 
 ## Architecture
 
-The bzmux/ package installs the `pybzmux` command and also runs as
-`python -m bzmux`; no loose file at the root. The code:
+The tortty_python/ package installs the `tortty-python` command and also runs as
+`python -m tortty_python`; no loose file at the root. The code:
 
 - run.sh — runs the app (quick test; picks the python)
 - debug.sh — development: background, log, --kill/--status
@@ -69,30 +69,30 @@ The bzmux/ package installs the `pybzmux` command and also runs as
 - tools/benchrun.py — one rung of the ladder: locks the grid through the
   socket, types the load and prints the result
 - install.sh — installer (Linux)
-- bzmux/__main__.py — python -m bzmux (calls cli.run)
-- bzmux/__init__.py — facade with lazy import (bzmux.Term does not pull Gtk)
-- bzmux/palette.py — cell [char, fg, bg, flags], xterm-256 palette (int and
+- tortty_python/__main__.py — python -m tortty_python (calls cli.run)
+- tortty_python/__init__.py — facade with lazy import (tortty_python.Term does not pull Gtk)
+- tortty_python/palette.py — cell [char, fg, bg, flags], xterm-256 palette (int and
   float), DEC charset
-- bzmux/term.py — grid, cursor, VT parser; does not know GTK
-- bzmux/keys.py — X11 keyval -> child bytes (dead keys, DECCKM)
-- bzmux/kitty_kbd.py — kitty keyboard protocol (CSI ... u)
-- bzmux/mouse.py — mouse protocol (SGR and the old one) — pure
-- bzmux/graphics.py — kitty image protocol (APC G) — pure
-- bzmux/gui.py — the only import of Gtk/Gdk/GLib/Pango/PangoCairo/cairo
-- bzmux/style.py — chrome color tokens + generated CSS + contrast (pure)
-- bzmux/view.py — TermView: one session (pty, cairo + Pango, events)
-- bzmux/window.py — Workspace + BzmuxWindow (tabs, sidebar, global shortcuts)
-- bzmux/checks.py — the battery: pure asserts, no display
-- bzmux/selftest.py — dependency-free runner for --selftest
-- bzmux/cli.py — argv and startup (and the console script entry point)
-- bzmux/shortcut.py — system shortcut (.desktop + icon); pure, before gi
-- bzmux/state.py — window geometry between runs (JSON in XDG_STATE_HOME)
-- bzmux/config.py — configuration (kitty key/value); pure, merge w/ default
-- bzmux/debugsock.py — Unix introspection socket (P35): pure dispatch + GLib
+- tortty_python/term.py — grid, cursor, VT parser; does not know GTK
+- tortty_python/keys.py — X11 keyval -> child bytes (dead keys, DECCKM)
+- tortty_python/kitty_kbd.py — kitty keyboard protocol (CSI ... u)
+- tortty_python/mouse.py — mouse protocol (SGR and the old one) — pure
+- tortty_python/graphics.py — kitty image protocol (APC G) — pure
+- tortty_python/gui.py — the only import of Gtk/Gdk/GLib/Pango/PangoCairo/cairo
+- tortty_python/style.py — chrome color tokens + generated CSS + contrast (pure)
+- tortty_python/view.py — TermView: one session (pty, cairo + Pango, events)
+- tortty_python/window.py — Workspace + TorttyWindow (tabs, sidebar, global shortcuts)
+- tortty_python/checks.py — the battery: pure asserts, no display
+- tortty_python/selftest.py — dependency-free runner for --selftest
+- tortty_python/cli.py — argv and startup (and the console script entry point)
+- tortty_python/shortcut.py — system shortcut (.desktop + icon); pure, before gi
+- tortty_python/state.py — window geometry between runs (JSON in XDG_STATE_HOME)
+- tortty_python/config.py — configuration (kitty key/value); pure, merge w/ default
+- tortty_python/debugsock.py — Unix introspection socket (P35): pure dispatch + GLib
   glue; only with `--debug-socket`, verbs in docs/DEBUG.md
-- bzmux/data/ — tortty-python.svg (icon) and tortty-python.conf (embedded
+- tortty_python/data/ — tortty-python.svg (icon) and tortty-python.conf (embedded
   default options)
-- tests/ — pytest runner for bzmux/checks.py
+- tests/ — pytest runner for tortty_python/checks.py
 - tools/xtest.py, tools/pixel.py — manual test, requires X11
 - tools/doomfire.py — measurement load, not a test
 - tools/uploadbench.py — drawing microbench: N cairo operations against 1
@@ -110,7 +110,7 @@ csi_dispatch/sgr/set_mode and child_out (responses to the child, drained by the
 host); view.py has spawn/on_pty (io_add_watch on the master), on_resize
 (size-allocate → Term.resize + TIOCSWINSZ + SIGWINCH), on_draw, on_key,
 mouse/selection and view_off; window.py has Workspace (Gtk.Notebook + sidebar
-card) and BzmuxWindow (Gtk.Stack + global shortcuts + dump/quit-after/SIGUSR1).
+card) and TorttyWindow (Gtk.Stack + global shortcuts + dump/quit-after/SIGUSR1).
 
 A cell is a list [char, fg, bg, flags]: fg/bg as an xterm index (0-255,
 256=default fg, 257=default bg), flags bitmask (bold/underline/inverse). The
@@ -129,10 +129,10 @@ graphical stack are an initial choice, revisable by requirement
 
 Key/value in kitty format (`#` comments). The user file is
 $XDG_CONFIG_HOME/tortty-python/tortty-python.conf (the -c FILE switches it) and
-is always merged over the default embedded in bzmux/data/tortty-python.conf.
+is always merged over the default embedded in tortty_python/data/tortty-python.conf.
 
-- Valid keys and ranges live in bzmux/config.py (CHECKS); the default values,
-  in bzmux/data/tortty-python.conf. The ones that most change day to day: font_size (in
+- Valid keys and ranges live in tortty_python/config.py (CHECKS); the default values,
+  in tortty_python/data/tortty-python.conf. The ones that most change day to day: font_size (in
   points, not px), scrollback, cursor_shape.
 - Empty `shell` (the default) inherits the environment `$SHELL`;
   `config.tab_command` decides (tab command, child `$SHELL`) and `--cmd` does
@@ -146,7 +146,7 @@ is always merged over the default embedded in bzmux/data/tortty-python.conf.
 
 ## Conventions
 
-- Version: bump the patch (`0.0.1` -> `0.0.2`) in `bzmux/__init__.py`
+- Version: bump the patch (`0.0.1` -> `0.0.2`) in `tortty_python/__init__.py`
   when **closing a backlog item** — the commit that closes the item carries the
   bump, not every commit. A docs, test or one-off adjustment commit does not
   bump. It is the single source: `pyproject.toml` reads from there (hatch) and
@@ -158,7 +158,7 @@ is always merged over the default embedded in bzmux/data/tortty-python.conf.
 - Data with named fields (NamedTuple/dataclass), not raw tuples: position
   does not say what it is, the name does.
 - Format designed for agents, does not need to be pleasant for humans.
-- Interface color only in bzmux/style.py (tokens + generated CSS); no loose hex
+- Interface color only in tortty_python/style.py (tokens + generated CSS); no loose hex
   in the code. Terminal cell color is palette.py — do not mix the two.
 - Do not update the documentation on every code iteration. When the user
   finishes an iteration, mention discreetly that the doc is pending; the
@@ -180,8 +180,8 @@ is always merged over the default embedded in bzmux/data/tortty-python.conf.
   responses (DA/CPR), CSI with intermediate, CLI, kitty keyboard, graphics,
   reflow, scrollback, mouse, selection, paste, truecolor, style contrast.
 - Cheap test to run: one command (./run-tests.sh), no display. The checks
-  live in bzmux/checks.py and have two runners: pytest and
-  python3 -m bzmux --selftest (no dependencies, useful to prove that the test
+  live in tortty_python/checks.py and have two runners: pytest and
+  python3 -m tortty_python --selftest (no dependencies, useful to prove that the test
   path does not pull gi). What needs X11 stays as a manual command in Scripts
   and tools, it does not become infrastructure.
 - tools/doomfire.py — measurement load, not a test: doom-fire in truecolor
@@ -205,13 +205,14 @@ running. Only which one to use fits here.
 - ./run.sh — runs the app here, in the foreground; picks the python (uv venv
   when it sees gi, otherwise the system one).
 - ./debug.sh — development: background with log, --kill/--status by PID file
-  (never pkill -f bzmux, which also matches pybzmux and kills the shell of the
+  (never pkill -f tortty_python: the pattern also matches `tortty-python` and
+  kills the shell of the
   caller).
 - ./run-tests.sh — lint + selftest + pytest, no display.
 - ./bench.sh — doom-fire ladder; locks the grid through the socket, measures on
   the current display and on its own Xvfb and does not store a number.
-- pybzmux, python3 -m bzmux, uv run python -m bzmux — the app (options:
-  pybzmux -h).
+- tortty-python, python3 -m tortty_python, uv run python -m tortty_python — the app (options:
+  tortty-python -h).
 - uv run pytest -q, uv run ruff check ., uv run ruff format . — battery and lint
   through the uv venv.
 

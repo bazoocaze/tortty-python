@@ -44,14 +44,14 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
 - **Drawing** with cairo + Pango: runs grouped by attributes, bold,
   underline, inverse, block cursor, real shaping (connected Arabic,
   combinations) and font fallback (CJK, color emoji).
-- **Kitty keyboard protocol** (`bzmux/kitty_kbd.py`): `CSI > flags u`
+- **Kitty keyboard protocol** (`tortty_python/kitty_kbd.py`): `CSI > flags u`
   (push), `CSI < n u` (pop), `CSI = flags ; mode u` (set/add/remove) and
   `CSI ? u` (query). With `disambiguate`, Esc/Enter/Tab/Backspace and
   Ctrl/Alt/Super+key come out as `CSI code ; mods u`, so `Ctrl+Shift+letter`
   stops being confused with `Ctrl+letter`; `report event types` adds
   `:1`/`:2`/`:3`; `report all keys as escape codes` sends everything as CSI-u;
   `report associated text` (`16`) appends the key's text.
-- **Kitty graphics protocol** (`bzmux/graphics.py`): APC `G` with
+- **Kitty graphics protocol** (`tortty_python/graphics.py`): APC `G` with
   `a=t`/`a=T`/`a=p`/`a=d`/`a=q`, `f=24` (RGB), `f=32` (RGBA) and `f=100` (PNG),
   image in chunks (`m=1`), `i`/`c`/`r`/`C=1`/`q`, `o=z` compression (zlib) and
   the `X=`/`Y=` offsets in pixels inside the cell (that is how `icat`
@@ -91,7 +91,7 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   default; with `PYTERM_GEOM` the measurement protocol rules (it neither restores
   nor saves). On Wayland only maximized is remembered: window position does not
   exist there.
-- **Dark chrome** (`bzmux/style.py`): the interface colors (workspace sidebar,
+- **Dark chrome** (`tortty_python/style.py`): the interface colors (workspace sidebar,
   cards) come from a token table and the CSS is generated from it — with no loose
   hex in the code. The sidebar is black, the active workspace sits in a dark
   green with light text, and the contrast (>= 4.5:1) is verified by a check. The

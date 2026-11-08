@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Injeta eventos no X11 (XTest) numa janela do bzmux, achada por `_NET_WM_PID`.
+"""Injeta eventos no X11 (XTest) numa janela do tortty-python, achada por `_NET_WM_PID`.
 
 Ferramenta **manual** de teste — não entra no `--selftest` (precisa de display).
 Precisa de `python3-xlib` (está no sistema) e de um servidor X.
@@ -95,11 +95,11 @@ def _pid_do_arquivo():
     try:
         return int(open(PIDFILE).read().strip())
     except (OSError, ValueError):
-        raise Erro(f"não achei o PID em {PIDFILE} (o bzmux está rodando?)")
+        raise Erro(f"não achei o PID em {PIDFILE} (o tortty-python está rodando?)")
 
 
 def achar_janela(d, want_pid=None, want_id=None):
-    """Acha a janela principal do bzmux.
+    """Acha a janela principal do tortty-python.
 
     Um processo GTK tem **várias** janelas com o mesmo `_NET_WM_PID` (a do app e
     ajudantes de 10x10 do toolkit, que não são mapeadas). Pegar a primeira que
@@ -222,7 +222,7 @@ class Injecao:
 # ------------------------------------------------------------------ main ----
 def main(argv):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--pid", type=int, help="PID do bzmux (padrão: %s)" % PIDFILE)
+    ap.add_argument("--pid", type=int, help="PID do tortty-python (padrão: %s)" % PIDFILE)
     ap.add_argument("--window", type=lambda s: int(s, 0), help="id X11 da janela")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
@@ -265,7 +265,7 @@ def main(argv):
     want_pid = a.pid if a.pid is not None else (None if a.window else _pid_do_arquivo())
     janela = achar_janela(d, want_pid, a.window)
     if janela is None:
-        raise Erro("janela do bzmux não encontrada (PID %s)" % (want_pid,))
+        raise Erro("janela do tortty-python não encontrada (PID %s)" % (want_pid,))
     inj = Injecao(janela, d)
 
     if a.cmd == "id":

@@ -1,7 +1,7 @@
 [project]
-name = "pybzmux"
+name = "tortty-python"
 dynamic = ["version"]
-description = "Terminal em Python com abas, workspaces e imagens"
+description = "Minimal functional port of the TorTTY terminal to Python"
 readme = "README.md"
 requires-python = ">=3.9"
 license = "MIT"
@@ -9,10 +9,10 @@ license-files = ["LICENSE"]
 dependencies = []
 
 # O console script: `pipx install --system-site-packages` instala e o comando
-# `pybzmux` aparece no PATH. run() (e nao main()) porque o entry point chama a
+# `tortty-python` aparece no PATH. run() (e nao main()) porque o entry point chama a
 # funcao sem argumentos e precisa fazer sys.exit com o codigo.
 [project.scripts]
-pybzmux = "bzmux.cli:run"
+tortty-python = "tortty_python.cli:run"
 
 [project.optional-dependencies]
 # so as ferramentas de teste manual (tools/) precisam disto; o app usa o
@@ -26,12 +26,12 @@ dev = ["pytest>=8", "ruff>=0.16"]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
-# a versão mora em bzmux/__init__.py (`__version__`), não aqui
+# a versão mora em tortty_python/__init__.py (`__version__`), não aqui
 [tool.hatch.version]
-path = "bzmux/__init__.py"
+path = "tortty_python/__init__.py"
 
 [tool.hatch.build.targets.wheel]
-packages = ["bzmux"]
+packages = ["tortty_python"]
 
 [tool.uv]
 # o app roda no python do sistema (PyGObject vem da distro); este venv serve
@@ -56,4 +56,4 @@ ignore = ["E501"]
 [tool.ruff.lint.per-file-ignores]
 # gui.py é o único ponto que importa Gtk/cairo e os reexporta: os nomes
 # parecem não usados no arquivo e o require_version vem antes dos imports
-"bzmux/gui.py" = ["F401", "E402"]
+"tortty_python/gui.py" = ["F401", "E402"]

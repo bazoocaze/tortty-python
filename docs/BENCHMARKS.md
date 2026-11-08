@@ -129,10 +129,10 @@ one terminal at a time, 3 shots of each on 2026-10-27, `schedutil` with turbo at
 
 | | fps | MB/s of escapes | bytes/frame |
 |---|---|---|---|
-| pybzmux | 110.4–122.6 | 6.2–6.9 | ~56 KB |
+| tortty-python | 110.4–122.6 | 6.2–6.9 | ~56 KB |
 | kitty 0.48.2 | 675.8–714.2 | 38.5–40.7 | ~56 KB |
 
-- Distance of ~6x (5.6–6.6x shot by shot): pybzmux spends ~7.7 ms per frame of
+- Distance of ~6x (5.6–6.6x shot by shot): tortty-python spends ~7.7 ms per frame of
   1470 cells and kitty ~1.4 ms — 5.2 µs versus 1 µs per cell.
 - After P34 (2026-10-31) the default became 12 points and the 980x640 window
   became 75×22; `font_family`, `font_size` and `window_padding_width` change the
@@ -394,11 +394,11 @@ PYTERM_NOPARSE=1 PYTERM_NODRAW=1 PYTERM_PROF=1 ./run.sh --cmd 'python3 \
 # prof: draw 1x 3.4ms/call | pty 2134x 0.06ms/call (137ms)
 ```
 
-## pybzmux profile
+## tortty-python profile
 
 - The `PYTERM_*` probes are in [DEBUG.md](DEBUG.md); here only what they produce
   as a number.
-- `PYTERM_PROF=1` turns on counters in `TermView` (`bzmux/view.py`): time and
+- `PYTERM_PROF=1` turns on counters in `TermView` (`tortty_python/view.py`): time and
   number of calls of `on_pty` (parse) and `on_draw` (drawing), on stderr (soon, in
   the `/tmp/tortty-python.log` of `debug.sh`) when the session closes. Without the variable
   the code does nothing (only the `if not _PROF` at the entry).
@@ -436,7 +436,7 @@ grep prof: /tmp/tortty-python.log
 
 1. One at a time: two terminals drawing at the same time dispute CPU and both
    numbers come out worse.
-2. Same columns and same lines in both. In pybzmux, `PYTERM_GEOM=980x640` (without
+2. Same columns and same lines in both. In tortty-python, `PYTERM_GEOM=980x640` (without
    that the WM sometimes opens 80×24 and the number changes); in kitty, ask for the
    same pixel size, since font and DPI are the same:
 
@@ -445,7 +445,7 @@ kitty --override remember_window_size=no --override initial_window_width=980 \
     --override initial_window_height=640 -e ...
 ```
 
-- The pybzmux default window is 980×640, which gives 70×21 with one workspace and
+- The tortty-python default window is 980×640, which gives 70×21 with one workspace and
   57×21 with two: opening or closing the sidebar changes the grid and the fps, so
   compare with the same number of workspaces.
 3. `--fps 0 --frames 1200 --stats-to FILE` in both.
@@ -485,7 +485,7 @@ import -window $(python3 tools/xtest.py id) /tmp/b.png
   fixed (`finally` restores pen, cursor and screen).
 - Measuring with `--fps 30` and thinking it is the throughput: with a fixed pace the
   tool sleeps, and the measured fps is the target, not the terminal limit.
-- pybzmux window is not the grid: the sidebar `size_request` and the tab bar eat
+- tortty-python window is not the grid: the sidebar `size_request` and the tab bar eat
   width; the grid is what the dump says (`=== viewport CxR ===`).
 
 ## What it is for

@@ -16,7 +16,7 @@ otherwise Pango) and the validation is pixel comparison, not fps.
 
 P38 — Alternative runtime: PyPy and Cython on the hot path. **Experiment, not a
 commitment.** Request: can the project be measured under PyPy and under Cython?
-Not the whole app: `gi` is only imported in `bzmux/gui.py`, but view and window
+Not the whole app: `gi` is only imported in `tortty_python/gui.py`, but view and window
 go through it, and PyGObject does not run on PyPy (`cpyext` does not cover the C
 API it uses) — the window does not come up. What can be measured is the pure hot
 path (`palette`, `term`, `graphics`, `kitty_kbd`, `mouse`): feed N MB into `Term`
@@ -53,10 +53,10 @@ P33 — Configuration file: **v1 implemented** (2026-10-29), real use is missing
 The scope decision was "start with `shell` only": no colors, font or shortcuts.
 What exists:
 
-- `bzmux/config.py` pure (no `gi`): parse of the kitty format (`chave valor`,
+- `tortty_python/config.py` pure (no `gi`): parse of the kitty format (`chave valor`,
   `#` comments to the end of the line, leading/trailing space, repeated key the
   last one wins), validation per key and merge **always** with the default;
-- default embedded in `bzmux/data/tortty-python.conf` (goes in the wheel like
+- default embedded in `tortty_python/data/tortty-python.conf` (goes in the wheel like
   the icon);
 - user file at `$XDG_CONFIG_HOME/tortty-python/tortty-python.conf`, and `-c FILE` /
   `--config FILE` changes only that path (the merge with the default continues);

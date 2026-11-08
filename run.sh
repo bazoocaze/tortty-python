@@ -1,10 +1,10 @@
 #!/bin/sh
-# run.sh — roda o bzmux aqui, para testar rápido. Passa os argumentos para o
+# run.sh — roda o tortty-python aqui, para testar rápido. Passa os argumentos para o
 # app e sai com o código dele; nada de instância em background.
 #
 # É o script para rodar o terminal à mão. Durante o desenvolvimento
 # o caminho é o debug.sh: ele sobe por este script (mesmo interpretador), mas
-# com log em /tmp/bzmux.log, PID file, --kill e --status.
+# com log em /tmp/tortty-python.log, PID file, --kill e --status.
 #
 # Uso: ./run.sh [--cmd CMD] [--quit-after SEG] [--dump-to ARQ] [-h]
 #
@@ -27,10 +27,10 @@ if [ -x "$HERE/.venv/bin/python" ]; then
     fi
 fi
 
-# O app é um pacote (`python -m bzmux`), então o repositório precisa estar no
+# O app é um pacote (`python -m tortty-python`), então o repositório precisa estar no
 # sys.path. Usar PYTHONPATH em vez de `cd "$HERE"` de propósito: o shell que o
 # app abre herda o diretório de quem chamou o run.sh.
 PYTHONPATH="$HERE${PYTHONPATH:+:$PYTHONPATH}"
 export PYTHONPATH
 
-exec "$PY" -m bzmux "$@"
+exec "$PY" -m tortty-python "$@"

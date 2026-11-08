@@ -21,19 +21,19 @@ and the testing pitfalls are in [`docs/HISTORY.md`](docs/HISTORY.md).
 uv run pytest -q              # just the pytest part
 uv run ruff check .           # just the lint
 uv run ruff format .          # formats (does not run in run-tests)
-python3 -m bzmux --selftest   # the same checks, without depending on pytest
-python3 -m bzmux --help       # options, without opening a window
-python3 -m bzmux --version    # version (the same one in bzmux/__init__.py)
+python3 -m tortty_python --selftest   # the same checks, without depending on pytest
+python3 -m tortty_python --help       # options, without opening a window
+python3 -m tortty_python --version    # version (the same one in tortty_python/__init__.py)
 ./bench.sh                    # measures throughput (doom-fire), ~10 s
 ```
 
 ## Installing on the machine (pipx, straight from GitHub)
 
-`pybzmux` uses the system
+`tortty-python` uses the system
 PyGObject, so the isolated venv needs to **see** the distro's Gtk3 — that is
 what `install.sh` solves (distro dependencies, the `python3` that sees
-`gi`, pipx and the installation). The installed command is `pybzmux`; the name
-`bzmux` stays with the Rust version of the project.
+`gi`, pipx and the installation). The installed command is `tortty-python`; the
+name `tortty` stays with the Rust version of the project.
 
 ```sh
 ./install.sh               # from the clone: installs, verifies and says what to do
@@ -47,12 +47,12 @@ If `pipx` is not installed, the script uses `uvx pipx` instead of asking for
 
 The installer also creates the shortcut in the system menu (`~/.local/share/applications`
 + icon under `hicolor`, respecting `XDG_DATA_HOME`): `--no-shortcut` skips that
-part, and whoever installed before runs `pybzmux --install-shortcut` once. The
+part, and whoever installed before runs `tortty-python --install-shortcut` once. The
 shortcut is `tortty-python.desktop` + `tortty-python.svg`: installing or removing
-it never touches `bzmux.desktop`/`bzmux.svg`, which belong to the Rust
-bzmux. The window's `WM_CLASS` is fixed at startup (`tortty-python`), so the
+it never touches `tortty.desktop`/`tortty.svg`, which belong to the Rust
+version. The window's `WM_CLASS` is fixed at startup (`tortty-python`), so the
 shortcut
-finds the window both when installed and through `python3 -m bzmux`.
+finds the window both when installed and through `python3 -m tortty_python`.
 
 Without cloning — the repository is **private**, so the classic `curl | bash`
 does not work yet (raw gives 404 without authentication). The authenticated
@@ -60,13 +60,13 @@ equivalent is:
 
 ```sh
 gh api -H "Accept: application/vnd.github.raw" \
-    /repos/bazoocaze/pybzmux/contents/install.sh | bash
+    /repos/bazoocaze/tortty-python/contents/install.sh | bash
 ```
 
 Once the repository is public, the classic one starts to apply:
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/bazoocaze/pybzmux/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/bazoocaze/tortty-python/main/install.sh | bash
 ```
 
 And the step by step by hand, which is what the script does underneath:
@@ -74,15 +74,15 @@ And the step by step by hand, which is what the script does underneath:
 ```sh
 sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0   # Linux (deb)
 pipx install --system-site-packages \
-    "git+ssh://git@github.com:bazoocaze/pybzmux.git"           # command `pybzmux`
-pybzmux --selftest && pybzmux                                   # checks and opens
+    "git+ssh://git@github.com:bazoocaze/tortty-python.git"           # command `tortty-python`
+tortty-python --selftest && tortty-python                                   # checks and opens
 ```
 
 The repository is private, which is why the URL is `git+ssh` (it uses your key;
 `https` would require a token). The version in pyproject is pinned, so a new
 commit does not show up in `pipx upgrade`: to update, run the installer again
 (it uses `--force`). Without `--system-site-packages` the app exits with a
-message saying what to install, instead of a traceback (`pybzmux --selftest`
+message saying what to install, instead of a traceback (`tortty-python --selftest`
 works anyway, without gi and without display).
 
 `./bench.sh` prints fps, MB/s, drawing/parse cost and the CPU frequency per
@@ -109,14 +109,14 @@ uv sync --extra tools            # + python-xlib (the tools run with python3)
 
 `run.sh` picks the interpreter: `.venv/bin/python` when it imports `gi`,
 otherwise the system `python3` — with a warning saying how to recreate the venv.
-To run it by hand: `uv run python -m bzmux`.
+To run it by hand: `uv run python -m tortty_python`.
 
 ## Configuration
 
 One file in the kitty format (`key value`, `#` comments), at
 `~/.config/tortty-python/tortty-python.conf` (or whatever `-c FILE` points to). What you do not
 write comes from the default embedded in the program
-(`bzmux/data/tortty-python.conf`) — your file is **merged** on top of it, it does not
+(`tortty_python/data/tortty-python.conf`) — your file is **merged** on top of it, it does not
 replace it.
 
 ```sh
@@ -167,7 +167,7 @@ backlog items.
 
 ## License
 
-**MIT** (see `LICENSE`). `pybzmux` is original code, without a line of
+**MIT** (see `LICENSE`). `tortty-python` is original code, without a line of
 kitty, so its license is not dictated by the core: it only imports `pty`,
 `termios`, `unicodedata`, `gi` (Gtk3, LGPL-2.1+) and `pycairo` (LGPL/MPL).
 Being in the same repository does not contaminate — separate files, with no

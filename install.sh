@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# install.sh — instala o bzmux na máquina (o caminho "uma linha").
+# install.sh — instala o tortty-python na máquina (o caminho "uma linha").
 #
 # O app usa o PyGObject do sistema, então o instalador: confere/instala as
 # dependências da distro, acha o python3 que enxerga o gi, garante o pipx e
 # instala por ele com --system-site-packages. No fim roda o --selftest.
-# O comando instalado é `pybzmux`; a sobra do nome antigo (`bzmux`) é removida
-# quando veio do pipx. `bzmux` fica livre para a versão Rust do projeto.
+# O comando instalado é `tortty-python`; a sobra do nome antigo (`pybzmux`) é removida
+# quando veio do pipx.
 #
 # Uso (do repositório clonado — caminho recomendado):
 #   ./install.sh              instala (pede sudo só se faltar dependência)
@@ -26,14 +26,14 @@
 set -euo pipefail
 
 REPO=${BZMU_GIT_URL:-git+ssh://git@github.com/bazoocaze/tortty-python.git}
-PKG=pybzmux     # nome do pacote (pipx install/uninstall)
-EXE=pybzmux     # console script instalado no PATH
-OLD_PKG=bzmux   # pacote do nome anterior, desinstalado por este instalador
-OLD_EXE=bzmux   # console script do nome anterior
+PKG=tortty-python     # nome do pacote (pipx install/uninstall)
+EXE=tortty-python     # console script instalado no PATH
+OLD_PKG=pybzmux        # pacote do nome anterior, desinstalado por este instalador
+OLD_EXE=pybzmux        # console script do nome anterior
 
 say()  { printf '%s\n' "$*"; }
 warn() { printf '%s\n' "$*" >&2; }
-die()  { warn "bzmux: $*"; exit 1; }
+die()  { warn "tortty-python: $*"; exit 1; }
 
 DRY=0; DEPS=1; SHORTCUT=1; MODE=install
 for a in "$@"; do
@@ -63,8 +63,8 @@ drop_old_pkg() {
 }
 
 # -- não mexe no que não é do pipx --------------------------------------------
-# $1 é o caminho que `command -v bzmux` dava antes da instalação/desinstalação.
-# Um bzmux que não veio do pipx fica: o nome é da versão Rust do projeto.
+# $1 é o caminho que `command -v $OLD_EXE` dava antes da instalação/desinstalação.
+# Um $OLD_EXE que não veio do pipx fica: pode ser o link de um venv de dev.
 drop_old_exe() {
     local old="${1:-}" target=""
     [ -n "$old" ] || return 0
@@ -132,7 +132,7 @@ install() {
     local here="" spec="$REPO" old_exe
     old_exe=$(command -v "$OLD_EXE" 2>/dev/null) || old_exe=""
     here=$(cd "$(dirname "${BASH_SOURCE[0]:-/dev/null}")" 2>/dev/null && pwd) || here=""
-    if [ -n "$here" ] && [ -f "$here/pyproject.toml" ] && grep -q '^name = "pybzmux"' "$here/pyproject.toml"; then
+    if [ -n "$here" ] && [ -f "$here/pyproject.toml" ] && grep -q '^name = "tortty-python"' "$here/pyproject.toml"; then
         spec="$here"
         say "== instalando da árvore local: $here"
     else

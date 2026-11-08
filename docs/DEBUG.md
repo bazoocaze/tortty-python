@@ -28,10 +28,11 @@ when truly relevant. No table, italics, date or measurement number.
 - **Window ID never fixed:** the app restarts and the ID changes (`Resource
   temporarily unavailable` in `import`). Resolve it on the spot: `state` from
   the socket returns the `xid`, or `tools/xtest.py id` without a socket.
-- **`pkill -f bzmux` kills your own shell** (the pattern matches the command
-  line, and `pybzmux` too). Use `./debug.sh --kill`, which checks the PID file
+- **`pkill -f tortty_python` kills your own shell** (the pattern matches the
+  command line, and `tortty-python` too). Use `./debug.sh --kill`, which checks
+  the PID file
   against `/proc/<pid>/cmdline`.
-- **`wmctrl -r bzmux` fails** when the app changes the title via OSC (mc
+- **`wmctrl -r 'TorTTY (Python)'` fails** when the app changes the title via OSC (mc
   does). Find the window by `_NET_WM_PID` against the runner's PID.
 - **Injected `<Caps_Lock>` turns the lock on for real:** the next test comes
   out in uppercase. Turn it off with another one and check with `xset q`.

@@ -1,8 +1,8 @@
 #!/bin/sh
-# debug.sh — abre/fecha o bzmux durante o desenvolvimento, sem deixar
+# debug.sh — abre/fecha o tortty-python durante o desenvolvimento, sem deixar
 # instâncias órfãs. Para só rodar o terminal e ver funcionando, use o run.sh.
 #
-# Existe porque `pkill -f bzmux` mata o próprio shell de quem chama (o
+# Existe porque `pkill -f tortty-python` mata o próprio shell de quem chama (o
 # padrão casa com a linha de comando) e já deixou janelas duplicadas abertas.
 # Aqui o controle é por PID file: só mata o processo que NÓS subimos, e o log
 # fica em /tmp/tortty-python.log em vez de se perder. O app em si é sempre subido pelo
@@ -24,15 +24,15 @@ PIDFILE=/tmp/tortty-python.pid
 LOG=/tmp/tortty-python.log
 
 is_ours() {
-    # o PID existe E ainda é um bzmux? (protege contra PID reciclado). As duas
-    # formas válidas: `python -m bzmux` (run.sh) e o script do console
-    # (`/.../bin/bzmux`, do pipx). O `.py` no fim não casa, de propósito.
+    # o PID existe E ainda é um tortty-python? (protege contra PID reciclado). As duas
+    # formas válidas: `python -m tortty_python` (run.sh) e o script do console
+    # (`/.../bin/tortty-python`, do pipx). O `.py` no fim não casa, de propósito.
     [ -n "${1:-}" ] || return 1
     [ -d "/proc/$1" ] || return 1
     _cmd=$(tr '\0' ' ' < "/proc/$1/cmdline" 2>/dev/null)
     case " $_cmd" in
-        *" -m bzmux "*) return 0 ;;
-        *"/bzmux "*) return 0 ;;
+        *" -m tortty_python "*) return 0 ;;
+        *"/tortty-python "*) return 0 ;;
     esac
     return 1
 }
@@ -47,7 +47,7 @@ kill_previous() {
                 sleep 0.2
             done
             is_ours "$pid" && kill -9 "$pid" 2>/dev/null
-            echo "fechou bzmux anterior (pid $pid)"
+            echo "fechou tortty-python anterior (pid $pid)"
         fi
         rm -f "$PIDFILE"
     fi
@@ -67,14 +67,14 @@ done
 case "$MODE" in
     kill)
         kill_previous
-        echo "bzmux fechado"
+        echo "tortty-python fechado"
         exit 0
         ;;
     status)
         if is_ours "$(cat "$PIDFILE" 2>/dev/null)"; then
-            echo "bzmux rodando (pid $(cat "$PIDFILE"))"
+            echo "tortty-python rodando (pid $(cat "$PIDFILE"))"
         else
-            echo "bzmux não está rodando"
+            echo "tortty-python não está rodando"
         fi
         exit 0
         ;;
@@ -92,9 +92,9 @@ pid=$!
 echo "$pid" > "$PIDFILE"
 sleep 0.6
 if is_ours "$pid"; then
-    echo "bzmux aberto (pid $pid), log em $LOG"
+    echo "tortty-python aberto (pid $pid), log em $LOG"
 else
-    echo "bzmux FALHOU ao subir; log:" >&2
+    echo "tortty-python FALHOU ao subir; log:" >&2
     tail -20 "$LOG" >&2
     rm -f "$PIDFILE"
     exit 1

@@ -1,6 +1,6 @@
 """A view de uma sessão: pty, desenho em cairo e eventos de input.
 
-Era o `BzmuxWindow` inteiro até o P11 (abas): o que é por-aba veio pra cá, e
+Era o `TorttyWindow` inteiro até o P11 (abas): o que é por-aba veio pra cá, e
 `window.py` ficou com a janela — `Gtk.Notebook`, atalhos globais e o ciclo de
 vida das abas. Continua sendo a única camada que desenha; o estado do
 terminal está em `term`.
@@ -30,7 +30,7 @@ from .palette import (
     UL,
     cell_rgb_f,
 )
-from .term import Term
+from .term import DEFAULT_TITLE, Term
 
 _PROF = bool(os.environ.get("PYTERM_PROF"))  # mede o custo de draw e de pty
 _NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem desenho
@@ -148,7 +148,7 @@ class TermView(Gtk.DrawingArea):
         self.on_title = on_title  # chamada quando o título (OSC) muda
         self.on_bell = on_bell  # chamada quando o app manda BEL (P34)
         self.shortcuts = shortcuts  # atalhos da janela (prioridade)
-        self._title = "bzmux"
+        self._title = DEFAULT_TITLE
         self.app_title = False  # o app já mandou OSC 0/2?
         self.start_cwd = cwd or os.getcwd()
         self._notified = False
@@ -226,7 +226,7 @@ class TermView(Gtk.DrawingArea):
         self._hungup = False
         self.decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
         # o SHELL do filho é o que roda de fato (config, senão $SHELL), não o
-        # herdado do processo que abriu o bzmux; com `--cmd`, o comando é outro
+        # herdado do processo que abriu o tortty_python; com `--cmd`, o comando é outro
         # e o SHELL continua sendo o da config
         cmd, self.shell = tab_command(cmd, shell)
         self.spawn(cmd, cwd)
@@ -430,7 +430,7 @@ class TermView(Gtk.DrawingArea):
             self.term.child_out = bytearray()
         if self.term.title != self._title:
             self._title = self.term.title
-            self.app_title = self._title != "bzmux"
+            self.app_title = self._title != DEFAULT_TITLE
             if self.on_title:
                 self.on_title(self, self._title)
         # output que mexe na tela volta pro vivo (o app está falando, o usuário
@@ -508,7 +508,7 @@ class TermView(Gtk.DrawingArea):
         # notícia (só interessa a saída que o usuário pediu)
         if self.exit_code and not self._closing:
             print(
-                f"pybzmux: shell exited with code {self.exit_code}",
+                f"tortty-python: shell exited with code {self.exit_code}",
                 file=sys.stderr,
             )
         self._notify_exit()

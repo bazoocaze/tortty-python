@@ -1,4 +1,4 @@
-"""Os checks do bzmux: uma fonte de verdade, chamada pelo --selftest e pelo pytest.
+"""Os checks do tortty_python: uma fonte de verdade, chamada pelo --selftest e pelo pytest.
 
 Cada função é um teste de comportamento, sem display e sem PyGObject — o módulo
 só importa term (que puxa graphics), palette, mouse, kitty_kbd e style. Um bug
@@ -127,8 +127,8 @@ def argv_parsing():
     """--help sai sem abrir janela; opção inválida é erro de uso (exit 2)."""
     from . import cli
 
-    assert cli.parse_args(["bzmux"]) == (None, 0, None, None, None, None, None)
-    assert cli.parse_args(["bzmux", "--cmd", "mc", "--quit-after", "2"]) == (
+    assert cli.parse_args(["tortty_python"]) == (None, 0, None, None, None, None, None)
+    assert cli.parse_args(["tortty_python", "--cmd", "mc", "--quit-after", "2"]) == (
         "mc",
         2,
         None,
@@ -137,31 +137,31 @@ def argv_parsing():
         None,
         None,
     )
-    assert cli.parse_args(["bzmux", "-c", "/tmp/x.conf"])[3] == "/tmp/x.conf"
-    assert cli.parse_args(["bzmux", "--config", "/tmp/x.conf"])[3] == "/tmp/x.conf"
+    assert cli.parse_args(["tortty_python", "-c", "/tmp/x.conf"])[3] == "/tmp/x.conf"
+    assert cli.parse_args(["tortty_python", "--config", "/tmp/x.conf"])[3] == "/tmp/x.conf"
     # --debug-log troca o caminho do log; `off` desliga (vence a config)
-    assert cli.parse_args(["bzmux", "--debug-log", "/tmp/x.log"])[4] == "/tmp/x.log"
-    assert cli.parse_args(["bzmux", "--debug-log", "off"])[4] == "off"
+    assert cli.parse_args(["tortty_python", "--debug-log", "/tmp/x.log"])[4] == "/tmp/x.log"
+    assert cli.parse_args(["tortty_python", "--debug-log", "off"])[4] == "off"
     # socket de introspecção: valor obrigatório, `auto` resolvido depois
-    assert cli.parse_args(["bzmux", "--debug-socket", "auto"])[5] == "auto"
-    assert cli.parse_args(["bzmux", "--debug-socket", "/tmp/b.sock"])[5] == "/tmp/b.sock"
-    assert cli.parse_args(["bzmux", "--cmd"])[6] == "--cmd"
-    assert cli.parse_args(["bzmux", "--nada"])[6] == "--nada"
+    assert cli.parse_args(["tortty_python", "--debug-socket", "auto"])[5] == "auto"
+    assert cli.parse_args(["tortty_python", "--debug-socket", "/tmp/b.sock"])[5] == "/tmp/b.sock"
+    assert cli.parse_args(["tortty_python", "--cmd"])[6] == "--cmd"
+    assert cli.parse_args(["tortty_python", "--nada"])[6] == "--nada"
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out):
-        assert cli.main(["bzmux", "--version"]) == 0
-    # versão vem de bzmux/__init__.py (fonte única; o pyproject lê de lá)
-    assert out.getvalue() == "pybzmux %s\n" % cli.__version__
+        assert cli.main(["tortty_python", "--version"]) == 0
+    # versão vem de tortty_python/__init__.py (fonte única; o pyproject lê de lá)
+    assert out.getvalue() == "tortty-python %s\n" % cli.__version__
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
-        assert cli.main(["bzmux", "-V"]) == 0
-    assert out.getvalue().startswith("pybzmux ")
+        assert cli.main(["tortty_python", "-V"]) == 0
+    assert out.getvalue().startswith("tortty-python ")
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
-        assert cli.main(["bzmux", "--help"]) == 0
-    assert out.getvalue().startswith("usage: pybzmux")
+        assert cli.main(["tortty_python", "--help"]) == 0
+    assert out.getvalue().startswith("usage: tortty-python")
     with contextlib.redirect_stderr(err):
-        assert cli.main(["bzmux", "--nada"]) == 2
+        assert cli.main(["tortty_python", "--nada"]) == 2
     assert "--cmd" in err.getvalue()
 
 
@@ -181,7 +181,7 @@ def config_file():
         ("shell", "/bin/bash", 5),
     ]
     d = tempfile.mkdtemp()
-    p = os.path.join(d, "bzmux.conf")
+    p = os.path.join(d, "tortty_python.conf")
     # merge: o usuário só sobrescreve o que escreveu
     with open(p, "w") as f:
         f.write("shell /bin/sh\n")
@@ -235,7 +235,7 @@ def config_options():
     emb = {e.key: e.value for e in config.parse(config.DATA.read_text())}
     assert emb == config.DEFAULTS
     d = tempfile.mkdtemp()
-    p = os.path.join(d, "bzmux.conf")
+    p = os.path.join(d, "tortty_python.conf")
     # sem arquivo do usuário valem os padrões, chave a chave
     cfg = config.load(os.path.join(d, "nao-existe.conf"))
     assert (cfg.font_family, cfg.font_size) == ("Monospace", 12.0)
@@ -648,8 +648,8 @@ def style_contrast():
 # -- atalho do sistema -------------------------------------------------
 def desktop_shortcut():
     """O .desktop tem que casar com o WM_CLASS e o ícone viajar no pacote."""
-    txt = shortcut.entry("/opt/bin/bzmux")
-    assert "Exec=/opt/bin/bzmux" in txt
+    txt = shortcut.entry("/opt/bin/tortty-python")
+    assert "Exec=/opt/bin/tortty-python" in txt
     assert "StartupWMClass=tortty-python" in txt
     # a classe igual ao nome do .desktop é o que agrupa a janela no dock
     assert shortcut.WMCLASS == shortcut.APP
@@ -673,13 +673,13 @@ def desktop_shortcut():
 
 
 def shortcut_remove_only_own_name():
-    """remove() apaga o nome atual e o anterior, não o bzmux do Rust."""
+    """remove() apaga o nome atual e o anterior, não o tortty da versão Rust."""
     tmp = tempfile.mkdtemp()
     old = os.environ.get("XDG_DATA_HOME")
     os.environ["XDG_DATA_HOME"] = tmp
     try:
         made = []
-        for name in (shortcut.APP, shortcut.LEGACY, "bzmux"):
+        for name in (shortcut.APP, shortcut.LEGACY, "tortty"):
             for p in (
                 os.path.join(tmp, "applications", name + ".desktop"),
                 os.path.join(tmp, "icons", "hicolor", "scalable", "apps", name + ".svg"),
@@ -690,7 +690,7 @@ def shortcut_remove_only_own_name():
                 made.append(p)
         shortcut.remove()
         left = sorted(os.path.basename(p) for p in made if os.path.exists(p))
-        assert left == ["bzmux.desktop", "bzmux.svg"], left
+        assert left == ["tortty.desktop", "tortty.svg"], left
     finally:
         if old is None:
             del os.environ["XDG_DATA_HOME"]

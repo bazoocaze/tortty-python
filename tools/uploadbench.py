@@ -20,7 +20,7 @@ Duas estratégias, mesmo conteúdo, mesmo número de pixels:
 
 Cada frame sorteia cores de uma paleta de 37 tons (como o doom-fire), então não
 há cache de conteúdo entre frames. A cada frame há `Gdk.Display.sync()`, que é
-XSync: garante que o trabalho do servidor entrou na conta (o bzmux não sincroniza;
+XSync: garante que o trabalho do servidor entrou na conta (o tortty-python não sincroniza;
 lá o custo aparece como bloqueio do buffer de pedidos, mas o total é o mesmo).
 
 Uso: tools/uploadbench.py [--frames N] [--cols C] [--rows R] [--font-size P]

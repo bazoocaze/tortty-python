@@ -11,7 +11,7 @@ from importlib import resources
 
 APP = "tortty-python"  # nome do .desktop e do ícone
 NAME = "TorTTY (Python)"  # nome visível no menu do sistema
-EXE = "pybzmux"  # console script que o pacote instala no PATH
+EXE = "tortty-python"  # console script que o pacote instala no PATH
 WMCLASS = "tortty-python"  # WM_CLASS: casa com APP e com StartupWMClass
 LEGACY = "pybzmux"  # .desktop/ícone do nome anterior: saem junto
 
@@ -51,7 +51,7 @@ def exec_path():
     if found:
         return os.path.abspath(found)
     argv0 = os.path.abspath(sys.argv[0] or "")
-    # rodando como `python3 -m bzmux` o argv[0] é o __main__.py: não serve
+    # rodando como `python3 -m tortty_python` o argv[0] é o __main__.py: não serve
     if argv0 and not argv0.endswith(".py") and os.access(argv0, os.X_OK):
         return argv0
     return None
@@ -151,7 +151,7 @@ def _unlink_legacy():
 def remove():
     """Apaga .desktop e ícone deste app (e do nome anterior); devolve o que existia.
 
-    Só estes nomes: bzmux.desktop/bzmux.svg são do bzmux em Rust.
+    Só estes nomes: tortty.desktop/tortty.svg são da versão Rust.
     """
     gone = []
     for p in (desktop_path(), icon_path()) + _legacy_paths():

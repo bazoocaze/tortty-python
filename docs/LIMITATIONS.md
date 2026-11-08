@@ -14,7 +14,7 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
   **drawing**, in that order.
 - **Interaction does not suffer**: a key costs microseconds; the limit only
   shows up under volume (cat of a big log, seq 100000, scroll of massive output).
-- **One core per active session**: under continuous dumping pybzmux saturates
+- **One core per active session**: under continuous dumping tortty-python saturates
   one core. The drawing is coalesced at ~16 ms (60 Hz) on purpose, so the parse
   does not starve.
 - **The metadata makes no performance claim**: the package description says what
@@ -85,7 +85,7 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
 - **Non-US layouts**: the keyval→bytes translation is by table; text comes from
   Gdk's `ev.string` when it exists, but shortcuts with dead keys and an exotic
   layout depend on what Gdk delivers.
-- **No key remapping**: the shortcuts are fixed in `bzmux/window.py`,
+- **No key remapping**: the shortcuts are fixed in `tortty_python/window.py`,
   a consequence of there being no configuration file.
 - **Freezing the output (`Ctrl+S`/`Ctrl+Q`) is the tty's, not the terminal's**:
   whoever stops and resumes byte delivery is the kernel's *line discipline*

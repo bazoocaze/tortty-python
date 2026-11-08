@@ -1,7 +1,7 @@
 #!/bin/sh
 # run-tests.sh — roda a bateria de testes e o lint. Não precisa de display.
 #
-# Os mesmos checks (bzmux/checks.py) passam por dois runners: o --selftest, que
+# Os mesmos checks (tortty_python/checks.py) passam por dois runners: o --selftest, que
 # não depende de nada, e o pytest. Rodar os dois é de propósito: se o caminho
 # dos testes passar a puxar gi/cairo, o --selftest quebra e o pytest não.
 #
@@ -44,14 +44,14 @@ if [ "$LINT" = 1 ]; then
         echo "ruff ausente: rode 'uv sync' (lint pulado)" >&2
     fi
     if [ -n "$RUFF" ]; then
-        $RUFF check bzmux tools tests || fails=1
-        $RUFF format --check bzmux tools tests || fails=1
+        $RUFF check tortty_python tools tests || fails=1
+        $RUFF format --check tortty_python tools tests || fails=1
     fi
     echo
 fi
 
 echo "== selftest (sem dependências, sem display)"
-python3 -m bzmux --selftest || fails=1
+python3 -m tortty_python --selftest || fails=1
 
 if [ "$ONLY" = 0 ]; then
     echo

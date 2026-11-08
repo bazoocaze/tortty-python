@@ -203,11 +203,11 @@ and simply removed the watch — that is why `Ctrl+D` left the window open
 forever.
 
 - **No zombie**: `child_watch_add` is the one that reaps (the GLib does the
-  `waitpid`); the bzmux code does not call `waitpid` again.
+  `waitpid`); the tortty_python code does not call `waitpid` again.
 - **Drain before closing**: `_drain_pty()` reads until `EAGAIN` (the fd is
   non-blocking) with a cap of 64 reads, feeding the `Term` — otherwise
   `dump()`/the last screen came out without the shell's goodbye.
-- **Exit code**: non-zero goes to stderr (`pybzmux: shell exited with code 3`),
+- **Exit code**: non-zero goes to stderr (`tortty-python: shell exited with code 3`),
   which `debug.sh` stores in `/tmp/tortty-python.log`.
 - **Hangup**: `os.killpg(child_pid, SIGHUP)` on closing (the `pty.fork` made the
   child a session leader), so background jobs do not stay orphaned holding the
@@ -249,7 +249,7 @@ against [BENCHMARKS.md](BENCHMARKS.md).
 Amendment: the font became **points**, not pixels. `font_size` came from cairo,
 where size is a user unit; but every terminal exposes points, and the difference
 is DPI — with `Xft.dpi: 130`, 13 pt = 23.5 px against 16 px, and that is why the
-"13" of kitty looked bigger than the "16" here. With points, bzmux and kitty give
+"13" of kitty looked bigger than the "16" here. With points, tortty-python and kitty give
 the same grid for the same window (70×21 in 980×640). The metric has to come from
 the Pango context of the widget, not from a loose surface ([DEBUG.md](DEBUG.md)).
 
@@ -257,7 +257,7 @@ the Pango context of the widget, not from a loose surface ([DEBUG.md](DEBUG.md))
 
 It came down together with P9: fontconfig finds the font that has the glyph, so
 CJK and color emoji now draw with no extra code. Verified on screen with
-`printf '\u4e2d\u6587 \U0001F600'` in bzmux.
+`printf '\u4e2d\u6587 \U0001F600'` in tortty-python.
 
 Limit that stays (and is not a bug of the fallback): the grid **has no
 `wcwidth`**, so a wide character takes a single cell and the glyph is squeezed/
@@ -275,7 +275,7 @@ closes; closing the last one closes the window.
   handled in the window, otherwise the child gets the key first.
 - The label is the OSC 0/2 title or the cwd of the session (`readlink
   /proc/<pid>/cwd`, without depending on OSC 7): without OSC all tabs would be
-  "bzmux", and `Alt+N` already numbers them — hence no numeric prefix.
+  "TorTTY (Python)", and `Alt+N` already numbers them — hence no numeric prefix.
 - The `child_watch_add` of P8 now closes the **tab**, and the aggregation "last
   tab → window" lives in a single place.
 
@@ -372,7 +372,7 @@ As a bonus, `Pango` entered `gui.py` (single import point) and the rename
 
 ### P15 — `pi` screen stabilized messy — **done**
 
-Report: open `pi` in bzmux, wait for startup, and the screen stops incoherent (in
+Report: open `pi` in tortty-python, wait for startup, and the screen stops incoherent (in
 kitty it came out right). What could be seen: the startup warning blocks with the
 status line and the `bh/P/X` bar *in the middle of them*, repeated borders and
 blank lines between one line and another — "folded" layout.
@@ -416,7 +416,7 @@ terminals one at a time:
 
 | | fps | MB/s of escapes |
 |---|---|---|
-| bzmux | 11.8 | 0.6 |
+| tortty-python | 11.8 | 0.6 |
 | kitty | 314.2 | 15.9 |
 
 This is the measurement from the P16 days, with the cairo drawing. Later came P9
@@ -424,7 +424,7 @@ This is the measurement from the P16 days, with the cairo drawing. Later came P9
 started drawing at the screen resolution); the live number is in
 [BENCHMARKS.md](BENCHMARKS.md).
 
-`PYTERM_PROF=1` decomposes the time in bzmux: **parse 61%** (4.3 ms per read)
+`PYTERM_PROF=1` decomposes the time in tortty-python: **parse 61%** (4.3 ms per read)
 and **drawing 37%** (12.8 ms per frame of 1360 cells, ~29 draws/s). The drawing
 is expensive here not because of the number of cells, but because of the number
 of color *runs*: with 37 shades per line almost every cell is its own run, and
@@ -436,7 +436,7 @@ screen frozen by bug 12, that is, measuring only the parse. The record is kept
 because the lesson holds: a throughput number without checking that the screen is
 changing does not measure drawing.
 
-Two pitfalls of the script itself, which only showed up running inside bzmux:
+Two pitfalls of the script itself, which only showed up running inside tortty-python:
 without `SGR 0` on output the statistics inherit the last color of the fire (text
 with yellow background), and a SIGTERM in the middle left the screen in
 alt-screen — now there is a handler and the `finally` restores brush, cursor and
@@ -622,7 +622,7 @@ install. Without `[project.scripts]` `pipx`/`uv tool` refused, and `uv build`
 script inside. Hence the acceptance criterion became inspecting the wheel, not
 "it built".
 
-- `core/` → `bzmux/`, with `bzmux/__main__.py` in place of the root script (which
+- `core/` → `tortty_python/`, with `tortty_python/__main__.py` in place of the root script (which
   would be shadowed by the directory of the same name).
 - The entry point is a function **without** arguments (`cli.run`): `console_scripts`
   calls it without argv, and `main(argv)` would demand the list and blow up with
@@ -643,7 +643,7 @@ pipx pitfalls (the venv is born with the python of pipx itself; `--force` and
 [DEBUG.md](DEBUG.md).
 
 Verified by the wheel (package + `entry_points.txt` + LICENSE, without `core/`),
-`python3 -m bzmux --selftest` and `-h` without `gi`, an isolated venv showing the
+`python3 -m tortty_python --selftest` and `-h` without `gi`, an isolated venv showing the
 `gi` message, and `pipx install --system-site-packages` from the repository
 opening and closing the window with `--quit-after 2`.
 
@@ -842,7 +842,7 @@ injects into the real X, has already frozen the desktop with an implicit grab).
 
 Done: `--debug-socket FILE` — Unix socket with line-based JSON, served on the UI
 thread (`GLib.io_add_watch`, no new thread), `auto` =
-`$XDG_RUNTIME_DIR/bzmux-<pid>.sock`, file at `0600` and only the same uid connects
+`$XDG_RUNTIME_DIR/tortty-python-<pid>.sock`, file at `0600` and only the same uid connects
 (`SO_PEERCRED`); an orphan socket from a dead app is removed at boot. On opening,
 a security warning toast shows the socket path (whoever opened it has to know the
 door is up). Verbs: `state`
@@ -1034,7 +1034,7 @@ recording.
     returned the view to live on *any* output ("the app is talking, the user is not
     reading the scrollback"), and `pi` publishes **every 1 second, forever**, 10
     invisible bytes: `CSI 1 G` (cursor to column 1) + `CSI ? 25 l` (hides cursor).
-    Captured from an idle `pi` with its own pty answering as bzmux (22 s, 24 ticks,
+    Captured from an idle `pi` with its own pty answering as tortty-python (22 s, 24 ticks,
     11.4 KB, 10 bytes per second exactly). Nothing changes on screen, but each tick
     zeroed the `view_off` — scroll the scrollback and be back in 1 s. Fix: store the
     signature of what is visible (text + fg + bg per cell) before the `feed` and
@@ -1107,7 +1107,7 @@ recording.
     survives.
 
 19. **The child `$SHELL` was not the shell that ran.** The `sh -c` of the pty
-    inherits the environment of whoever opened bzmux, so `SHELL=/usr/bin/zsh` stayed
+    inherits the environment of whoever opened tortty-python, so `SHELL=/usr/bin/zsh` stayed
     in the child even with `shell /bin/dash` in the configuration (and `dash` was
     the one executing). Fix: `config.effective_shell` resolves the chain empty
     config -> `$SHELL` -> `/bin/bash` and returns a path; the view exports that
@@ -1172,7 +1172,7 @@ read before running a tool. What is a measurement number stays in
 
 It was born in the repository of the `kitty` experiment
 (`~/dados/workflows/temp/kitty`), in the `pyterm/` folder, with the name
-**pyterm**. On 2026-10-25 it became its own repository, `pybzmux`, with the name
+**pyterm**. On 2026-10-25 it became its own repository, `tortty-python`, with the name
 **bzmux**. The C/GTK part stayed there (see README.md): it is not compiled or
 tested here.
 

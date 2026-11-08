@@ -1,7 +1,7 @@
 """Estado do terminal: grade de células, cursor e parser VT.
 
 Sem GTK aqui dentro — é o que deixa o parser testável por `--selftest` sem
-abrir janela (e sem display). Quem desenha é `window.BzmuxWindow`.
+abrir janela (e sem display). Quem desenha é `window.TorttyWindow`.
 """
 
 import re
@@ -39,6 +39,11 @@ _CSI_MAX = 1024
 # Tudo que não casar aqui (chunk partido, intermediário, dígito Unicode) cai
 # no parser lento, que continua sendo o dono da gramática.
 _CSI_RE = re.compile(r"\x1b\[([0-9;:?]*)([\x40-\x7e])")
+
+
+# Título até o app mandar OSC 0/2: é o valor que `view` compara para saber se o
+# título veio do filho.
+DEFAULT_TITLE = "TorTTY (Python)"
 
 
 class CellAnchor(NamedTuple):
@@ -140,7 +145,7 @@ class Term:
         self.child_out = bytearray()  # respostas ao filho (DA, CPR...)
         self.graphics = Graphics()  # protocolo de imagens do kitty (P6)
         self.apc = ""
-        self.title = "bzmux"
+        self.title = DEFAULT_TITLE
         self.state = "ground"
         self.csi = ""
         self.osc = ""
