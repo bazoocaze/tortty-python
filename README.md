@@ -1,16 +1,6 @@
-# pybzmux — terminal em Python com abas, workspaces e imagens
+# TorTTY-Python
 
-> Repositório `pybzmux`; esta é a implementação em Python, e o comando que ela
-> instala é `pybzmux`. O nome `bzmux` é da versão Rust do projeto (outro
-> repositório, com a migração em andamento). Aqui `bzmux` continua sendo o nome
-> do módulo Python (`import bzmux`, `python -m bzmux`), dos caminhos de
-> configuração/estado/log e do `WM_CLASS` da janela.
-> Nasceu como `pyterm` dentro do experimento `kitty` e virou repo próprio em
-> 2026-10-25 — por isso
-> os commits antigos falam `pyterm` e os caminhos da época eram `pyterm/...`.
-> A referência de comparação — o `gtkterm`, com o `native-port/` que linka o
-> núcleo C do kitty como `libkittycore.a` — ficou **naquele** repositório: aqui
-> não há C, não há compilação e nada do pybzmux é compartilhado com ela.
+Minimal functional port of the TorTTY terminal (in Rust) to **Python**. This project is an experimental implementation created from the main TorTTY version: the goal of the Python version is to evaluate the behavior of the main version's current and future features, as well as to analyze performance.
 
 Terminal de verdade (pty + parse VT + grade + cairo) escrito em **Python puro**,
 sem C e sem compilação. Nasceu como experimento para responder a uma pergunta
@@ -39,7 +29,7 @@ python3 -m bzmux --version    # versão (a mesma de bzmux/__init__.py)
 
 ## Instalar na máquina (pipx, direto do GitHub)
 
-Enquanto não há release, a instalação é do repositório. O `pybzmux` usa o
+O `pybzmux` usa o
 PyGObject do sistema, então o venv isolado precisa **ver** o Gtk3 da distro — é
 isso que o `install.sh` resolve (dependências da distro, o `python3` que enxerga
 o `gi`, pipx e a instalação). O comando instalado é `pybzmux`; o nome `bzmux`
@@ -97,30 +87,6 @@ O `./bench.sh` imprime fps, MB/s, custo de desenho/parse e a frequência da CPU
 por etapa; a leitura dos números e o protocolo estão em
 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
-## Durante o desenvolvimento
-
-`./debug.sh` sobe pelo `run.sh`, mas com log em `/tmp/bzmux.log`, PID file
-(`/tmp/bzmux.pid`), `--kill` e `--status` — é o script de quem está mexendo no
-código, onde o `run.sh` seria só um atalho.
-
-```sh
-./debug.sh                    # abre em background
-./debug.sh --fg               # em foreground, com a saída na hora
-./debug.sh --kill             # fecha a instância do runner
-./debug.sh --status           # pid / rodando?
-```
-
-## Ferramentas de teste
-
-`./run-tests.sh` cobre o parser, os protocolos, o reflow e a seleção sem
-display; os mesmos checks rodam por pytest e pelo `--selftest` (que não depende
-de nada e por isso é o que garante que o caminho dos testes não puxa gi/cairo).
-O que só se prova com janela aberta é feito à mão com `tools/xtest.py` (XTest:
-tecla, clique, duplo clique, wheel, arrasto, texto) e conferido com
-`tools/pixel.py` (cor de pixel numa captura) — ver
-[`docs/HISTORY.md`](docs/HISTORY.md). Precisa de servidor X e de
-`python3-xlib`.
-
 ## Ambiente (uv)
 
 O projeto é um ambiente uv (pyproject.toml + uv.lock) e **o app roda no python
@@ -141,54 +107,6 @@ uv sync --extra tools            # + python-xlib (as tools rodam com python3)
 O `run.sh` escolhe o interpretador: `.venv/bin/python` quando ele importa `gi`,
 senão o `python3` do sistema — com um aviso dizendo como recriar o venv. Para
 rodar na mão: `uv run python -m bzmux`.
-
-## Como o código está organizado
-
-`bzmux` é o pacote Python: o comando instalado é `pybzmux` (ou
-`python -m bzmux` na árvore); não há arquivo solto na raiz:
-
-```
-run.sh                   # roda o app (teste rápido; escolhe o python)
-debug.sh                 # desenvolvimento: background, log, --kill/--status
-run-tests.sh             # ruff (check + format --check) + selftest + pytest
-bench.sh                 # escada do doom-fire (medição)
-pyproject.toml           # pacote, entry point, ambiente uv (uv.lock)
-bzmux/
-├── __main__.py  # `python -m bzmux`
-├── __init__.py  # fachada com import preguiçoso
-├── palette.py   # célula [char,fg,bg,flags], paleta xterm-256, charset DEC
-├── term.py      # grade, cursor, parser VT — NÃO conhece Gtk
-├── keys.py      # keyval do X11 -> bytes do filho (dead keys, DECCKM)
-├── kitty_kbd.py # protocolo de teclado do kitty (CSI ... u)
-├── mouse.py     # protocolo de mouse: SGR e o antigo (puro)
-├── graphics.py  # protocolo de imagens do kitty (APC G, puro)
-├── gui.py       # import único de Gtk/Gdk/GLib/Pango/PangoCairo/cairo
-├── style.py     # tokens de cor do cromo + CSS gerado + contraste WCAG
-├── view.py      # TermView: uma sessão (pty, desenho cairo+Pango, eventos)
-├── window.py    # Workspace (Gtk.Notebook + cartão) e BzmuxWindow
-├── config.py    # configuração (chave valor) — puro; merge com o default
-├── checks.py    # a bateria de testes
-├── selftest.py  # runner sem dependências (--selftest)
-├── cli.py       # argv, -h/--help, arranque e entry point do console script
-└── data/        # bzmux.svg (fonte do ícone) e bzmux.conf (opções default)
-tests/                   # runner pytest de bzmux/checks.py
-tools/                   # xtest.py, pixel.py (manual, precisa de X),
-                         # doomfire.py (carga de medição, roda em qualquer um)
-```
-
-A regra é a dependência apontar para dentro: `term`/`palette` não importam
-`window` nem `gui`. Por isso `--selftest` roda em máquina **sem PyGObject**
-(o import de Gtk é tardio, dentro de `cli.main`), e a janela pode ser trocada
-sem tocar no núcleo de emulação.
-
-O `debug.sh` controla a instância por **PID file** (`/tmp/bzmux.pid`) de
-propósito: `pkill -f bzmux` casa com a linha de comando de quem chama (e também
-com `pybzmux`) e mata o próprio shell (já aconteceu, deixando janelas órfãs). Ele
-sobe o app
-pelo `run.sh`, que é quem escolhe o interpretador (venv do uv ou o python do
-sistema) — por isso testar à mão e desenvolver usam o mesmo python.
-
-Depende só de PyGObject (Gtk3) + pycairo, que já existem no sistema.
 
 ## Configuração
 
@@ -337,48 +255,6 @@ Lista completa, com a razão de cada um e o que quebra na prática, em
 uma célula só (sem `wcwidth`), protocolo de teclado do kitty parcial, sem busca
 no scrollback e sem tema/paleta configurável. São escolhas — nenhuma delas
 é consequência de ser Python, e as que incomodam no uso viram item de backlog.
-
-## O que a medição realmente mostra (corrigido)
-
-Medido nesta máquina (2026-10-25, depois do bug 13; a linha do doom-fire é
-mais recente e tem data/governor em `docs/BENCHMARKS.md`):
-
-| cenário | pybzmux (Python) | núcleo nativo (referência) |
-|---|---|---|
-| **uma tecla** (eco de 1 char) | **0,4 µs por caractere** | ~1 ms de ponta a ponta (dominado por desenho) |
-| `seq 1 100000` (575 KiB) | **~0,8 s** | milissegundos |
-| doom-fire, tela cheia trocando de cor (`tools/doomfire.py`) | **107–121 fps / 6,1–6,9 MB/s** | 676–714 fps / 38,5–40,7 MB/s (kitty 0.48.2) |
-
-A carga do doom-fire (tela toda trocando de cor, pior caso do parser) é a única
-com número próprio aqui: **todos os detalhes, a escada de IO/parse/desenho, o
-protocolo e as armadilhas ficam em [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md)**,
-que é a fonte da verdade (com data, governor e frequência da CPU). Resumo de uma
-linha: o IO do pty não é o gargalo; o parse em Python e o desenho dividem a conta,
-e com governor `powersave` tudo cai 2–5x.
-
-Conclusão honesta: **na interação o pybzmux é imperceptível** — digitar, andar
-no `mc`, abrir `vim` custa microssegundos por tecla, porque a carga por evento
-é minúscula. A diferença grande só aparece em **volume**: `cat` de log grande,
-`seq 100000`, scroll de saída massiva — aí são centenas de ms contra
-milissegundos.
-
-Ou seja: Python não impede um terminal *usável*; impede um terminal que não
-engasga em despejo grande. É por isso que o kitty é Python onde dá
-(boss/config/CLI/kittens) e C onde o volume chega (grade/parser/render) — e é
-o mesmo motivo pelo qual o `gtkterm` usa o núcleo C.
-
-## Autochetcagem
-
-`kill -USR1 <pid>` dumpar a grade visível em `/tmp/bzmux-dump.txt` (ou no
-arquivo de `--dump-to`) — foi assim que se provou que o `mc` é renderizado
-fielmente: o dump bate byte a byte com o que o `mc` escreve.
-
-`uv run pytest -q` exercita parser e protocolos sem GTK: texto, SGR/EL/ED,
-CUP, alt-screen (ida e volta), scroll, charset DEC, DA/DSR/CPR, CSI com
-intermediário, região de scroll, título por OSC, reflow, histórico, mouse,
-seleção, paste, truecolor, teclado do kitty (inclusive release que não volta
-pelo caminho legado), gráficos, quebra de linha com controle (a linha que enche
-a largura e depois `\r\n`) e argv.
 
 ## Licença
 

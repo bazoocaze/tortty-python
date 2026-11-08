@@ -1,9 +1,6 @@
-# pybzmux
+# TorTTY-Python
 
-Este repositório é a implementação em Python; o comando instalado é `pybzmux`
-(pacote pipx, `.desktop` e ícone). O nome `bzmux` é da versão Rust do projeto,
-em outro repositório; aqui ele segue como nome do módulo (`bzmux/`,
-`python -m bzmux`), dos caminhos de config/estado/log e do `WM_CLASS`.
+TorTTY-Python: a terminal emulator in Python. This project is an experimental implementation created from the main TorTTY version (in Rust). The goal of the Python version is to evaluate the behavior of the main version's current and future features, as well as to analyze performance.
 
 Terminal em Python puro: pty + parser VT + grade + desenho com cairo + Pango.
 Nasceu como experimento para medir o custo do caminho quente em Python e virou
