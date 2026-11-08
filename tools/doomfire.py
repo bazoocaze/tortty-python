@@ -10,7 +10,7 @@ Medição, não teste: roda à mão dentro do terminal que se quer medir.
 
     python3 tools/doomfire.py                 # 30 fps até Ctrl+C
     python3 tools/doomfire.py --fps 0 --frames 600
-    ./debug.sh --cmd 'python3 tools/doomfire.py --fps 0 --frames 600 \
+    ./tools/debug.sh --cmd 'python3 tools/doomfire.py --fps 0 --frames 600 \
         --stats-to /tmp/fire-tortty-python.txt'      # estatística no arquivo
 
 `--fps 0` solta a mão: quem passa a limitar é o terminal, e o fps alcançado (e

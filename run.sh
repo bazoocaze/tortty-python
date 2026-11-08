@@ -3,7 +3,7 @@
 # app e sai com o código dele; nada de instância em background.
 #
 # É o script para rodar o terminal à mão. Durante o desenvolvimento
-# o caminho é o debug.sh: ele sobe por este script (mesmo interpretador), mas
+# o caminho é o tools/debug.sh: ele sobe por este script (mesmo interpretador), mas
 # com log em /tmp/tortty-python.log, PID file, --kill e --status.
 #
 # Uso: ./run.sh [--cmd CMD] [--quit-after SEG] [--dump-to ARQ] [-h]

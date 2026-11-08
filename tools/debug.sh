@@ -6,14 +6,14 @@
 # padrão casa com a linha de comando) e já deixou janelas duplicadas abertas.
 # Aqui o controle é por PID file: só mata o processo que NÓS subimos, e o log
 # fica em /tmp/tortty-python.log em vez de se perder. O app em si é sempre subido pelo
-# run.sh, que é quem escolhe o interpretador.
+# run.sh da raiz, que é quem escolhe o interpretador.
 #
-# Uso:
-#   ./debug.sh                 abre em background (log em /tmp/tortty-python.log)
-#   ./debug.sh --fg            foreground (vê os erros na hora)
-#   ./debug.sh --kill          fecha a instância aberta por este runner
-#   ./debug.sh --status        diz se há instância e qual o PID
-#   ./debug.sh ARGS            o resto vai para o app (--cmd, --quit-after,
+# Uso (da raiz do repositório):
+#   ./tools/debug.sh           abre em background (log em /tmp/tortty-python.log)
+#   ./tools/debug.sh --fg      foreground (vê os erros na hora)
+#   ./tools/debug.sh --kill    fecha a instância aberta por este runner
+#   ./tools/debug.sh --status  diz se há instância e qual o PID
+#   ./tools/debug.sh ARGS      o resto vai para o app (--cmd, --quit-after,
 #                              --dump-to); veja ./run.sh --help
 #
 # MIT (ver LICENSE).
@@ -83,11 +83,11 @@ esac
 kill_previous
 
 if [ "$MODE" = fg ]; then
-    exec "$HERE/run.sh" "$@"
+    exec "$HERE/../run.sh" "$@"
 fi
 
 : > "$LOG"
-setsid nohup "$HERE/run.sh" "$@" >>"$LOG" 2>&1 &
+setsid nohup "$HERE/../run.sh" "$@" >>"$LOG" 2>&1 &
 pid=$!
 echo "$pid" > "$PIDFILE"
 sleep 0.6

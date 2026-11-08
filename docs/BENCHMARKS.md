@@ -52,11 +52,11 @@ and governor. The other docs state the fact in one sentence and link here.
 ### How to run
 
 ```
-./bench.sh                       # the whole ladder, 300 frames (~20 s)
-./bench.sh --frames 1200         # the reference protocol
-./bench.sh --cols 70 --rows 21   # another grid (the one from 2026-10-27)
-./bench.sh --xvfb                # only the virtual display
-./bench.sh --sem-xvfb            # only the current display
+./tools/bench.sh                 # the whole ladder, 300 frames (~20 s)
+./tools/bench.sh --frames 1200   # the reference protocol
+./tools/bench.sh --cols 70 --rows 21  # another grid (the one from 2026-10-27)
+./tools/bench.sh --xvfb          # only the virtual display
+./tools/bench.sh --sem-xvfb      # only the current display
 python3 tools/doomfire.py                      # 30 fps until Ctrl+C
 python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to /tmp/x.txt
 ```
@@ -68,7 +68,7 @@ python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to /tmp/x.txt
   throughput, and the file avoids depending on reading the screen.
 - Grid = terminal size (`cols × lines`, buffer of `cols × 2·lines`
   pixels); the tool does not resize.
-- `bench.sh` runs the ladder (full, `NODRAW`, `NOPARSE+NODRAW`) **twice**, on the
+- `tools/bench.sh` runs the ladder (full, `NODRAW`, `NOPARSE+NODRAW`) **twice**, on the
   current display and on a private Xvfb that it starts and kills itself, plus the
   isolated generator: seven lines. It prints fps, MB/s, bytes/frame, `draw ms/call`,
   `pty ms/call` and the CPU frequency per step. It stores no number: the
@@ -95,7 +95,7 @@ python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to /tmp/x.txt
 
 ### The machine's number today
 
-Condition: the first three steps of `bench.sh`, 1200 frames, font 13,
+Condition: the first three steps of `tools/bench.sh`, 1200 frames, font 13,
 `schedutil` at 4.25–4.29 GHz, 2026-11-01, one terminal at a time.
 
 | display | grid | fps | MB/s | bytes/frame | `draw` |
@@ -117,7 +117,7 @@ Condition: the first three steps of `bench.sh`, 1200 frames, font 13,
   generator frames (2.5 at 70×21, 3.8 at 61×18): the terminal paints the newest
   state and discards the intermediate ones.
 - The 2026-10-27 reference below (110–122 fps at 70×21) is from another moment
-  of this machine: it is not a re-measurement, and the `bench.sh` default today is
+  of this machine: it is not a re-measurement, and the `tools/bench.sh` default today is
   61×18.
 
 ### The number
@@ -400,11 +400,11 @@ PYTERM_NOPARSE=1 PYTERM_NODRAW=1 PYTERM_PROF=1 ./run.sh --cmd 'python3 \
   as a number.
 - `PYTERM_PROF=1` turns on counters in `TermView` (`tortty_python/view.py`): time and
   number of calls of `on_pty` (parse) and `on_draw` (drawing), on stderr (soon, in
-  the `/tmp/tortty-python.log` of `debug.sh`) when the session closes. Without the variable
+  the `/tmp/tortty-python.log` of `tools/debug.sh`) when the session closes. Without the variable
   the code does nothing (only the `if not _PROF` at the entry).
 
 ```
-PYTERM_PROF=1 ./debug.sh --cmd 'python3 tools/doomfire.py --fps 0 \
+PYTERM_PROF=1 ./tools/debug.sh --cmd 'python3 tools/doomfire.py --fps 0 \
     --frames 300 --stats-to /tmp/df.txt'
 grep prof: /tmp/tortty-python.log
 # prof: draw 821x 22.67ms/call (18610ms) | pty 4102x 4.22ms/call (17314ms)

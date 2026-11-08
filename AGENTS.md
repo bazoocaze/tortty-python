@@ -62,13 +62,13 @@ The tortty_python/ package installs the `tortty-python` command and also runs as
 `python -m tortty_python`; no loose file at the root. The code:
 
 - run.sh — runs the app (quick test; picks the python)
-- debug.sh — development: background, log, --kill/--status
 - run-tests.sh — runs the lint and the test battery
-- bench.sh — doom-fire ladder: measures on the current display and on its own
-  Xvfb
+- install.sh — installer (Linux)
+- tools/debug.sh — development: background, log, --kill/--status
+- tools/bench.sh — doom-fire ladder: measures on the current display and on its
+  own Xvfb
 - tools/benchrun.py — one rung of the ladder: locks the grid through the
   socket, types the load and prints the result
-- install.sh — installer (Linux)
 - tortty_python/__main__.py — python -m tortty_python (calls cli.run)
 - tortty_python/__init__.py — facade with lazy import (tortty_python.Term does not pull Gtk)
 - tortty_python/palette.py — cell [char, fg, bg, flags], xterm-256 palette (int and
@@ -194,7 +194,7 @@ is always merged over the default embedded in tortty_python/data/tortty-python.c
   docs/DEBUG.md table; the ladder with the numbers stays in docs/BENCHMARKS.md.
 - tools/ is manual, not a suite: xtest.py and pixel.py need a display and are
   called by hand during verification. The test command is ./run-tests.sh.
-- Measurement is not a test: the numbers come from a real run. `bench.sh` only
+- Measurement is not a test: the numbers come from a real run. `tools/bench.sh` only
   runs the protocol and prints the result; no value is stored in the code.
 
 ## Scripts and tools
@@ -205,13 +205,14 @@ running. Only which one to use fits here.
 - ./install.sh — Linux installer: distro deps, pipx, --selftest at the end.
 - ./run.sh — runs the app here, in the foreground; picks the python (uv venv
   when it sees gi, otherwise the system one).
-- ./debug.sh — development: background with log, --kill/--status by PID file
+- ./run-tests.sh — lint + selftest + pytest, no display.
+- tools/debug.sh — development: background with log, --kill/--status by PID file
   (never pkill -f tortty_python: the pattern also matches `tortty-python` and
   kills the shell of the
-  caller).
-- ./run-tests.sh — lint + selftest + pytest, no display.
-- ./bench.sh — doom-fire ladder; locks the grid through the socket, measures on
-  the current display and on its own Xvfb and does not store a number.
+  caller). It starts the app through ./run.sh, so the interpreter choice stays
+  in one place.
+- tools/bench.sh — doom-fire ladder; locks the grid through the socket, measures
+  on the current display and on its own Xvfb and does not store a number.
 - tortty-python, python3 -m tortty_python, uv run python -m tortty_python — the app (options:
   tortty-python -h).
 - uv run pytest -q, uv run ruff check ., uv run ruff format . — battery and lint

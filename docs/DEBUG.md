@@ -29,7 +29,7 @@ when truly relevant. No table, italics, date or measurement number.
   temporarily unavailable` in `import`). Resolve it on the spot: `state` from
   the socket returns the `xid`, or `tools/xtest.py id` without a socket.
 - **`pkill -f tortty_python` kills your own shell** (the pattern matches the
-  command line, and `tortty-python` too). Use `./debug.sh --kill`, which checks
+  command line, and `tortty-python` too). Use `./tools/debug.sh --kill`, which checks
   the PID file
   against `/proc/<pid>/cmdline`.
 - **`wmctrl -r 'TorTTY (Python)'` fails** when the app changes the title via OSC (mc
@@ -71,7 +71,7 @@ In `tools/`, with the system python3 (`python3-xlib` 0.33 and gi installed).
 ## Verification with a window
 
 ```
-./debug.sh --debug-socket auto              # log to /tmp/tortty-python.log + socket
+./tools/debug.sh --debug-socket auto              # log to /tmp/tortty-python.log + socket
 printf '{"cmd": "text"}\n' | nc -N -U /run/user/$UID/tortty-python-*.sock  # the screen
 python3 tools/xtest.py key ctrl+shift+n     # new workspace (the app consumes it)
 python3 tools/xtest.py dclick 60 28         # double click on card 1
@@ -134,7 +134,7 @@ configuration too (`config`, `errors`), in place of the old `CONFLOG`.
   first `TIOCSWINSZ` and may see the 80×24 default. Writing the load into the
   pty after `state` confirms the target is what removes the race.
 - The display enters the number: the desktop's real X (glamor) draws ~3x more
-  expensively than an Xvfb on the same grid. `./bench.sh --xvfb` measures on the
+  expensively than an Xvfb on the same grid. `./tools/bench.sh --xvfb` measures on the
   virtual one.
 - Geometry saved from a previous run (`window.json`, including `max`) changes
   the test grid: a throwaway `XDG_STATE_HOME` isolates it. `tools/benchrun.py`

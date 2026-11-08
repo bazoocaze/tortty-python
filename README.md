@@ -24,7 +24,7 @@ uv run ruff format .          # formats (does not run in run-tests)
 python3 -m tortty_python --selftest   # the same checks, without depending on pytest
 python3 -m tortty_python --help       # options, without opening a window
 python3 -m tortty_python --version    # version (the same one in tortty_python/__init__.py)
-./bench.sh                    # measures throughput (doom-fire), ~10 s
+./tools/bench.sh              # measures throughput (doom-fire), ~10 s
 ```
 
 ## Installing on the machine (pipx, straight from GitHub)
@@ -85,7 +85,7 @@ commit does not show up in `pipx upgrade`: to update, run the installer again
 message saying what to install, instead of a traceback (`tortty-python --selftest`
 works anyway, without gi and without display).
 
-`./bench.sh` prints fps, MB/s, drawing/parse cost and the CPU frequency per
+`./tools/bench.sh` prints fps, MB/s, drawing/parse cost and the CPU frequency per
 stage; how to read the numbers and the protocol are in
 [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 

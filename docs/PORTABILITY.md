@@ -176,6 +176,6 @@ between OSes).
 Minimum verification on each OS: `--selftest` (no display), the `state` metrics
 through `--debug-socket`
 (advance x cell x res x cols matching), wheel with trackpad, paste from the
-clipboard, selection with the middle button and `./bench.sh` — the last one
+clipboard, selection with the middle button and `./tools/bench.sh` — the last one
 only where there is governor/frequency reading (on mac and on Windows it
 becomes another protocol, not a line of the current ladder).

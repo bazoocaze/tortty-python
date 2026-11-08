@@ -24,7 +24,7 @@ Uso: tools/benchrun.py [--frames N] [--cols C] [--rows R] [--font-size P]
 
 --cols 0 / --rows 0 deixam o grid como está (imprime o que veio; não é
 comparável com a referência). Imprime linhas `chave valor` no stdout; uma
-medição por execução — a escada é o bench.sh.
+medição por execução — a escada é o tools/bench.sh.
 
 Roda com o python do sistema (só stdlib); quem sobe o app é o --app (run.sh por
 padrão), que escolhe o python com gi. Roda no display atual: feche o que estiver

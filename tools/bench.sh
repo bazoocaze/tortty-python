@@ -4,7 +4,8 @@
 # privado. Com o padrão (~300 frames) leva uns 20 s no total; a janela abre e
 # fecha seis vezes, uma etapa por vez.
 #
-# Uso: ./bench.sh [--frames N] [--cols C] [--rows R] [--font-size P] [--xvfb] [-h]
+# Uso (da raiz do repositório):
+#   ./tools/bench.sh [--frames N] [--cols C] [--rows R] [--font-size P] [--xvfb] [-h]
 #
 # A condição é travada pelo GRID (padrão 61x18, fonte 13 — a janela que sobra
 # sem estar maximizada), não pela janela em pixels: quem faz isso é o
@@ -123,7 +124,7 @@ stage() {
     _slug=$1; _label=$2; shift 2
     _err=/tmp/tortty-python-bench-$_slug.err
     rm -f "$_err"
-    if ! _txt=$(python3 "$HERE/tools/benchrun.py" --frames "$FRAMES" \
+    if ! _txt=$(python3 "$HERE/benchrun.py" --frames "$FRAMES" \
             --cols "$COLS" --rows "$ROWS" --font-size "$FONT" \
             --stats "/tmp/tortty-python-bench-$_slug.txt" "$@" 2>"$_err"); then
         echo "  etapa '$_label' sem número: $(tail -1 "$_err")" >&2
@@ -177,7 +178,7 @@ fi
 # O gerador isolado não abre terminal: mede o teto do próprio gerador.
 _out=/tmp/tortty-python-bench-gen.txt
 rm -f "$_out"
-python3 "$HERE/tools/doomfire.py" --fps 0 --frames "$FRAMES" --stats-to "$_out" \
+python3 "$HERE/doomfire.py" --fps 0 --frames "$FRAMES" --stats-to "$_out" \
     >/dev/null 2>&1
 printf "%-26s %7s %7s %12s %10s %9s %13s\n" "gerador isolado" \
     "$(sed -n 's/^fps  *\([0-9.]*\)$/\1/p' "$_out" | tail -1)" \
