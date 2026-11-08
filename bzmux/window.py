@@ -283,7 +283,7 @@ class Workspace:
         """
         if view.app_title and view._title:
             return view._title
-        return os.path.basename(view.start_cwd or "") or "bzmux"
+        return os.path.basename(view.start_cwd or "") or "TorTTY (Python)"
 
     # -- cartão da lateral ---------------------------------------------
     def update_card(self, v=None):
@@ -366,7 +366,7 @@ class BzmuxWindow(Gtk.Window):
         debug_log=None,
         debug_socket=None,
     ):
-        super().__init__(title="bzmux")
+        super().__init__(title="TorTTY (Python)")
         # O comando dado na linha de comando é replicado em cada aba nova
         # (decisão do P11): `run.sh --cmd ...` e os testes continuam
         # previsíveis. Sem `--cmd`, cada aba nasce com o `shell` da configuração.
@@ -491,9 +491,9 @@ class BzmuxWindow(Gtk.Window):
         # inicial o que validou já valeu (P34): o toast mostra o PRIMEIRO erro,
         # com a contagem dos outros, em vez da lista inteira.
         if not self.config.ok:
-            self.show_toast("Erro na configuração", config_mod.first_error(self.config), erro=True)
+            self.show_toast("Configuration error", config_mod.first_error(self.config), erro=True)
         elif self.config.warnings:
-            self.show_toast("Aviso na configuração", config_mod.message(self.config), aviso=True)
+            self.show_toast("Configuration warning", config_mod.message(self.config), aviso=True)
         # a referência tem de sobreviver: sem ela o Gio.FileMonitor é coletado
         # e o auto-reload simplesmente não acontece (monitor mudo)
         self._conf_monitor = config_mod.watch(self.reload_config, self.config.path)
@@ -512,13 +512,13 @@ class BzmuxWindow(Gtk.Window):
             erro = self._debugsock.start()
             if erro:
                 self._debugsock = None
-                self.show_toast("Socket de debug", erro, erro=True)
+                self.show_toast("Debug socket", erro, erro=True)
             else:
                 # superfície de debug: só existe com a flag, mas quem abriu tem
                 # de saber que ela está de pé
                 self.show_toast(
-                    "Aviso de segurança",
-                    "debug socket ativado: %s" % caminho,
+                    "Security warning",
+                    "debug socket enabled: %s" % caminho,
                     aviso=True,
                 )
 
@@ -756,7 +756,7 @@ class BzmuxWindow(Gtk.Window):
         """Arquivo mudou: valida antes de aplicar; inválido mantém o anterior."""
         novo = config_mod.load(self.config.path)
         if not novo.ok:
-            self.show_toast("Erro na configuração", config_mod.message(novo), erro=True)
+            self.show_toast("Configuration error", config_mod.message(novo), erro=True)
             return
         self.config = novo
         self.shell = novo.shell
@@ -768,9 +768,9 @@ class BzmuxWindow(Gtk.Window):
                 v.apply_config(novo)
         aviso = config_mod.message(novo)
         if aviso:
-            self.show_toast("Aviso na configuração", aviso, aviso=True)
+            self.show_toast("Configuration warning", aviso, aviso=True)
             return
-        self.show_toast("Configuração aplicada", "%s %g pt" % (novo.font_family, novo.font_size))
+        self.show_toast("Configuration applied", "%s %g pt" % (novo.font_family, novo.font_size))
 
     # -- workspaces ----------------------------------------------------
     @property

@@ -128,7 +128,7 @@ def _clear_stale(path):
     except OSError as e:
         return "%s: %s" % (path, e.strerror or e)
     if not stat.S_ISSOCK(modo):
-        return "caminho existe e não é socket: %s" % path
+        return "path exists and is not a socket: %s" % path
     probe = socket_mod.socket(socket_mod.AF_UNIX, socket_mod.SOCK_STREAM)
     try:
         probe.connect(path)
@@ -140,7 +140,7 @@ def _clear_stale(path):
         return None
     finally:
         probe.close()
-    return "outro processo está escutando em %s" % path
+    return "another process is listening on %s" % path
 
 
 def _same_uid(conn):

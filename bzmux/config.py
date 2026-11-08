@@ -90,16 +90,16 @@ def check_shell(valor):
         return None  # vazio é escolha: herda o $SHELL (effective_shell)
     if os.sep not in valor:
         if shutil.which(valor) is None:
-            return "shell não encontrado: %s" % valor
+            return "shell not found: %s" % valor
     elif not (os.path.isfile(valor) and os.access(valor, os.X_OK)):
-        return "shell não executável: %s" % valor
+        return "shell not executable: %s" % valor
     return None
 
 
 def check_font_family(valor):
     """Só não-vazio: família inexistente cai no fallback do Pango, sem erro."""
     if not valor:
-        return "font_family vazio"
+        return "font_family is empty"
     return None
 
 
@@ -107,16 +107,16 @@ def _number(valor, nome, minimo, maximo, inteiro=False):
     try:
         n = int(valor) if inteiro else float(valor)
     except ValueError:
-        return "%s não é número: %s" % (nome, valor)
+        return "%s is not a number: %s" % (nome, valor)
     if not minimo <= n <= maximo:
         fmt = "%d" if inteiro else "%g"
-        return "%s fora da faixa (%s..%s): %s" % (nome, fmt % minimo, fmt % maximo, valor)
+        return "%s out of range (%s..%s): %s" % (nome, fmt % minimo, fmt % maximo, valor)
     return None
 
 
 def _enum(valor, nome, aceitos):
     if valor.lower() not in aceitos:
-        return "%s inválido: %s (use %s)" % (nome, valor, "/".join(aceitos))
+        return "%s invalid: %s (use %s)" % (nome, valor, "/".join(aceitos))
     return None
 
 
@@ -134,7 +134,7 @@ def check_bell(valor):
 
 def _bool(valor, nome):
     if valor.lower() not in BOOLS:
-        return "%s inválido: %s (use on/off)" % (nome, valor)
+        return "%s invalid: %s (use on/off)" % (nome, valor)
     return None
 
 
@@ -158,7 +158,7 @@ def check_debug_log(valor):
     """`off` desliga; qualquer outro valor é caminho de arquivo."""
     if valor.lower() == "off" or valor:
         return None
-    return "debug_log vazio (use off para desligar)"
+    return "debug_log is empty (use off to disable)"
 
 
 def debug_log_path(value):
@@ -270,17 +270,17 @@ def _validated(vals, base):
     vistos = {}  # chave -> linha da primeira ocorrência (repetida avisa)
     for e in vals:
         if e.key not in KNOWN:
-            errors.append("linha %d: chave desconhecida: %s" % (e.line, e.key))
+            errors.append("line %d: unknown key: %s" % (e.line, e.key))
             continue
         if e.key in vistos:
             warnings.append(
-                "linha %d: %s repetido, vale este (linha %d ignorada)"
+                "line %d: %s repeated, this one wins (line %d ignored)"
                 % (e.line, e.key, vistos[e.key])
             )
         vistos[e.key] = e.line
         err = CHECKS[e.key](e.value)
         if err:
-            errors.append("linha %d: %s" % (e.line, err))
+            errors.append("line %d: %s" % (e.line, err))
         else:
             out[e.key] = e.value
     return out, errors, warnings
@@ -292,7 +292,7 @@ def load(path=None):
     base = dict(DEFAULTS)
     emb = _read(DATA)
     if emb is None:
-        errors = ["arquivo de padrões não encontrado: %s" % DATA]
+        errors = ["defaults file not found: %s" % DATA]
     else:
         base, errors, _ = _validated(parse(emb), base)
     txt = _read(path)

@@ -64,8 +64,8 @@ def entry(exe):
         "Type=Application\n"
         "Version=1.0\n"
         f"Name={NAME}\n"
-        "GenericName=Emulador de terminal\n"
-        "Comment=Terminal em Python com abas, workspaces e imagens\n"
+        "GenericName=Terminal emulator\n"
+        "Comment=Terminal in Python with tabs, workspaces and images\n"
         f"Exec={exe}\n"
         f"TryExec={exe}\n"
         f"Icon={APP}\n"
@@ -124,8 +124,8 @@ def install():
     exe = exec_path()
     if not exe:
         raise RuntimeError(
-            "não achei o comando instalado (pipx install ...), e rodar da árvore "
-            "não serve: o atalho precisa de um Exec absoluto"
+            "installed command not found (pipx install ...), and running from "
+            "the tree does not count: the shortcut needs an absolute Exec"
         )
     _write(desktop_path(), entry(exe).encode())
     _write(icon_path(), _icon_bytes())

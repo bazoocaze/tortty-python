@@ -20,7 +20,7 @@ def selftest():
         else:
             print(f"  ok: {name}")
     if fails:
-        print(f"SELFTEST FAIL ({fails} de {len(ALL)})")
+        print(f"SELFTEST FAIL ({fails}/{len(ALL)})")
         return 1
     print(f"SELFTEST OK ({len(ALL)} checks)")
     return 0

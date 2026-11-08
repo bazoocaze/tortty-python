@@ -151,15 +151,15 @@ def argv_parsing():
     with contextlib.redirect_stdout(out):
         assert cli.main(["bzmux", "--version"]) == 0
     # versão vem de bzmux/__init__.py (fonte única; o pyproject lê de lá)
-    assert out.getvalue() == "bzmux %s\n" % cli.__version__
+    assert out.getvalue() == "pybzmux %s\n" % cli.__version__
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         assert cli.main(["bzmux", "-V"]) == 0
-    assert out.getvalue().startswith("bzmux ")
+    assert out.getvalue().startswith("pybzmux ")
     out = io.StringIO()
     with contextlib.redirect_stdout(out):
         assert cli.main(["bzmux", "--help"]) == 0
-    assert out.getvalue().startswith("uso: bzmux")
+    assert out.getvalue().startswith("usage: pybzmux")
     with contextlib.redirect_stderr(err):
         assert cli.main(["bzmux", "--nada"]) == 2
     assert "--cmd" in err.getvalue()
@@ -193,8 +193,8 @@ def config_file():
         f.write("shell /bin/sh\nshell /bin/bash\n")
     cfg = config.load(p)
     assert (cfg.shell, cfg.ok, len(cfg.warnings)) == ("/bin/bash", True, 1)
-    assert "linha 2: shell repetido" in config.message(cfg)
-    assert "linha 1 ignorada" in config.message(cfg)
+    assert "line 2: shell repeated" in config.message(cfg)
+    assert "line 1 ignored" in config.message(cfg)
     # sem arquivo do usuário: valem os padrões, sem erro
     cfg = config.load(os.path.join(d, "nao-existe.conf"))
     assert (cfg.shell, cfg.ok, cfg.exists) == ("", True, False)
@@ -218,13 +218,13 @@ def config_file():
         f.write("foo bar\nshell /bin/sh\n")
     cfg = config.load(p)
     assert (cfg.shell, cfg.ok) == ("/bin/sh", False)
-    assert "linha 1: chave desconhecida: foo" in config.message(cfg)
+    assert "line 1: unknown key: foo" in config.message(cfg)
     # valor inválido fica no padrão (a chave não aplica) e o erro vai pro toast
     with open(p, "w") as f:
         f.write("# nada aqui\nshell /nao/existe/xyz\n")
     cfg = config.load(p)
     assert (cfg.shell, cfg.ok) == ("", False)
-    assert "linha 2: shell não executável" in config.message(cfg)
+    assert "line 2: shell not executable" in config.message(cfg)
 
 
 def config_options():
@@ -266,18 +266,18 @@ def config_options():
     with open(p, "w") as f:
         f.write("debug_log\n")
     cfg = config.load(p)
-    assert not cfg.ok and "debug_log vazio" in cfg.errors[0]
+    assert not cfg.ok and "debug_log is empty" in cfg.errors[0]
     # erro é por linha: o válido aplica, o inválido fica no padrão
     for lixo, esperado in (
-        ("font_size abc", "font_size não é número"),
-        ("font_size 0", "font_size fora da faixa"),
-        ("font_family", "font_family vazio"),
-        ("cursor_shape square", "cursor_shape inválido"),
-        ("cursor_blink talvez", "cursor_blink inválido"),
-        ("scrollback -1", "scrollback fora da faixa"),
-        ("window_padding_width 8px", "não é número"),
-        ("bell beep", "bell inválido"),
-        ("copy_on_select 2", "copy_on_select inválido"),
+        ("font_size abc", "font_size is not a number"),
+        ("font_size 0", "font_size out of range"),
+        ("font_family", "font_family is empty"),
+        ("cursor_shape square", "cursor_shape invalid"),
+        ("cursor_blink talvez", "cursor_blink invalid"),
+        ("scrollback -1", "scrollback out of range"),
+        ("window_padding_width 8px", "is not a number"),
+        ("bell beep", "bell invalid"),
+        ("copy_on_select 2", "copy_on_select invalid"),
     ):
         with open(p, "w") as f:
             f.write("font_size 20\n" + lixo + "\n")
@@ -290,7 +290,7 @@ def config_options():
         f.write("bell beep\nfont_size 20\ncursor_shape square\n")
     cfg = config.load(p)
     assert (cfg.bell, cfg.font_size, cfg.ok) == ("none", 20.0, False)
-    assert "linha 1: bell inválido" in config.first_error(cfg)
+    assert "line 1: bell invalid" in config.first_error(cfg)
     assert config.first_error(cfg).endswith("(+1)")
 
 
@@ -829,13 +829,13 @@ def debug_socket():
     comum = os.path.join(d, "nao-socket")
     with open(comum, "w") as f:
         f.write("x")
-    assert "não é socket" in debugsock._clear_stale(comum)
+    assert "is not a socket" in debugsock._clear_stale(comum)
     assert os.path.exists(comum)  # não apagou arquivo alheio
     vivo = os.path.join(d, "vivo.sock")
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     srv.bind(vivo)
     srv.listen(1)
-    assert "escutando" in debugsock._clear_stale(vivo)
+    assert "listening" in debugsock._clear_stale(vivo)
     srv.close()  # agora é órfão: pode sair
     assert debugsock._clear_stale(vivo) is None and not os.path.exists(vivo)
 

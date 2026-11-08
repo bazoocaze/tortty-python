@@ -508,7 +508,7 @@ class TermView(Gtk.DrawingArea):
         # notícia (só interessa a saída que o usuário pediu)
         if self.exit_code and not self._closing:
             print(
-                f"bzmux: shell saiu com código {self.exit_code}",
+                f"pybzmux: shell exited with code {self.exit_code}",
                 file=sys.stderr,
             )
         self._notify_exit()
@@ -616,7 +616,7 @@ class TermView(Gtk.DrawingArea):
                 lines.append("".join(c[0] for c in row).rstrip())
         # o off vai no cabeçalho: sem ele o dump não conta se a visão está no
         # histórico (as linhas abaixo são a grade VIVA, não a visão rolada)
-        off = f" (histórico +{self.view_off})" if self.view_off else ""
+        off = f" (scrollback +{self.view_off})" if self.view_off else ""
         lines.append(f"=== viewport {t.cols}x{t.rows}{off} ===")
         for y in range(t.rows):
             lines.append(t.row_text(y).rstrip())

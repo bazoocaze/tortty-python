@@ -6,23 +6,23 @@ from . import __version__
 from .selftest import selftest
 
 USAGE = """\
-uso: bzmux [opções]
+usage: pybzmux [options]
 
-  --cmd CMD          comando inicial (default: a opção `shell` da configuração)
-  -c, --config ARQ   arquivo de configuração
-                     (default: ~/.config/tortty-python/tortty-python.conf)
-  --quit-after SEG   fecha sozinho depois de SEG segundos
-  --dump-to ARQUIVO  salva a grade visível ao sair
-  --debug-log ARQ    log JSONL do ?2026 x scroll (default: a opção `debug_log`;
-                     `off` desliga)
-  --debug-socket ARQ socket Unix de introspecção (JSON por linha; `auto` =
-                     $XDG_RUNTIME_DIR/tortty-python-<pid>.sock). Desligado por
-                     omissão
-  --selftest         roda os checks sem abrir janela
-  --install-shortcut cria o atalho no menu do sistema (.desktop + ícone)
-  --remove-shortcut  remove o atalho
-  -V, --version      mostra a versão e sai
-  -h, --help         mostra esta ajuda e sai"""
+  --cmd CMD          initial command (default: the config `shell` option)
+  -c, --config FILE  configuration file (default:
+                     ~/.config/tortty-python/tortty-python.conf)
+  --quit-after SEG   closes by itself after SEG seconds
+  --dump-to FILE     saves the visible grid on exit
+  --debug-log FILE   JSONL debug log of ?2026 x scroll (default: the option
+                     `debug_log`; `off` disables it)
+  --debug-socket FILE Unix socket of introspection (one JSON per line; `auto` =
+                     $XDG_RUNTIME_DIR/tortty-python-<pid>.sock). Off by
+                     default
+  --selftest         runs the checks without opening a window
+  --install-shortcut creates the shortcut in the system menu (.desktop + icon)
+  --remove-shortcut  removes the shortcut
+  -V, --version      prints the version and exits
+  -h, --help         prints this help and exits"""
 
 
 def parse_args(argv):
@@ -65,16 +65,16 @@ def _shortcut(installing):
     if not installing:
         gone = shortcut.remove()
         if gone:
-            print("atalho removido: " + ", ".join(gone))
+            print("shortcut removed: " + ", ".join(gone))
         else:
-            print("não havia atalho instalado")
+            print("no shortcut installed")
         return 0
     try:
         desktop, icon = shortcut.install()
     except RuntimeError as e:
-        print(f"bzmux: {e}", file=sys.stderr)
+        print(f"pybzmux: {e}", file=sys.stderr)
         return 1
-    print(f"atalho: {desktop}\nícone:  {icon}")
+    print(f"shortcut: {desktop}\nicon:     {icon}")
     bad = shortcut.validate(desktop)
     if bad:
         print(bad.rstrip(), file=sys.stderr)
@@ -85,7 +85,7 @@ def _shortcut(installing):
 def main(argv=None):
     argv = sys.argv if argv is None else argv
     if "-V" in argv[1:] or "--version" in argv[1:]:
-        print("bzmux " + __version__)
+        print("pybzmux " + __version__)
         return 0
     if "-h" in argv[1:] or "--help" in argv[1:]:
         print(USAGE)
@@ -96,7 +96,7 @@ def main(argv=None):
         return _shortcut("--install-shortcut" in argv)
     cmd, quit_after, dump_to, conf, dlog, dsock, erro = parse_args(argv)
     if erro:
-        print(f"bzmux: opção inválida: {erro}\n\n{USAGE}", file=sys.stderr)
+        print(f"pybzmux: invalid option: {erro}\n\n{USAGE}", file=sys.stderr)
         return 2
     # import tardio: --selftest e --help rodam sem tocar em Gtk/PyGObject
     try:
@@ -106,17 +106,17 @@ def main(argv=None):
         if e.name not in ("gi", "cairo"):
             raise
         print(
-            f"bzmux: falta o {e.name} (PyGObject/Gtk3 + pycairo do sistema).\n"
+            f"pybzmux: missing {e.name} (PyGObject/Gtk3 + pycairo from the system).\n"
             "  Linux (deb): sudo apt install python3-gi python3-gi-cairo "
             "gir1.2-gtk-3.0\n"
-            "  instalado por pipx/venv isolado: use --system-site-packages\n"
-            "  (ou rode 'bzmux --selftest', que não precisa de display nem gi)",
+            "  installed by pipx/isolated venv: use --system-site-packages\n"
+            "  (or run 'pybzmux --selftest', which needs no display nor gi)",
             file=sys.stderr,
         )
         return 1
 
     # WM_CLASS estável: o padrão do GLib vem do argv[0] e muda entre o console
-    # script (bzmux), o `-m bzmux` (__main__.py) e o venv — com ele instável o
+    # script (pybzmux), o `-m bzmux` (__main__.py) e o venv — com ele instável o
     # atalho do sistema não acha a janela. Casa com StartupWMClass do .desktop.
     GLib.set_prgname("bzmux")
     Gdk.set_program_class("Bzmux")
