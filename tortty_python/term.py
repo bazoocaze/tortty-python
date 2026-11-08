@@ -16,9 +16,12 @@ from .palette import (
     DEF_FG,
     FG_DEFAULT,
     INV,
+    ITALIC,
     PALETTE256,
-    UL,
+    UL_DOUBLE,
     rgb,
+    ul_off,
+    ul_on,
 )
 
 # Fast path do parser (P20): fim do texto imprimível e cache de escape -> cor.
@@ -44,6 +47,15 @@ _CSI_RE = re.compile(r"\x1b\[([0-9;:?]*)([\x40-\x7e])")
 # Título até o app mandar OSC 0/2: é o valor que `view` compara para saber se o
 # título veio do filho.
 DEFAULT_TITLE = "TorTTY (Python)"
+
+# Esquemas que o Ctrl+clique entrega ao xdg-open: o URI vem do filho, que não
+# escolhe qual handler do desktop vai rodar.
+LINK_SCHEMES = ("http://", "https://", "file://", "ftp://", "mailto:")
+
+
+def link_allowed(uri):
+    """Só os esquemas conhecidos vão para o xdg-open."""
+    return uri.lower().startswith(LINK_SCHEMES)
 
 
 class CellAnchor(NamedTuple):
@@ -146,6 +158,11 @@ class Term:
         self.graphics = Graphics()  # protocolo de imagens do kitty (P6)
         self.apc = ""
         self.title = DEFAULT_TITLE
+        # OSC 8: hyperlink corrente (índice em `links`, 0 = nenhum). O URI é
+        # internado, então a célula carrega só um int no quinto campo.
+        self.link = 0
+        self.links = []
+        self._link_ids = {}
         self.state = "ground"
         self.csi = ""
         self.osc = ""
@@ -410,6 +427,24 @@ class Term:
         else:
             self.cy = min(self.cy + 1, self.rows - 1)
 
+    def link_of(self, cell):
+        """URI do hyperlink da célula (OSC 8), ou None."""
+        i = cell[4] if len(cell) > 4 else 0
+        if not i or i > len(self.links):
+            return None
+        return self.links[i - 1]
+
+    def _link_id(self, uri):
+        """Índice do URI na tabela: o mesmo link repetido reusa o mesmo int."""
+        if not uri:
+            return 0
+        i = self._link_ids.get(uri)
+        if i is None:
+            self.links.append(uri)
+            i = len(self.links)
+            self._link_ids[uri] = i
+        return i
+
     def put(self, ch):
         # Controle vem ANTES da quebra pendente: um `\r\n` depois de uma linha
         # que encheu a largura avançava DUAS linhas (a quebra pendente + o LF),
@@ -438,7 +473,10 @@ class Term:
             self.wrap_pending = False
         if self.charset_dec:
             ch = DEC_SPECIAL.get(ch, ch)
-        self.grid[self.cy][self.cx] = [ch, self.fg, self.bg, self.flags]
+        cell = [ch, self.fg, self.bg, self.flags]
+        if self.link:
+            cell.append(self.link)  # o campo extra só existe com link
+        self.grid[self.cy][self.cx] = cell
         self.dirty.add(self.cy)
         if self.cx == self.cols - 1:
             self.wrap_pending = True
@@ -460,6 +498,9 @@ class Term:
                 self.scrollback.clear()
                 self.sb_wrapped.clear()
                 self.graphics.clear()
+                self.links.clear()  # os índices das células deixam de valer
+                self._link_ids.clear()
+                self.link = 0
                 self.abs_gen += 1  # o histórico sumiu: âncora antiga morreu
                 self.hist_gen += 1
             self.cursor_to(0, 0)
@@ -503,31 +544,46 @@ class Term:
 
     def sgr(self, params):
         # subparâmetros com ':' (38:2::r:g:b) chegam como tupla: acha a forma
-        # canônica com ';' antes de interpretar (só aloca `flat` se houver)
+        # canônica com ';' antes de interpretar (só aloca `flat` se houver).
+        # `4:n` fica tupla de propósito: o estilo do sublinhado não cabe num
+        # int sem se confundir com o parâmetro seguinte (`4:3` != `4;3`).
         flat = params
         for p in params:
             if isinstance(p, tuple):
                 flat = []
                 for q in params:
-                    if isinstance(q, tuple):
+                    if isinstance(q, tuple) and q and q[0] == 4:
+                        flat.append(q)
+                    elif isinstance(q, tuple):
                         flat.extend(self._sgr_subparams(q))
                     else:
                         flat.append(q)
                 break
         it = iter(flat)
         for p in it:
+            if isinstance(p, tuple):
+                if p[0] == 4:
+                    self._underline(p[1] if len(p) > 1 else None)
+                continue
             if p == 0:
                 self.fg, self.bg, self.flags = DEF_FG, DEF_BG, 0
             elif p == 1:
                 self.flags |= BOLD
+            elif p == 3:
+                self.flags |= ITALIC
             elif p == 4:
-                self.flags |= UL
+                self.flags = ul_on(self.flags)
             elif p == 7:
                 self.flags |= INV
+            elif p == 21:
+                # ECMA-48: 21 é sublinhado duplo (e não "desliga o negrito")
+                self.flags = ul_on(self.flags, UL_DOUBLE)
             elif p == 22:
                 self.flags &= ~BOLD
+            elif p == 23:
+                self.flags &= ~ITALIC
             elif p == 24:
-                self.flags &= ~UL
+                self.flags = ul_off(self.flags)
             elif p == 27:
                 self.flags &= ~INV
             elif 30 <= p <= 37:
@@ -579,6 +635,15 @@ class Term:
                             self.fg = c
                         else:
                             self.bg = c
+
+    def _underline(self, style):
+        """SGR 4:n: 0 desliga, 1 simples, 2 duplo, 3 curvo, 4 pontilhado, 5 tracejado."""
+        if style is None:
+            self.flags = ul_on(self.flags)
+        elif style == 0:
+            self.flags = ul_off(self.flags)
+        elif 1 <= style <= 5:
+            self.flags = ul_on(self.flags, style - 1)
 
     @staticmethod
     def _sgr_subparams(sub):
@@ -801,6 +866,13 @@ class Term:
             self.bg = color
         return end + 1
 
+    def _cells(self, text, fg, bg, fl):
+        """Células de um trecho; o índice do link só entra quando existe (OSC 8)."""
+        if self.link:
+            link = self.link
+            return [[c, fg, bg, fl, link] for c in text]
+        return [[c, fg, bg, fl] for c in text]
+
     def _put_run(self, run):
         """Trecho imprimível de uma vez, com a mesma quebra mole do put."""
         fg, bg, fl = self.fg, self.bg, self.flags
@@ -817,12 +889,12 @@ class Term:
             row = self.grid[self.cy]
             self.dirty.add(self.cy)
             if k >= avail:  # enche até a última coluna: quebra mole
-                row[cx:] = [[c, fg, bg, fl] for c in run[i : i + avail]]
+                row[cx:] = self._cells(run[i : i + avail], fg, bg, fl)
                 self.cx = self.cols - 1
                 self.wrap_pending = True
                 i += avail
             else:
-                row[cx : cx + k] = [[c, fg, bg, fl] for c in run[i:]]
+                row[cx : cx + k] = self._cells(run[i:], fg, bg, fl)
                 self.cx = cx + k
                 i = n
 
@@ -963,6 +1035,10 @@ class Term:
         self.state = "ground"
         if o[:2] in ("0;", "2;"):
             self.title = o[2:]
+        elif o.startswith("8;"):
+            # OSC 8 ; params ; URI: URI vazio fecha o link corrente
+            parts = o.split(";", 2)
+            self.link = self._link_id(parts[2]) if len(parts) > 2 else 0
         elif o in ("10;?", "11;?"):
             # cor padrão de frente/fundo (X11: 4 dígitos por componente)
             r, g, b = FG_DEFAULT if o[0] == "1" and o[1] == "0" else BG_DEFAULT
@@ -1056,6 +1132,54 @@ class Term:
         if line < self.scrolled + len(self.grid):
             return self.grid[line - self.scrolled]
         return None
+
+    def abs_wrapped(self, line):
+        """A linha absoluta encheu a largura (a de baixo é continuação dela)."""
+        lo = self.scrolled - len(self.scrollback)
+        if line < lo or line >= self.scrolled + len(self.grid):
+            return False
+        if line < self.scrolled:
+            i = line - lo
+            return self.sb_wrapped[i] if i < len(self.sb_wrapped) else False
+        return self.row_wrapped[line - self.scrolled]
+
+    def line_span(self, line):
+        """Primeira e última linha física da linha LÓGICA que contém `line`."""
+        first, last = line, line
+        while first > self.scrolled - len(self.scrollback) and self.abs_wrapped(first - 1):
+            first -= 1
+        while self.abs_wrapped(last) and self.abs_row(last + 1) is not None:
+            last += 1
+        return first, last
+
+    def word_span(self, line, col):
+        """Colunas (início, fim) inclusivas da palavra sob `col`.
+
+        Palavra termina só em espaço em branco: um caminho selecionado sai
+        inteiro. Clicar no espaço seleciona a corrida de espaços.
+        """
+        row = self.abs_row(line)
+        if row is None:
+            return col, col
+        text = "".join(c[0] for c in row).rstrip()  # o espaço da direita não é palavra
+        if not text:
+            return 0, 0
+        col = max(0, min(len(text) - 1, col))
+        sep = text[col].isspace()
+        first = col
+        while first > 0 and text[first - 1].isspace() == sep:
+            first -= 1
+        last = col
+        while last + 1 < len(text) and text[last + 1].isspace() == sep:
+            last += 1
+        return first, last
+
+    def logical_line_span(self, line):
+        """Âncoras (início, fim) da linha lógica, já sem o espaço da direita."""
+        first, last = self.line_span(line)
+        row = self.abs_row(last)
+        text = "".join(c[0] for c in row).rstrip() if row is not None else ""
+        return (first, 0), (last, max(0, len(text) - 1))
 
     # -- âncoras de célula (B17) ---------------------------------------
     def anchor_at(self, view_off, row, col):

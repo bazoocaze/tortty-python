@@ -14,6 +14,7 @@ import os
 import pty
 import signal
 import struct
+import subprocess
 import sys
 import termios
 import time
@@ -27,16 +28,24 @@ from .palette import (
     DEF_BG,
     DEF_FG,
     INV,
+    ITALIC,
     UL,
+    UL_CURLY,
+    UL_DASHED,
+    UL_DOTTED,
+    UL_DOUBLE,
+    UL_MASK,
     cell_rgb_f,
+    ul_style,
 )
-from .term import DEFAULT_TITLE, Term
+from .term import DEFAULT_TITLE, CellAnchor, Term, link_allowed
 
 _PROF = bool(os.environ.get("PYTERM_PROF"))  # mede o custo de draw e de pty
 _NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem desenho
 _NOPARSE = bool(os.environ.get("PYTERM_NOPARSE"))  # sonda: só lê o pty e descarta
 _DEBUG_LOG = None  # log JSONL do ?2026 x scroll; None = desligado (B22)
 _SYNC_MS = 200  # teto da transação ?2026: app que esquece de fechar não congela
+UL_BITS = UL | UL_MASK  # presença + estilo do sublinhado, como vai para o run
 
 
 def set_prof(on):
@@ -66,6 +75,8 @@ def _slog(**ev):
 
 
 DRAG_SLOP = 3  # px de folga: abaixo disso o mouse não "arrastou"
+SB_W = 8  # largura da barra de rolagem, em px (o app testa o mesmo número)
+CLICK_MS = 400  # janela do duplo/triplo clique, em ms
 BLINK_MS = 530  # ritmo do cursor piscando (`cursor_blink`); não é opção
 
 
@@ -164,6 +175,11 @@ class TermView(Gtk.DrawingArea):
         self.press_at = None  # pixel do press: a folga de arrasto é medida nele
         self.dragging = False
         self._held = None  # botão do protocolo apertado agora
+        self._click = (0, 0, -1, -1)  # (time, botão, fileira, coluna) do último clique
+        self._click_n = 0  # 1 clique, 2 palavra, 3 linha lógica
+        self._press_time, self._press_xy = 0, (-1.0, -1.0)  # press já tratado
+        self._sb_drag = False  # arrastando o polegar da barra de rolagem
+        self._ctrl = False  # Ctrl apertado: sublinha os hyperlinks (OSC 8)
         self._state = 0  # modificadores do último evento
         self.view_off = 0  # 0 = vivo; >0 = linhas de histórico
         self._anchor = 0  # linha absoluta no topo da visão quando no histórico
@@ -202,13 +218,12 @@ class TermView(Gtk.DrawingArea):
         self._blink_timer = 0
         self._metrics = None
         self._font_desc = None  # Pango.FontDescription (P9)
-        self._attrs_plain = None  # Pango.AttrList: espaçamento nas células
-        self._attrs_bold = None  # idem + negrito
+        self._attrs = [None] * 4  # Pango.AttrList por (negrito, itálico)
         self._advance = None  # avanço real da fonte, em px (float)
         self._dpi = None  # resolução do display (Xft.dpi)
         # cache de layout: texto -> (layout, linha, base), uma tabela por
-        # peso — evita alocar a tupla (texto, negrito) em cada run (P37)
-        self._layouts = ({}, {})
+        # (negrito, itálico) — evita alocar a tupla em cada run (P37)
+        self._layouts = ({}, {}, {}, {})
 
         self.master = None
         self.child_pid = None
@@ -686,9 +701,10 @@ class TermView(Gtk.DrawingArea):
         lay.set_font_description(self.font_desc())
         return lay
 
-    def text_attrs(self, bold):
+    def text_attrs(self, bold, italic=False):
         """AttrList do run: espaçamento que faz N caracteres ocuparem N células."""
-        cached = self._attrs_bold if bold else self._attrs_plain
+        slot = (1 if bold else 0) | (2 if italic else 0)
+        cached = self._attrs[slot]
         if cached is not None:
             return cached
         cw, _ = self.metrics()
@@ -698,10 +714,42 @@ class TermView(Gtk.DrawingArea):
         al.insert(Pango.attr_letter_spacing_new(round((cw - self._advance) * Pango.SCALE)))
         if bold:
             al.insert(Pango.attr_weight_new(Pango.Weight.BOLD))
-            self._attrs_bold = al
-        else:
-            self._attrs_plain = al
+        if italic:
+            al.insert(Pango.attr_style_new(Pango.Style.ITALIC))
+        self._attrs[slot] = al
         return al
+
+    def _underline(self, cr, x0, y0, w, h, style):
+        """Sublinha do SGR 4:n no pé da célula (estilo já decodificado)."""
+        y = y0 + h - 2
+        if style == UL_DOUBLE:
+            cr.rectangle(x0, y - 2, w, 1)
+            cr.rectangle(x0, y, w, 1)
+            cr.fill()
+            return
+        if style in (UL_DOTTED, UL_DASHED):
+            cr.save()
+            cr.set_dash([1, 1] if style == UL_DOTTED else [3, 2])
+            cr.set_line_width(1)
+            cr.move_to(x0, y + 0.5)
+            cr.line_to(x0 + w, y + 0.5)
+            cr.stroke()
+            cr.restore()
+            return
+        if style == UL_CURLY:
+            # meia onda por passo: passo curto demais vira borrão na largura 1
+            n = max(1, int(round(w / max(2.0, h / 8))))
+            step = w / n
+            cr.save()
+            cr.set_line_width(1)
+            cr.move_to(x0, y + 0.5)
+            for i in range(n):
+                cr.line_to(x0 + (i + 1) * step, y + (0.5 - 1.5 if i % 2 == 0 else 2.0))
+            cr.stroke()
+            cr.restore()
+            return
+        cr.rectangle(x0, y, w, 1)
+        cr.fill()
 
     def on_resize(self, widget, alloc):
         if alloc.width < 10 or alloc.height < 10:
@@ -754,6 +802,103 @@ class TermView(Gtk.DrawingArea):
             self.queue_draw()
         return True
 
+    def _draw_links(self, cr, rows, cw, ch, row_lo, row_hi, col_lo, col_hi):
+        """Sublinha a corrida de células com hyperlink; só no draw com Ctrl."""
+        t = self.term
+        cr.set_source_rgb(*cell_rgb_f(DEF_FG))
+        for y in range(row_lo, min(row_hi, len(rows) - 1) + 1):
+            row = rows[y]
+            x = col_lo
+            while x < col_hi:
+                if not t.link_of(row[x]):
+                    x += 1
+                    continue
+                j = x + 1
+                while j < t.cols and t.link_of(row[j]):
+                    j += 1
+                cr.rectangle(x * cw, y * ch + ch - 2, (j - x) * cw, 1)
+                cr.fill()
+                x = j
+
+    def _cell_uri(self, row, col):
+        """URI do hyperlink na célula da visão, ou None."""
+        rows = self.term.visible_rows(self.view_off)
+        if not (0 <= row < len(rows)) or not (0 <= col < self.term.cols):
+            return None
+        return self.term.link_of(rows[row][col])
+
+    def open_link(self, uri):
+        """Ctrl+clique: entrega o URI ao xdg-open, só nos esquemas conhecidos."""
+        if not link_allowed(uri):
+            return False
+        try:
+            subprocess.Popen(
+                ["xdg-open", uri],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            return False
+        return True
+
+    def _set_ctrl(self, on):
+        """Ctrl entrou/saiu: redesenha só para sublinhar (ou não) os links."""
+        if on != self._ctrl:
+            self._ctrl = on
+            self.queue_draw()
+
+    def scrollbar_rect(self):
+        """(x, largura, topo, altura, histórico) da barra, ou None sem histórico.
+
+        Coordenadas da GRADE (o draw já transladou o padding). A faixa fica
+        sobre a ÚLTIMA coluna: larga o bastante para acertar com o mouse,
+        estreita o bastante para não comer o texto embaixo.
+        """
+        t = self.term
+        hist = len(t.scrollback)
+        if not hist or not t.rows or t.alt_grid is not None:
+            # tela cheia não tem histórico que rolar: barra só atrapalharia
+            return None
+        cw, ch = self.metrics()
+        strip = min(SB_W, int(cw))
+        return t.cols * int(cw) - strip, strip, 0, t.rows * int(ch), hist
+
+    def _thumb(self, h, hist):
+        """Altura do polegar: a fatia do buffer que a visão mostra."""
+        rows = self.term.rows
+        return max(12.0, min(float(h), h * rows / (rows + hist)))
+
+    def _draw_scrollbar(self, cr, t):
+        """Trilho a 10% e polegar a 55%: fora do caminho do texto que ele cobre."""
+        r = self.scrollbar_rect()
+        if not r:
+            return
+        x0, w, top, h, hist = r
+        thumb = self._thumb(h, hist)
+        off = min(self.view_off, hist) / hist
+        y = top + (h - thumb) * (1.0 - off)  # vivo = polegar no fim
+        fg = cell_rgb_f(DEF_FG)
+        cr.set_source_rgba(*fg, 0.10)
+        cr.rectangle(x0, top, w, h)
+        cr.fill()
+        cr.set_source_rgba(*fg, 0.55)
+        cr.rectangle(x0, y, w, thumb)
+        cr.fill()
+
+    def scroll_to_y(self, py):
+        """Põe a visão onde o ponteiro está na barra (clique pula, arrasto anda)."""
+        r = self.scrollbar_rect()
+        if not r:
+            return False
+        _x0, _w, top, h, hist = r
+        thumb = self._thumb(h, hist)
+        travel = h - thumb
+        if travel <= 0:
+            return False
+        y = min(max(py - top - thumb / 2.0, 0.0), travel)
+        off = round((1.0 - y / travel) * hist)
+        return self.scroll_view(off - self.view_off)
+
     def clear_selection(self):
         if self.sel_start is not None or self.sel_end is not None:
             self.sel_start = self.sel_end = None
@@ -782,10 +927,8 @@ class TermView(Gtk.DrawingArea):
         self._font_desc = None
         self._metrics = None
         self._advance = None
-        self._attrs_plain = None
-        self._attrs_bold = None
-        self._layouts[0].clear()
-        self._layouts[1].clear()
+        self._attrs = [None] * 4
+        self._layouts = ({}, {}, {}, {})
         self._ensure_blink()
         # direto (e não só queue_resize): o tamanho alocado pode não mudar e
         # o size-allocate nunca viria, aí a grade ficava com a célula antiga
@@ -947,7 +1090,10 @@ class TermView(Gtk.DrawingArea):
             runs = []
             x = 0
             while x < t.cols:
-                cch, fg, bg, fl = row[x]
+                # índices (e não unpack de 4): a célula com hyperlink tem o
+                # quinto campo do OSC 8, e o desenho não pode tropeçar nele
+                cell = row[x]
+                cch, fg, bg, fl = cell[0], cell[1], cell[2], cell[3]
                 s0 = sel_on and in_sel(y, x, sel)
                 j = x + 1
                 while j < t.cols:
@@ -968,12 +1114,14 @@ class TermView(Gtk.DrawingArea):
                     fgc, bgc = rgb(fg), rgb(bg)
                     if (fl & INV) or s0:
                         fgc, bgc = bgc, fgc  # inverso / seleção = reverso
-                    runs.append((x, j, cch, fgc, bgc, bool(fl & BOLD), fl & UL))
+                    runs.append(
+                        (x, j, cch, fgc, bgc, bool(fl & BOLD), fl & UL_BITS, bool(fl & ITALIC))
+                    )
                 x = j
             if runs:
                 quadro.append((row, y * ch, max(ch, og_h - y * ch) if y == last_y else ch, runs))
         for row, ypx, rh, runs in quadro:
-            for x, j, _cch, _fgc, bgc, _bold, _ul in runs:
+            for x, j, _cch, _fgc, bgc, _bold, _ul, _italic in runs:
                 if bgc is not cur_bg:
                     cr.set_source_rgb(*bgc)
                     cur_bg = bgc
@@ -982,7 +1130,7 @@ class TermView(Gtk.DrawingArea):
                     cr.rectangle(x * cw, ypx, rw, rh)
                     cr.fill()
         for row, ypx, _rh, runs in quadro:
-            for x, j, cch, fgc, _bgc, bold, ul in runs:
+            for x, j, cch, fgc, _bgc, bold, ul, italic in runs:
                 if fgc is not cur_fg:
                     cr.set_source_rgb(*fgc)
                     cur_fg = fgc
@@ -992,16 +1140,18 @@ class TermView(Gtk.DrawingArea):
                 # Pango (P9): layout de verdade, com shaping e fallback de
                 # fonte; `cr.move_to` na quina da célula e o layout desenha a
                 # partir dali (a linha de base sai do ascent do próprio layout)
-                # cache por texto e peso: `set_text` é o caro do layout, e um
-                # run se repete muito (fundo do mesmo tom, app parado). Teto
-                # para não crescer sem limite em dump de texto.
-                cache = self._layouts[bold]
+                # cache por texto, peso e estilo: `set_text` é o caro do
+                # layout, e um run se repete muito (fundo do mesmo tom, app
+                # parado). Teto para não crescer sem limite em dump de texto.
+                # O índice da tabela é (negrito, itálico) em 4 slots: o run já
+                # carrega os dois, então não há tupla para alocar (P37).
+                cache = self._layouts[(1 if bold else 0) | (2 if italic else 0)]
                 ent = cache.get(txt)
                 if ent is None:
                     if len(cache) > 800:
                         cache.clear()
                     lay = self.new_layout(cr)
-                    lay.set_attributes(self.text_attrs(bold))
+                    lay.set_attributes(self.text_attrs(bold, italic))
                     lay.set_text(txt, -1)
                     # guardar a linha e a baseline junto: show_layout_line
                     # custa ~17% menos que show_layout e sai idêntico (P25).
@@ -1020,8 +1170,10 @@ class TermView(Gtk.DrawingArea):
                     cr.move_to(x * cw, ypx + base)
                     PangoCairo.show_layout_line(cr, line)
                 if ul:
-                    cr.rectangle(x * cw, ypx + ch - 2, (j - x) * cw, 1)
-                    cr.fill()
+                    self._underline(cr, x * cw, ypx, (j - x) * cw, ch, ul_style(ul))
+        # Ctrl apertado: sublinha todo hyperlink da tela (é o convite ao clique)
+        if self._ctrl:
+            self._draw_links(cr, rows, cw, ch, row_lo, row_hi, col_lo, col_hi)
         # imagens do protocolo de gráficos (P6), por cima do texto e abaixo
         # do cursor — é onde o kitty põe
         for pl in t.graphics.placements:
@@ -1053,6 +1205,10 @@ class TermView(Gtk.DrawingArea):
             cr.set_source_surface(surf, 0, 0)
             cr.paint()
             cr.restore()
+
+        # barra de rolagem sobre a última coluna: por cima do texto, abaixo do
+        # cursor — e só existe quando há histórico
+        self._draw_scrollbar(cr, t)
 
         # cursor — só no vivo: no histórico o cursor do app não está ali
         forma = self._cursor_draw()
@@ -1131,8 +1287,25 @@ class TermView(Gtk.DrawingArea):
     def on_button_press(self, widget, ev):
         t = self.term
         self._state = ev.state
+        # `Clipboard.store()` roda um laço aninhado no X e o MESMO press volta
+        # ao widget: hora e coordenada idênticas são o mesmo evento, não um
+        # segundo clique (senão o duplo clique pulava direto para o triplo).
+        if ev.time == self._press_time and (ev.x, ev.y) == self._press_xy:
+            return True
+        self._press_time, self._press_xy = ev.time, (ev.x, ev.y)
         col, row = self.cell_at(ev.x, ev.y)
         btn = mouse.GDK_BUTTONS.get(ev.button)
+        sb = self.scrollbar_rect()
+        if sb and ev.button == 1 and ev.x - self.padding >= sb[0]:
+            # a barra é do terminal, não do app: vem antes do report de mouse
+            self._sb_drag = True
+            self.scroll_to_y(ev.y - self.padding)
+            return True
+        if ev.button == 1 and ev.state & Gdk.ModifierType.CONTROL_MASK:
+            # Ctrl+clique no hyperlink: abre no navegador e não seleciona
+            uri = self._cell_uri(row, col)
+            if uri and self.open_link(uri):
+                return True
         if t.mouse_mode and btn is not None:
             # o app quer saber do mouse: nada de seleção local. Ele desenha o
             # vivo, então o clique no histórico não significa nada para ele —
@@ -1142,6 +1315,16 @@ class TermView(Gtk.DrawingArea):
             self.report_mouse(btn, col, row, True)
             return True
         if ev.button == 1:
+            # duplo clique = palavra, triplo = linha lógica (inclusive a que
+            # quebrou mole): o clique conta por tempo e mesma célula, como no
+            # resto do desktop; 400 ms cobre o duplo clique de quem digita
+            c0, b0, r0, k0 = self._click
+            same = b0 == 1 and (r0, k0) == (row, col) and ev.time - c0 <= CLICK_MS
+            self._click = (ev.time, 1, row, col)
+            self._click_n = min(3, self._click_n + 1) if same else 1
+            if self._click_n > 1:
+                self._pick(self._click_n, row, col)
+                return True
             # seleção só nasce com arrasto: um clique não pode pintar a célula
             # nem sobrescrever o PRIMARY com 1 caractere. E clicar no histórico
             # NÃO volta pro vivo: o arrasto é justamente para copiar dali (B16)
@@ -1160,6 +1343,9 @@ class TermView(Gtk.DrawingArea):
         t = self.term
         self._state = ev.state
         col, row = self.cell_at(ev.x, ev.y)
+        if self._sb_drag:
+            self._sb_drag = False
+            return True
         if t.mouse_mode and self._held is not None:
             self.report_mouse(self._held, col, row, False)
             self._held = None
@@ -1179,9 +1365,29 @@ class TermView(Gtk.DrawingArea):
             return True
         return False
 
+    def _pick(self, kind, row, col):
+        """Seleciona e copia por clique: 2 = palavra, 3 = linha lógica."""
+        t = self.term
+        line = t.scrolled - self.view_off + row
+        if kind == 2:
+            first, last = t.word_span(line, col)
+            start, end = (line, first), (line, last)
+        else:
+            start, end = t.logical_line_span(line)
+        self.sel_start = CellAnchor(start[0], start[1], t.abs_gen)
+        self.sel_end = CellAnchor(end[0], end[1], t.abs_gen)
+        self.dragging = False  # o release não pode desfazer nem recopiar
+        self.copy(Gdk.SELECTION_PRIMARY)
+        if self.copy_on_select:
+            self.copy(Gdk.SELECTION_CLIPBOARD)
+        self.queue_draw()
+
     def on_motion(self, widget, ev):
         t = self.term
         self._state = ev.state
+        if self._sb_drag:
+            self.scroll_to_y(ev.y - self.padding)
+            return True
         if self.dragging:
             col, row = self.cell_at(ev.x, ev.y)
             if self.sel_start is None:
@@ -1268,6 +1474,8 @@ class TermView(Gtk.DrawingArea):
         ctrl = bool(ev.state & Gdk.ModifierType.CONTROL_MASK)
         shift = bool(ev.state & Gdk.ModifierType.SHIFT_MASK)
         kv = ev.keyval
+        if kv in (Gdk.KEY_Control_L, Gdk.KEY_Control_R):
+            self._set_ctrl(True)
         # Ctrl+Shift+C/V são do terminal, não do app (senão Ctrl+Shift+C
         # virava o mesmo ^C de Ctrl+C e matava o processo)
         if ctrl and shift and kv in (Gdk.KEY_c, Gdk.KEY_C):
@@ -1302,6 +1510,8 @@ class TermView(Gtk.DrawingArea):
 
     def on_key_release(self, widget, ev):
         """Só existe release com a flag `report event types` (P5)."""
+        if ev.keyval in (Gdk.KEY_Control_L, Gdk.KEY_Control_R):
+            self._set_ctrl(False)
         if not (self.term.kbd_flags & 2):
             return False
         out, _, handled = encode_key(

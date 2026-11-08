@@ -17,8 +17,21 @@ import tempfile
 import zlib
 
 from . import kitty_kbd, mouse, shortcut, state, style
-from .palette import DEF_BG, DEF_FG, FG_DEFAULT, cell_rgb, rgb
-from .term import Term
+from .palette import (
+    BOLD,
+    DEF_BG,
+    DEF_FG,
+    FG_DEFAULT,
+    ITALIC,
+    UL,
+    UL_CURLY,
+    UL_DOUBLE,
+    UL_SINGLE,
+    cell_rgb,
+    rgb,
+    ul_style,
+)
+from .term import Term, link_allowed
 
 
 def _row_text(row):
@@ -53,6 +66,33 @@ def sgr_and_erasing():
     t = Term()
     t.feed("abc\x1b[2Jx")
     assert (t.row_text(0)[0], (t.cx, t.cy)) == ("x", (1, 0))
+
+
+def sgr_italic_and_underline_styles():
+    """SGR 3/23 (itálico) e 4:n (estilo do sublinhado), sem confundir 4:3 com 4;3."""
+    t = Term()
+    t.feed("\x1b[3m")
+    assert t.flags & ITALIC
+    t.feed("\x1b[23m")
+    assert not t.flags & ITALIC
+    # 4:n é estilo; 4;3 é "sublinhado simples + itálico" — o mesmo texto
+    t = Term()
+    t.feed("\x1b[4:2m")
+    assert (t.flags & UL, ul_style(t.flags)) == (UL, UL_DOUBLE)
+    t.feed("\x1b[4:3m")
+    assert ul_style(t.flags) == UL_CURLY
+    t.feed("\x1b[4m")
+    assert ul_style(t.flags) == UL_SINGLE  # 4 volta ao simples
+    t.feed("\x1b[24m")
+    assert not t.flags & UL
+    t.feed("\x1b[4;3m")
+    assert (t.flags & UL, ul_style(t.flags), bool(t.flags & BOLD)) == (UL, UL_SINGLE, False)
+    assert t.flags & ITALIC
+    # a célula carrega o estilo (é o que o desenho lê)
+    t = Term()
+    t.feed("\x1b[3;4:4mX")
+    assert t.grid[0][0][3] & ITALIC
+    assert ul_style(t.grid[0][0][3]) == 3  # pontilhado
 
 
 def alt_screen_and_scroll():
@@ -551,6 +591,23 @@ def selection_follows_history():
     assert not v.anchor_alive(g)
 
 
+def hyperlinks():
+    """OSC 8: o URI mora na célula, repetido reusa o índice, e o clique tem whitelist."""
+    t = Term()
+    t.feed("\x1b]8;;https://example.com\x1b\\A\x1b]8;;\x1b\\B")
+    assert t.link_of(t.grid[0][0]) == "https://example.com"
+    assert t.link_of(t.grid[0][1]) is None  # URI vazio fecha o link
+    t.feed("\x1b]8;;https://example.com\x1b\\C")
+    assert t.links == ["https://example.com"]  # internado, não duplicado
+    assert t.link_of(t.grid[0][2]) == "https://example.com"
+    assert link_allowed("https://x/y") and link_allowed("MAILTO:a@b")
+    assert not link_allowed("javascript:alert(1)")
+    assert not link_allowed("data:text/html,<script>")
+    # CSI 3J apaga o histórico e a tabela: não sobra índice apontando pra nada
+    t.feed("\x1b[3J")
+    assert (t.links, t.link) == ([], 0)
+
+
 # -- mouse, seleção e colagem (P1/P7) ----------------------------------
 def mouse_modes_and_sgr():
     """Modos de mouse e a codificação SGR/X10."""
@@ -560,6 +617,24 @@ def mouse_modes_and_sgr():
     assert mouse.encode(mouse.LEFT, 0, 0, True, sgr=True) == "\x1b[<0;1;1M"
     assert mouse.encode(mouse.LEFT, 4, 2, False, sgr=True) == "\x1b[<0;5;3m"
     assert mouse.encode(mouse.LEFT, 0, 0, True) == ("\x1b[M" + chr(32) + chr(33) + chr(33))
+
+
+def double_and_triple_click():
+    """Duplo clique: palavra até o espaço; triplo: linha lógica (soft-wrap incluso)."""
+    t = Term()
+    t.feed("foo bar/baz.txt   \r\n")
+    assert t.word_span(0, 0) == (0, 2)  # foo
+    assert t.word_span(0, 5) == (4, 14)  # o caminho inteiro, não só até a barra
+    # o espaço da direita da linha não é palavra: clicar nele pega a última
+    assert t.word_span(0, 16) == (4, 14)
+    assert Term().word_span(0, 3) == (0, 0)  # linha em branco
+    # linha lógica: a linha de 80 colunas que encheu e continuou na de baixo
+    t = Term()
+    t.feed("x" * 85 + "  tail   ")
+    assert t.row_wrapped[0]
+    assert t.line_span(1) == (0, 1)
+    assert t.logical_line_span(1) == ((0, 0), (1, 10))  # sem o espaço da direita
+    assert t.line_span(2) == (2, 2)  # linha sozinha não puxa vizinha
 
 
 def selection():
@@ -845,6 +920,7 @@ def debug_socket():
 ALL = (
     parser_text_and_cursor,
     sgr_and_erasing,
+    sgr_italic_and_underline_styles,
     alt_screen_and_scroll,
     charset_and_replies,
     csi_with_intermediate,
@@ -865,6 +941,8 @@ ALL = (
     redraw_keeps_history_position,
     mouse_modes_and_sgr,
     selection,
+    double_and_triple_click,
+    hyperlinks,
     paste_markers,
     truecolor,
     style_contrast,

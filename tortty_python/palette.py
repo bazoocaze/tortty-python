@@ -2,7 +2,9 @@
 
 Célula é [char, fg, bg, flags]: fg/bg são índice xterm (0-255, 256=fg
 default, 257=bg default) ou, no truecolor, o RGB marcado no bit 24 (ver
-`rgb()`/`cell_rgb()`); flags é bitmask (BOLD/UL/INV).
+`rgb()`/`cell_rgb()`); flags é bitmask (BOLD/UL/INV/ITALIC, mais o estilo do
+sublinhado). Uma célula com hyperlink OSC 8 carrega um quinto campo com o
+índice do URI em `Term.links` — só ele, para o caminho quente não pagar nada.
 
 Puro dado: sem GTK e sem estado de sessão, então isto pode ser importado por
 um teste de parser em máquina sem PyGObject.
@@ -11,9 +13,31 @@ um teste de parser em máquina sem PyGObject.
 # ---------------------------------------------------------------- grade ---
 
 # célula: [char, fg, bg, flags]  (fg/bg: 0-15, 256=default fg, 257=default bg)
-# flags: 1=bold 2=underline 4=inverse
+# flags: 1=bold 2=underline 4=inverse 8=italic
 DEF_FG, DEF_BG = 256, 257
-BOLD, UL, INV = 1, 2, 4
+BOLD, UL, INV, ITALIC = 1, 2, 4, 8
+
+# Estilo do sublinhado (SGR 4:n) nos bits 4-6: 0 simples, 1 duplo, 2 curvo,
+# 3 pontilhado, 4 tracejado. `UL` continua dizendo só "tem sublinhado".
+UL_SHIFT = 4
+UL_MASK = 7 << UL_SHIFT
+UL_SINGLE, UL_DOUBLE, UL_CURLY, UL_DOTTED, UL_DASHED = 0, 1, 2, 3, 4
+
+
+def ul_off(flags):
+    """Flags sem sublinhado nem estilo (SGR 24)."""
+    return flags & ~(UL | UL_MASK)
+
+
+def ul_on(flags, style=UL_SINGLE):
+    """Flags com sublinhado no estilo dado (SGR 4 e SGR 4:n)."""
+    return (flags & ~UL_MASK) | UL | (style << UL_SHIFT)
+
+
+def ul_style(flags):
+    """Estilo do sublinhado da célula (só tem sentido com `flags & UL`)."""
+    return (flags >> UL_SHIFT) & 7
+
 
 # Truecolor (P4): o RGB mora na própria célula, sem tabela de cores alocadas.
 # O bit 24 marca "isto é RGB" — os índices de paleta (0-255) e as sentinelas
