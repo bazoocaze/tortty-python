@@ -1,21 +1,7 @@
-# pybzmux — backlog (pending)
+# TorTTY-Python — backlog (pending)
 
-Queue rules:
-
-- Recording is just recording: the investigation (read code, measure, reproduce)
-  happens when the item is executed, not when it is noted. The note carries what
-  the request already brought — symptom, and whatever comes for free along the
-  way — and stops there; no full diagnosis, root cause or closed plan ahead of
-  time. An item already recorded is not rewritten to fit this rule.
-- When closing an item: move it to the end of "Completed backlog" in
-  [HISTORY.md](HISTORY.md), with the bug that showed up on the way and how it was
-  verified.
-- A bug fixed outside an item goes into the numbered bug list of HISTORY.md; the
-  quirk, if it is an environment or tooling pitfall, goes to
-  [DEBUG.md](DEBUG.md).
-- Deciding NOT to do something goes to [LIMITATIONS.md](LIMITATIONS.md), not
-  here; if the limitation ceases to exist, it leaves there and becomes a
-  completed item in HISTORY.
+Current and future activities. Id `P<n>`.
+Completed activities do not stay here; they must go to `HISTORY.md`.
 
 P26 — Drawing: `cr.show_glyphs` with precomputed glyphs. **Experiment, not a
 commitment.** It is the only path that really attacks the emission cost:
@@ -70,9 +56,10 @@ What exists:
 - `bzmux/config.py` pure (no `gi`): parse of the kitty format (`chave valor`,
   `#` comments to the end of the line, leading/trailing space, repeated key the
   last one wins), validation per key and merge **always** with the default;
-- default embedded in `bzmux/data/bzmux.conf` (goes in the wheel like the icon);
-- user file at `$XDG_CONFIG_HOME/bzmux/bzmux.conf`, and `-c ARQ` /
-  `--config ARQ` changes only that path (the merge with the default continues);
+- default embedded in `bzmux/data/tortty-python.conf` (goes in the wheel like
+  the icon);
+- user file at `$XDG_CONFIG_HOME/tortty-python/tortty-python.conf`, and `-c FILE` /
+  `--config FILE` changes only that path (the merge with the default continues);
 - `shell` (empty in the default) becomes the command of each new tab; `--cmd`
   wins. Empty inherits the environment's `$SHELL`, and the `$SHELL` handed to
   the child is always the shell that actually runs (before, the inherited one

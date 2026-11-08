@@ -1,4 +1,4 @@
-# pybzmux — development: tooling, verification and pitfalls
+# TorTTY-Python — development: tooling, verification and pitfalls
 
 Operational manual: read the first section before running any tool in the
 graphical session.
@@ -70,8 +70,8 @@ In `tools/`, with the system python3 (`python3-xlib` 0.33 and gi installed).
 ## Verification with a window
 
 ```
-./debug.sh --debug-socket auto              # log to /tmp/bzmux.log + socket
-printf '{"cmd": "text"}\n' | nc -N -U /run/user/$UID/bzmux-*.sock  # the screen
+./debug.sh --debug-socket auto              # log to /tmp/tortty-python.log + socket
+printf '{"cmd": "text"}\n' | nc -N -U /run/user/$UID/tortty-python-*.sock  # the screen
 python3 tools/xtest.py key ctrl+shift+n     # new workspace (the app consumes it)
 python3 tools/xtest.py dclick 60 28         # double click on card 1
 ```
@@ -85,7 +85,7 @@ A test script ends with `{"cmd": "quit"}` instead of `sleep` +
   shows, with `view_off`), `screen` (live grid) or `history` (scrollback by
   absolute line). The `SIGUSR1` dump and `--dump-to` still exist for when there
   is no socket, and they are of the LIVE grid: checking scroll by them gives a
-  false negative (the offset only shows up in the `(histórico +N)` header).
+  false negative (the offset only shows up in the `(scrollback +N)` header).
 - Pixel still requires a capture: `state` returns the window `xid`, so
   `import -window $(...)` no longer depends on hunting the ID through
   `_NET_WM_PID`.
@@ -105,7 +105,7 @@ Environment variable at run time (no code change):
 - `NOPARSE=1` — reads the pty and discards it (isolates the IO).
 - `GEOM=980x640` — locks the window size (otherwise the WM opens 80x24).
 - `GEOMLOG=1` — every configure: client, frame and frame extents.
-- `SCROLLLOG=ARQ` — chunk that scrolls more than half a screen (jump/top/
+- `SCROLLLOG=FILE` — chunk that scrolls more than half a screen (jump/top/
   bottom/alt-screen + raw bytes).
 
 `PROF` decomposes throughput, `NODRAW`/`NOPARSE` cut one side off. Ladder and
@@ -134,8 +134,8 @@ configuration too (`config`, `errors`), in place of the old `CONFLOG`.
 
 One JSONL line per event, with local `ts` in ms:
 
-- `debug_log /tmp/bzmux.debug.log` in the configuration (default); `off` turns
-  it off; `--debug-log ARQ` on the command line beats the configuration; reload
+- `debug_log /tmp/tortty-python.debug.log` in the configuration (default); `off` turns
+  it off; `--debug-log FILE` on the command line beats the configuration; reload
   applies.
 - `2026` — `sync_output` transition, with `on`, `v`, `pin`, `sb`, `scr`,
   `gen`; at close it carries `ms` (region duration, `time.monotonic`).
@@ -149,7 +149,7 @@ One JSONL line per event, with local `ts` in ms:
 
 ## Introspection socket (`--debug-socket`)
 
-Tool for the agent, off by default: `--debug-socket ARQ`, or `auto` = file with
+Tool for the agent, off by default: `--debug-socket FILE`, or `auto` = file with
 the pid in `$XDG_RUNTIME_DIR`. File at `0600` and only the same uid connects;
 when it opens, the window shows a security warning toast with the socket path.
 

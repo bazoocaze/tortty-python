@@ -1,4 +1,4 @@
-# pybzmux — graphical portability (P30)
+# TorTTY-Python — graphical portability (P30)
 
 Open study: running on Linux, Windows and macOS. Item in the queue:
 [BACKLOG.md](BACKLOG.md). Platform limits already accepted:

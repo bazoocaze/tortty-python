@@ -1,13 +1,8 @@
-# pybzmux — limits
+# TorTTY-Python — limits
 
-What pybzmux does **not** do, and why. Separate from the backlog (which is a
-work queue, in [BACKLOG.md](BACKLOG.md)): only what is a decision
-or an accepted consequence of scope goes in here. If something on this list
-becomes a task, it leaves here and becomes an item there.
-
-Each line states the limit, the reason and the practical consequence. Format
-designed for grep lookup, not for continuous reading. Project overview:
-[../README.md](../README.md). Measurement numbers: [BENCHMARKS.md](BENCHMARKS.md).
+Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
+(`P<n>`); here the id is `L<n>`. Limitations already overcome must leave here and
+go to `HISTORY.md` (probably through a `BACKLOG` activity).
 
 ## Performance (the cost of the path in Python)
 

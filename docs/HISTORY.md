@@ -1,40 +1,6 @@
-# bzmux — history
+# TorTTY-Python — history
 
-Project memory: completed backlog, fixed bugs and git.
-It is not a task. Pending items: [BACKLOG.md](BACKLOG.md). What is not done and
-why: [LIMITATIONS.md](LIMITATIONS.md). Architecture and conventions:
-[../AGENTS.md](../AGENTS.md). Measurements: [BENCHMARKS.md](BENCHMARKS.md). Tools
-and pitfalls: [DEBUG.md](DEBUG.md).
-
-## Conventions
-
-- Project conventions: [../AGENTS.md](../AGENTS.md). The ones here are about what
-  gets recorded, not about the code.
-- Concise, and the detail stays where it already is: path and function touched,
-  new signature, test added, order of attempts and diff are in the code and in
-  `git log`. The item keeps only what the memory needs.
-- What stays: the decision and the why, the discarded alternative, the pitfall
-  that must not be rediscovered, the bug (cause in one sentence, fix in one
-  sentence) and how it was proven to work.
-- Verification is the observation, not the command: "the dump showed 5 lines",
-  and not the shell line that produced the dump — the command lives in DEBUG.md.
-- Bug: cause and fix in one sentence each. The sequence of attempts is not a
-  regression; if the path teaches a pitfall, it goes to DEBUG.md.
-- A measurement number does not live here (it goes to BENCHMARKS.md). Exception:
-  the number of the day the item closed, as a dated record.
-- A closed item fits in ~10 lines. Going past that is a sign it is retelling the
-  code.
-- Format: title `### Pn — subject (date)`, short paragraphs or list, `code`
-  for path, symbol and value. Bold only on the title status; no table.
-- It applies to what comes from here on. An old item is not rewritten just to
-  fit this rule.
-
-## Completed backlog
-
-Order of execution, not of priority. Each item keeps what was implemented, the
-bug found along the way and how it was verified — it serves as regression: if
-the behavior described here changes, a check is missing or the code regressed.
-Open: BACKLOG.md.
+Concise history of past activities. Maximum of 10 lines per activity.
 
 ### P1 — Mouse (report to apps + selection/copy) — **done**
 
@@ -241,8 +207,8 @@ forever.
 - **Drain before closing**: `_drain_pty()` reads until `EAGAIN` (the fd is
   non-blocking) with a cap of 64 reads, feeding the `Term` — otherwise
   `dump()`/the last screen came out without the shell's goodbye.
-- **Exit code**: non-zero goes to stderr (`bzmux: shell saiu com código 3`),
-  which `debug.sh` stores in `/tmp/bzmux.log`.
+- **Exit code**: non-zero goes to stderr (`pybzmux: shell exited with code 3`),
+  which `debug.sh` stores in `/tmp/tortty-python.log`.
 - **Hangup**: `os.killpg(child_pid, SIGHUP)` on closing (the `pty.fork` made the
   child a session leader), so background jobs do not stay orphaned holding the
   pty.

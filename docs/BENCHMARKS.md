@@ -63,7 +63,7 @@ python3 tools/doomfire.py --fps 0 --frames 1200 --stats-to /tmp/x.txt
 
 - `--fps N` — fixed pace; `0` lets go and the terminal is what limits.
 - `--frames N` — stops after N frames; `0` (default) goes until Ctrl+C.
-- `--stats-to ARQ` — statistics to a file (`-`, default, goes to stderr).
+- `--stats-to FILE` — statistics to a file (`-`, default, goes to stderr).
 - `--fps 0 --stats-to` is the measurement mode: the fps reached is the terminal
   throughput, and the file avoids depending on reading the screen.
 - Grid = terminal size (`cols × lines`, buffer of `cols × 2·lines`
@@ -400,13 +400,13 @@ PYTERM_NOPARSE=1 PYTERM_NODRAW=1 PYTERM_PROF=1 ./run.sh --cmd 'python3 \
   as a number.
 - `PYTERM_PROF=1` turns on counters in `TermView` (`bzmux/view.py`): time and
   number of calls of `on_pty` (parse) and `on_draw` (drawing), on stderr (soon, in
-  the `/tmp/bzmux.log` of `debug.sh`) when the session closes. Without the variable
+  the `/tmp/tortty-python.log` of `debug.sh`) when the session closes. Without the variable
   the code does nothing (only the `if not _PROF` at the entry).
 
 ```
 PYTERM_PROF=1 ./debug.sh --cmd 'python3 tools/doomfire.py --fps 0 \
     --frames 300 --stats-to /tmp/df.txt'
-grep prof: /tmp/bzmux.log
+grep prof: /tmp/tortty-python.log
 # prof: draw 821x 22.67ms/call (18610ms) | pty 4102x 4.22ms/call (17314ms)
 ```
 
@@ -448,7 +448,7 @@ kitty --override remember_window_size=no --override initial_window_width=980 \
 - The pybzmux default window is 980×640, which gives 70×21 with one workspace and
   57×21 with two: opening or closing the sidebar changes the grid and the fps, so
   compare with the same number of workspaces.
-3. `--fps 0 --frames 1200 --stats-to ARQ` in both.
+3. `--fps 0 --frames 1200 --stats-to FILE` in both.
 4. Compare fps and MB/s (the bytes/frame varies a bit with the escape size).
 
 ## How to know it is drawing

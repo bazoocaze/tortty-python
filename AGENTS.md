@@ -36,8 +36,10 @@ All are written for agent reading; only README.md is for humans.
   and graphical stack disk), the comparison protocol and the pitfalls
   (includes the governor). The other docs cite the fact and link; they do not
   repeat values.
-- README.md — view for humans: how to run, tools, environment, what
-  works, limits, measurement, license.
+- docs/FEATURES.md — what works today: the feature list (the README points
+  here).
+- README.md — view for humans: how to run, install, environment, configuration,
+  limits, measurement, license.
 
 Each file above is indexed in one line (what it is, when to use it); the detail
 lives in it, not here.
@@ -88,8 +90,8 @@ The bzmux/ package installs the `pybzmux` command and also runs as
 - bzmux/config.py — configuration (kitty key/value); pure, merge w/ default
 - bzmux/debugsock.py — Unix introspection socket (P35): pure dispatch + GLib
   glue; only with `--debug-socket`, verbs in docs/DEBUG.md
-- bzmux/data/ — bzmux.svg (icon source; installs as pybzmux.svg) and
-  bzmux.conf (embedded default options)
+- bzmux/data/ — tortty-python.svg (icon) and tortty-python.conf (embedded
+  default options)
 - tests/ — pytest runner for bzmux/checks.py
 - tools/xtest.py, tools/pixel.py — manual test, requires X11
 - tools/doomfire.py — measurement load, not a test
@@ -126,16 +128,16 @@ graphical stack are an initial choice, revisable by requirement
 ## Configuration
 
 Key/value in kitty format (`#` comments). The user file is
-$XDG_CONFIG_HOME/bzmux/bzmux.conf (the -c FILE switches it) and is always merged
-over the default embedded in bzmux/data/bzmux.conf.
+$XDG_CONFIG_HOME/tortty-python/tortty-python.conf (the -c FILE switches it) and
+is always merged over the default embedded in bzmux/data/tortty-python.conf.
 
 - Valid keys and ranges live in bzmux/config.py (CHECKS); the default values,
-  in bzmux/data/bzmux.conf. The ones that most change day to day: font_size (in
+  in bzmux/data/tortty-python.conf. The ones that most change day to day: font_size (in
   points, not px), scrollback, cursor_shape.
 - Empty `shell` (the default) inherits the environment `$SHELL`;
   `config.tab_command` decides (tab command, child `$SHELL`) and `--cmd` does
   not touch `$SHELL`.
-- `debug_log` (default /tmp/bzmux.debug.log, `off` disables it; `--debug-log
+- `debug_log` (default /tmp/tortty-python.debug.log, `off` disables it; `--debug-log
   FILE` wins over the configuration) is the JSONL log of `?2026` — events,
   fields and usage in docs/DEBUG.md.
 - Editing with the app open applies immediately. Error is per line: on the
@@ -149,7 +151,7 @@ over the default embedded in bzmux/data/bzmux.conf.
   bump, not every commit. A docs, test or one-off adjustment commit does not
   bump. It is the single source: `pyproject.toml` reads from there (hatch) and
   `--version` shows it.
-- Texts, descriptions and comments concise; they may be in Portuguese.
+- Texts, descriptions and comments concise and in English.
 - Filenames and symbols in the code (functions, variables, classes, constants)
   in English.
 - Docstrings and comments in the code: at most one line.
