@@ -52,6 +52,13 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
 - **24-bit truecolor** (`38;2;r;g;b`/`48;2;…`, and the form with `:`): the RGB
   stays in the cell marked in bit 24, with no allocated color table — `vim` with
   `termguicolors`, `bat`, gradients in text come out with the exact color.
+- **Configurable palette** (19 keys: `foreground`, `background`,
+  `cursor_color`, `color0..15`, in `#RGB`/`#RRGGBB`): the factory values are
+  the classic xterm palette (mc, htop and `ls --color` were calibrated on it),
+  and the file that ships with the program documents all of them. `OSC 4`
+  redefines an entry **of that tab's own palette** (0..15), `OSC 10/11/12` set
+  foreground, background and cursor, and `104`/`110`/`111`/`112` go back to the
+  configured value.
 - **Drawing** with cairo + Pango: runs grouped by attributes, bold,
   underline, inverse, block cursor, real shaping (connected Arabic,
   combinations) and font fallback (CJK, color emoji).

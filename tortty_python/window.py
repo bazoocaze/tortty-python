@@ -155,6 +155,7 @@ class Workspace:
             cursor_blink=self.win.cursor_blink,
             copy_on_select=self.win.copy_on_select,
             scrollback=self.win.config.scrollback,
+            colors=self.win.config.colors,  # P49: as 19 chaves da configuração
             on_exit=self.on_view_exit,
             on_title=self.on_view_title,
             on_bell=self.win.on_view_bell,

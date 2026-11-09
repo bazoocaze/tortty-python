@@ -272,8 +272,12 @@ def config_options():
     from . import config
 
     # o default embarcado documenta TODAS as chaves, com os valores de fábrica
+    # (as 19 de cor repetem o palette.py — o guard está no palette_config)
     emb = {e.key: e.value for e in config.parse(config.DATA.read_text())}
-    assert emb == config.DEFAULTS
+    assert {k: v for k, v in emb.items() if k not in config.COLOR_KEYS} == {
+        k: v for k, v in config.DEFAULTS.items() if k not in config.COLOR_KEYS
+    }
+    assert {k for k in emb if k in config.COLOR_KEYS} == set(config.COLOR_KEYS)
     d = tempfile.mkdtemp()
     p = os.path.join(d, "tortty_python.conf")
     # sem arquivo do usuário valem os padrões, chave a chave
@@ -777,6 +781,57 @@ def ligature_config():
     assert "liga=0" in config.LIGATURE_FEATURES["off"]
 
 
+def palette_config():
+    """P49: `#RRGGBB` na config, tema por aba e OSC 4/10/104/110 no Term."""
+    from . import config, palette
+
+    # parse da config: #RRGGBB e #RGB; o que não é cor vira erro de linha
+    assert palette.parse_color("#d6d6d6") == 0xD6D6D6
+    assert palette.parse_color("#fff") == 0xFFFFFF
+    assert palette.parse_color("d6d6d6") is None
+    assert palette.parse_color("#12345") is None
+    # cor de OSC: rgb:r/g/b (1/2/4 dígitos, 4 = byte duplicado, como o xterm)
+    assert palette.parse_osc_color("rgb:ff/80/00") == 0xFF8000
+    assert palette.parse_osc_color("rgb:ffff/0/0000") == 0xFF0000
+    assert palette.parse_osc_color("rgb:zz/0/0") is None
+    assert palette.parse_osc_color("nada") is None
+    # o default embarcado repete o palette.py: se um dos lados mudar, isto falha
+    emb = {e.key: e.value for e in config.parse(config.DATA.read_text())}
+    assert palette.int_rgb(palette.parse_color(emb["foreground"])) == palette.FG_DEFAULT
+    assert palette.int_rgb(palette.parse_color(emb["background"])) == palette.BG_DEFAULT
+    for i in range(16):
+        c = palette.parse_color(emb["color%d" % i])
+        assert palette.int_rgb(c) == palette.PALETTE[i]
+    # tema: base = padrão; config sobrepõe; OSC 4 entra por cima e o 104 volta
+    th = palette.Theme()
+    assert th.color(1) == palette.PALETTE[1]
+    th.apply_colors({"color1": 0x112233, "foreground": 0x445566})
+    assert th.color(1) == (0x11, 0x22, 0x33)
+    assert th.rgb_f(palette.DEF_FG) == (0x44 / 255, 0x55 / 255, 0x66 / 255)
+    th.set_osc4(1, (9, 9, 9))
+    assert th.color(1) == (9, 9, 9)
+    th.reset_osc4([1])
+    assert th.color(1) == (0x11, 0x22, 0x33)  # volta para a base da config
+    # o Term escreve no próprio tema (a paleta é por aba) e responde a consulta
+    t = Term(cols=10, rows=5)
+    t.feed("\x1b]4;1;#123456\x07")
+    assert t.theme.color(1) == (0x12, 0x34, 0x56)
+    t.child_out = b""
+    t.feed("\x1b]4;1;?\x07")
+    assert b"rgb:1212/3434/5656" in bytes(t.child_out)
+    t.feed("\x1b]4;20;#ffffff\x07")  # só 0..15, como o Rust
+    assert t.theme.osc4.get(20) is None
+    # frente define, cursor também, e o 110 volta para o valor da configuração
+    t.feed("\x1b]10;#010203\x07")
+    t.feed("\x1b]12;#aabbcc\x07")
+    assert t.theme.fg == (1, 2, 3) and t.theme.cursor == (0xAA, 0xBB, 0xCC)
+    t.feed("\x1b]110\x07")
+    assert t.theme.fg == palette.FG_DEFAULT
+    # 104;1 devolve só a entrada para a base
+    t.feed("\x1b]104;1\x07")
+    assert t.theme.color(1) == palette.PALETTE[1]
+
+
 def style_contrast():
     """O cromo da janela: texto claro em fundo escuro, com contraste medido.
 
@@ -1047,6 +1102,7 @@ ALL = (
     truecolor,
     style_contrast,
     ligature_config,
+    palette_config,
     notifications,
     pixel_mouse,
     wheel_notches,

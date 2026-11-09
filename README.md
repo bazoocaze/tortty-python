@@ -137,6 +137,10 @@ window_padding_width 0     # margin around the grid, in px
 bell none                  # none, visual (marks the tab) or audible
 copy_on_select off         # mouse selection already goes to the clipboard
 debug_log /tmp/tortty-python.debug.log  # debug JSONL log; off turns it off
+foreground #d6d6d6        # the 19 terminal colors (#RGB/#RRGGBB): foreground,
+background #000000        # background, cursor_color and color0..color15 —
+cursor_color #d6d6d6      # factory values are the classic xterm palette
+color0..color15           # (all of them documented in data/tortty-python.conf)
 ```
 
 Editing the file with the app open applies right away. Error is per line: at
@@ -151,7 +155,7 @@ Full list, with the reason for each one and what breaks in practice, in
 [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). In summary: no rectangular
 selection, graphics without animation/z-index, wide character occupying a
 single cell (no `wcwidth`), partial kitty keyboard protocol, no search in the
-scrollback and no configurable theme/palette. They are choices — none of them is
+scrollback and no shortcut remapping. They are choices — none of them is
 a consequence of being Python, and the ones that annoy in use become backlog
 items.
 

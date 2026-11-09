@@ -85,16 +85,8 @@ tools and pitfalls in [DEBUG.md](DEBUG.md).
 
 What remains is a known limitation, not an item — wide character (CJK/emoji)
 occupying a single cell, partial kitty keyboard protocol, uninterpreted
-sequences, no configurable theme/palette — all in
+sequences, no configurable chrome (`style.py`) — all in
 [LIMITATIONS.md](LIMITATIONS.md).
-
-P49 — Configurable palette: `foreground`, `background`, `cursor_color` and
-`color0..15`, plus `OSC 4` setting a palette entry. **Feature.** Request: the
-terminal colors come from `palette.py` fixed in the code today
-([LIMITATIONS.md](LIMITATIONS.md)); the kitty format with `#rrggbb` fits the
-existing config (P33/P34 machinery: validation per key, merge, hot reload), and
-`OSC 4` goes from query-only to set. Trap already known in the Rust
-(`config.rs`): a `#` that **opens** the value is a colour, not a comment.
 
 P50 — Session restore: the workspaces, the tabs and the cwd of each shell come
 back on the next run. **Feature.** Request: closing the window today loses the

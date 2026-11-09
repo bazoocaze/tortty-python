@@ -52,8 +52,6 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
   `? 6` (origin mode), `? 3` (80/132), `DECDHL`/`DECDWL` (double line) do not.
 - **No `REP`** (`CSI b`), no `DECSTR` (`CSI ! p`) and no `HTS`/`TBC` (tab stop
   is fixed in steps of 8).
-- **No palette double buffering**: `OSC 4` only answers a query; it does not
-  redefine a palette entry, and `OSC 104/110/111` (reset) are ignored.
 
 ## OSC (what is not served)
 
@@ -133,12 +131,13 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
 - **Window position is only remembered on X11**: on Wayland the client does not
   choose where the window sits, so the state file stores only size and
   maximized. It is not a lack of code, it is the protocol.
-- **No configurable theme or palette**: the configuration file (P33/P34)
-  covers font, size, cursor, scrollback, padding, bell and copy, but the
-  **color** of the terminal (`palette.py`) and of the chrome (`style.py`) remain
-  fixed in the code — changing them requires editing and restarting. Palette and
-  shortcut remapping are what is missing; font in **points** (terminal
-  convention, converted by the display's DPI), not pixels.
+- **No configurable chrome or shortcut remapping**: the configuration file
+  (P33/P34) covers font, size, cursor, scrollback, padding, bell, copy and,
+  since P49, the 19 terminal colors (`foreground`, `background`,
+  `cursor_color`, `color0..15`) plus `OSC 4/10-12` at runtime. What remains
+  fixed in the code is the **chrome** color (`style.py`) and the shortcuts;
+  font in **points** (terminal convention, converted by the display's DPI), not
+  pixels.
 - **No persistent tabs/workspaces**: tabs and workspaces live only in the run;
   closing the window loses the layout.
 - **No copy/scrollback mode**: no text editor over the scrollback.

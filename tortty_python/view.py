@@ -35,7 +35,6 @@ from .palette import (
     UL_DOTTED,
     UL_DOUBLE,
     UL_MASK,
-    cell_rgb_f,
     ul_style,
 )
 from .term import DEFAULT_TITLE, CellAnchor, Term, link_allowed
@@ -150,6 +149,7 @@ class TermView(Gtk.DrawingArea):
         cursor_blink=False,
         copy_on_select=False,
         scrollback=1000,
+        colors=None,
         on_exit=None,
         on_title=None,
         on_bell=None,
@@ -172,6 +172,7 @@ class TermView(Gtk.DrawingArea):
         self.dead_mark = 0  # dead key pendente (marca combinante)
         self.term = Term()
         self.term.set_scrollback(scrollback)
+        self.term.theme.apply_colors(colors or {})  # P49: as 19 chaves
         # seleção local (quando o app NÃO pediu mouse): âncora e ponta em
         # coordenada ABSOLUTA (`CellAnchor`), senão o realce fica preso na
         # posição de tela quando o conteúdo rola (B17)
@@ -824,7 +825,7 @@ class TermView(Gtk.DrawingArea):
     def _draw_links(self, cr, rows, cw, ch, row_lo, row_hi, col_lo, col_hi):
         """Sublinha a corrida de células com hyperlink; só no draw com Ctrl."""
         t = self.term
-        cr.set_source_rgb(*cell_rgb_f(DEF_FG))
+        cr.set_source_rgb(*t.theme.rgb_f(DEF_FG))
         for y in range(row_lo, min(row_hi, len(rows) - 1) + 1):
             row = rows[y]
             x = col_lo
@@ -896,7 +897,7 @@ class TermView(Gtk.DrawingArea):
         thumb = self._thumb(h, hist)
         off = min(self.view_off, hist) / hist
         y = top + (h - thumb) * (1.0 - off)  # vivo = polegar no fim
-        fg = cell_rgb_f(DEF_FG)
+        fg = t.theme.rgb_f(DEF_FG)
         cr.set_source_rgba(*fg, 0.10)
         cr.rectangle(x0, top, w, h)
         cr.fill()
@@ -938,6 +939,7 @@ class TermView(Gtk.DrawingArea):
         self.font_family = cfg.font_family
         self.font_size = cfg.font_size
         self.font_features = cfg.ligature_features
+        self.term.theme.apply_colors(cfg.colors)  # P49: base; OSC 4 fica
         self.padding = cfg.padding
         self.cursor_shape = cfg.cursor_shape
         self.cursor_blink = cfg.cursor_blink
@@ -1069,7 +1071,7 @@ class TermView(Gtk.DrawingArea):
         # célula e a grade inteira desalinha.
         layout = self.new_layout(cr)
         # fundo
-        cur = cell_rgb_f(DEF_BG)  # a última cor posta no contexto
+        cur = t.theme.rgb_f(DEF_BG)  # a última cor posta no contexto
         cr.set_source_rgb(*cur)
         cr.paint()
         cur_bg = cur_fg = cur  # última cor posta em cada passada
@@ -1096,8 +1098,8 @@ class TermView(Gtk.DrawingArea):
         row_hi = min(last_y, int(clip_y1 // ch))
         col_lo = max(0, int(clip_x0 // cw))
         col_hi = min(t.cols, int(clip_x1 // cw) + 1)
-        bg_def = cell_rgb_f(DEF_BG)  # uma vez por draw, não a cada run (P37)
-        rgb, in_sel, sel_on = cell_rgb_f, _in_sel, bool(sel)
+        bg_def = t.theme.rgb_f(DEF_BG)  # uma vez por draw, não a cada run (P37)
+        rgb, in_sel, sel_on = t.theme.rgb_f, _in_sel, bool(sel)
         quadro = []
         for y, row in enumerate(rows):
             if y < row_lo or y > row_hi:
@@ -1233,23 +1235,23 @@ class TermView(Gtk.DrawingArea):
         # cursor — só no vivo: no histórico o cursor do app não está ali
         forma = self._cursor_draw()
         if forma == "block":
-            cr.set_source_rgb(*cell_rgb_f(DEF_FG))
+            cr.set_source_rgb(*t.theme.cursor_f())
             cr.rectangle(t.cx * cw, t.cy * ch, cw, ch)
             cr.fill()
             cell = t.grid[t.cy][t.cx]
-            cr.set_source_rgb(*cell_rgb_f(cell[2]))
+            cr.set_source_rgb(*t.theme.rgb_f(cell[2]))
             layout.set_attributes(self.text_attrs(False))
             layout.set_text(cell[0], -1)
             cr.move_to(t.cx * cw, t.cy * ch)
             PangoCairo.show_layout(cr, layout)
         elif forma == "beam":
             bw = max(1, round(cw / 6))
-            cr.set_source_rgb(*cell_rgb_f(DEF_FG))
+            cr.set_source_rgb(*t.theme.cursor_f())
             cr.rectangle(t.cx * cw, t.cy * ch, bw, ch)
             cr.fill()
         elif forma == "underline":
             bh = max(2, round(ch / 10))
-            cr.set_source_rgb(*cell_rgb_f(DEF_FG))
+            cr.set_source_rgb(*t.theme.cursor_f())
             cr.rectangle(t.cx * cw, t.cy * ch + ch - bh, cw, bh)
             cr.fill()
         if self.view_off:
@@ -1259,10 +1261,10 @@ class TermView(Gtk.DrawingArea):
             layout.set_text(label, -1)
             lw = layout.get_pixel_size()[0]
             x0 = (t.cols - 1) * cw - lw
-            cr.set_source_rgb(*cell_rgb_f(DEF_FG))
+            cr.set_source_rgb(*t.theme.rgb_f(DEF_FG))
             cr.rectangle(x0 - 2, 0, lw + 4, ch)
             cr.fill()
-            cr.set_source_rgb(*cell_rgb_f(DEF_BG))
+            cr.set_source_rgb(*t.theme.rgb_f(DEF_BG))
             cr.move_to(x0, 0)
             PangoCairo.show_layout(cr, layout)
         return False

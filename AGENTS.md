@@ -72,7 +72,7 @@ The tortty_python/ package installs the `tortty-python` command and also runs as
 - tortty_python/__main__.py — python -m tortty_python (calls cli.run)
 - tortty_python/__init__.py — facade with lazy import (tortty_python.Term does not pull Gtk)
 - tortty_python/palette.py — cell [char, fg, bg, flags], xterm-256 palette (int and
-  float), DEC charset
+  float), the per-tab Theme (P49: config colors + OSC 4/10-12), DEC charset
 - tortty_python/term.py — grid, cursor, VT parser; does not know GTK
 - tortty_python/keys.py — X11 keyval -> child bytes (dead keys, DECCKM)
 - tortty_python/kitty_kbd.py — kitty keyboard protocol (CSI ... u)

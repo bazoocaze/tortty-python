@@ -1041,6 +1041,23 @@ label under the pointer) and wraps; over the sidebar it walks one workspace card
 per detent. Verified on a window with XTest: tabs 3→2→1→3, workspaces 2→1 and
 back, and the grid wheel still 6 lines per detent pair.
 
+### P49 — Configurable palette (2026-11-08)
+
+19 keys (`foreground`, `background`, `cursor_color`, `color0..15`,
+`#RGB`/`#RRGGBB`) with a `Theme` per `Term`: the configuration seeds the base,
+`OSC 4` redefines an entry **of that tab** (0..15, like the Rust), `OSC 10/11/12`
+set foreground/background/cursor and `104`/`110`/`111`/`112` go back to the
+configured value (the configuration IS the default here; the Rust resets to the
+built-in one). The bug of the day was in the parse: the comment rule ate the
+value — `foreground #d6d6d6` came out as "key with empty value", because a `#`
+after a space comments out the rest of the line. The fix is the Rust
+`value_of`: a `#` that OPENS the value is the value. The float cache moved from
+the module (`cell_rgb_f`, deleted) into the `Theme` — a tab with a custom color
+cannot serve another. The embedded file now repeats the palette.py values, and
+`palette_config` fails if the two sides ever diverge. Verified with a window:
+config background (566,988 px), `OSC 4` on color0 (3,800 px of the new color)
+and `OSC 11` (573,096 px) in the capture.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

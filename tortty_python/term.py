@@ -10,16 +10,16 @@ from urllib.parse import unquote
 
 from .graphics import Graphics
 from .palette import (
-    BG_DEFAULT,
     BOLD,
     DEC_SPECIAL,
     DEF_BG,
     DEF_FG,
-    FG_DEFAULT,
     INV,
     ITALIC,
-    PALETTE256,
     UL_DOUBLE,
+    Theme,
+    int_rgb,
+    parse_osc_color,
     rgb,
     ul_off,
     ul_on,
@@ -177,6 +177,7 @@ class Term:
         self.graphics = Graphics()  # protocolo de imagens do kitty (P6)
         self.apc = ""
         self.title = DEFAULT_TITLE
+        self.theme = Theme()  # cores desta aba (P49): config + OSC 4/10-12
         # OSC 8: hyperlink corrente (índice em `links`, 0 = nenhum). O URI é
         # internado, então a célula carrega só um int no quinto campo.
         self.link = 0
@@ -1073,26 +1074,55 @@ class Term:
             # OSC 8 ; params ; URI: URI vazio fecha o link corrente
             parts = o.split(";", 2)
             self.link = self._link_id(parts[2]) if len(parts) > 2 else 0
-        elif o in ("10;?", "11;?"):
-            # cor padrão de frente/fundo (X11: 4 dígitos por componente)
-            r, g, b = FG_DEFAULT if o[0] == "1" and o[1] == "0" else BG_DEFAULT
-            resp = f"\x1b]{o[:2]};rgb:{r * 257:04x}/{g * 257:04x}/{b * 257:04x}"
-            self.child_out += (resp + "\x1b\\").encode()
+        elif o[:3] in ("10;", "11;", "12;"):
+            # cor de frente/fundo/cursor: define (`;#rgb`) ou consulta (`;?`)
+            which = int(o[:2])
+            spec = o[3:]
+            if spec == "?":
+                if which == 10:
+                    r, g, b = self.theme.fg
+                elif which == 11:
+                    r, g, b = self.theme.bg
+                else:
+                    r, g, b = self.theme.cursor or self.theme.fg
+                resp = f"\x1b]{which};rgb:{r * 257:04x}/{g * 257:04x}/{b * 257:04x}"
+                self.child_out += (resp + "\x1b\\").encode()
+            else:
+                c = parse_osc_color(spec)
+                if c is not None:
+                    self.theme.set_color(which, int_rgb(c))
         elif o.startswith("4;"):
-            # entrada da paleta: OSC 4 ; índice ; ? (pode vir em pares)
+            # `OSC 4;índice;cor` define (0..15, como o Rust) e `;?` consulta;
+            # os pares continuam (4;1;?;2;?)
             parts = o.split(";")[1:]
             out = ""
             for i in range(0, len(parts) - 1, 2):
-                if not parts[i + 1].startswith("?"):
-                    continue
                 try:
                     n = int(parts[i])
                 except ValueError:
                     continue
-                if 0 <= n < len(PALETTE256):
-                    r, g, b = PALETTE256[n]
+                if not 0 <= n < 16:
+                    continue
+                spec = parts[i + 1]
+                if spec == "?":
+                    r, g, b = self.theme.color(n)
                     out += f"\x1b]4;{n};rgb:{r * 257:04x}/{g * 257:04x}/{b * 257:04x}\x1b\\"
-            self.child_out += out.encode()
+                else:
+                    c = parse_osc_color(spec)
+                    if c is not None:
+                        self.theme.set_osc4(n, int_rgb(c))
+            if out:
+                self.child_out += out.encode()
+        elif o == "104" or o.startswith("104;"):
+            # `OSC 104[;índice...]`: as entradas voltam para a base da configuração
+            if o == "104":
+                self.theme.reset_osc4()
+            else:
+                idxs = [int(p) for p in o[4:].split(";") if p.isdigit() and int(p) < 16]
+                self.theme.reset_osc4(idxs)
+        elif o in ("110", "111", "112"):
+            # `OSC 110/111/112`: frente, fundo e cursor de volta ao configurado
+            self.theme.reset_color(int(o) - 100)
 
     def _notify(self, text):
         """Notificação do app (P44): texto limpo e contador.

@@ -15,6 +15,8 @@ import shutil
 from pathlib import Path
 from typing import NamedTuple
 
+from .palette import parse_color
+
 # Só para pacote mal montado (o `data/tortty-python.conf` é a fonte normal dos padrões).
 # Também é a lista de chaves conhecidas: chave fora daqui é erro (P33).
 DEFAULTS = {
@@ -31,6 +33,12 @@ DEFAULTS = {
     "debug_log": "/tmp/tortty-python.debug.log",  # `off` desliga
 }
 DATA = Path(__file__).with_name("data") / "tortty-python.conf"
+
+# As 19 chaves de cor (P49): frente, fundo, cursor e as 16 ANSI. Vazio no
+# DEFAULTS = "usa o padrão embutido do palette.py" (a paleta clássica do
+# xterm, que é onde mc/htop e ls --color foram calibrados).
+COLOR_KEYS = ("foreground", "background", "cursor_color") + tuple("color%d" % i for i in range(16))
+DEFAULTS.update({k: "" for k in COLOR_KEYS})
 
 KNOWN = tuple(DEFAULTS)
 CURSOR_SHAPES = ("block", "beam", "underline")
@@ -71,23 +79,30 @@ def default_path():
     return Path(base) / "tortty-python" / "tortty-python.conf"
 
 
-def _sem_comentario(linha):
-    """`#` no começo ou depois de espaço comenta até o fim da linha."""
-    for i, ch in enumerate(linha):
-        if ch == "#" and (i == 0 or linha[i - 1] in " \t"):
-            return linha[:i]
-    return linha
+def _valor(rest):
+    """Valor da linha: `#` que ABRE o valor é a cor, `#` depois de espaço comenta.
+
+    É a regra do Rust (`value_of`): `foreground #e6e6e6` é uma cor, não um
+    comentário (P49).
+    """
+    rest = rest.strip()
+    if rest.startswith("#"):
+        return rest.split(None, 1)[0]
+    for i, ch in enumerate(rest):
+        if ch == "#" and i > 0 and rest[i - 1] in " \t":
+            return rest[:i].strip()
+    return rest
 
 
 def parse(text):
     """Texto -> [Entry] em ordem; repetida aparece duas vezes, vence a última."""
     saidas = []
     for n, linha in enumerate(text.splitlines(), 1):
-        linha = _sem_comentario(linha).strip()
-        if not linha:
+        linha = linha.strip()
+        if not linha or linha.startswith("#"):
             continue
         partes = linha.split(None, 1)
-        valor = partes[1].strip() if len(partes) > 1 else ""
+        valor = _valor(partes[1]) if len(partes) > 1 else ""
         saidas.append(Entry(partes[0], valor, n))
     return saidas
 
@@ -173,6 +188,13 @@ def check_debug_log(valor):
     return "debug_log is empty (use off to disable)"
 
 
+def check_color(valor):
+    """`#RGB`/`#RRGGBB`; vazio = o padrão embutido (P49)."""
+    if valor and parse_color(valor) is None:
+        return "invalid color: %s (use #RRGGBB)" % valor
+    return None
+
+
 def debug_log_path(value):
     """Caminho do log de depuração, ou None quando está desligado."""
     return None if not value or value.lower() == "off" else value
@@ -191,6 +213,7 @@ CHECKS = {
     "copy_on_select": check_copy_on_select,
     "debug_log": check_debug_log,
 }
+CHECKS.update({k: check_color for k in COLOR_KEYS})
 
 
 def effective_shell(value, env=None):
@@ -266,6 +289,18 @@ class Config:
     def debug_log(self):
         """Caminho do log JSONL de depuração (?2026 x scroll), ou None."""
         return debug_log_path(self._get("debug_log"))
+
+    @property
+    def colors(self):
+        """As 19 chaves de cor (P49): nome -> int RGB; ausente = padrão."""
+        out = {}
+        for k in COLOR_KEYS:
+            v = self._get(k)
+            if v:
+                c = parse_color(v)
+                if c is not None:
+                    out[k] = c
+        return out
 
     @property
     def ok(self):

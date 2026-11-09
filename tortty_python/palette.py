@@ -99,34 +99,144 @@ _PAL_F = [tuple(c / 255 for c in rgb) for rgb in PALETTE256]
 BG_DEFAULT = (0, 0, 0)
 FG_DEFAULT = (214, 214, 214)
 
-# Desenho: as mesmas cores em float 0..1 (o cairo pede float), cacheadas para
-# não refazer divisão nem alocar lista por run. Teto porque o truecolor pode
-# gerar valores sem fim; as tuplas são compartilhadas, então `is` compara cor.
-_FG_F = tuple(c / 255 for c in FG_DEFAULT)
-_BG_F = tuple(c / 255 for c in BG_DEFAULT)
-_F_CACHE = {}
+_HEX = "0123456789abcdefABCDEF"
 
 
-def cell_rgb_f(c):
-    """Cor da célula já em floats 0..1, pronta para `set_source_rgb`."""
-    v = _F_CACHE.get(c)
-    if v is None:
-        if c == DEF_FG:
-            v = _FG_F
-        elif c == DEF_BG:
-            v = _BG_F
-        elif c & TC:
-            v = (
-                ((c >> 16) & 0xFF) / 255,
-                ((c >> 8) & 0xFF) / 255,
-                (c & 0xFF) / 255,
-            )
+def parse_color(s):
+    """`#RGB`/`#RRGGBB` -> int RGB; None se não for cor (chaves da config, P49)."""
+    if not s.startswith("#"):
+        return None
+    h = s[1:]
+    if len(h) == 3 and all(c in _HEX for c in h):
+        return int(h[0] * 2 + h[1] * 2 + h[2] * 2, 16)
+    if len(h) == 6 and all(c in _HEX for c in h):
+        return int(h, 16)
+    return None
+
+
+def parse_osc_color(s):
+    """Cor de `OSC 4/10`: `#RRGGBB` ou `rgb:r/g/b` (1/2/4 dígitos); None se inválida."""
+    s = s.strip()
+    if s.startswith("#"):
+        return parse_color(s)
+    if not s.startswith("rgb:"):
+        return None
+    partes = s[4:].split("/")
+    if len(partes) != 3:
+        return None
+    vals = []
+    for p in partes:
+        # 1/2 dígitos = valor cru; 4 = byte duplicado (ffff = ff), como o xterm
+        if len(p) in (1, 2, 4) and all(c in _HEX for c in p):
+            vals.append(int(p[:2], 16))
         else:
-            v = _PAL_F[c]
-        if len(_F_CACHE) > 4096:
-            _F_CACHE.clear()
-        _F_CACHE[c] = v
-    return v
+            return None
+    r, g, b = vals
+    return (r << 16) | (g << 8) | b
+
+
+def int_rgb(v):
+    """Inteiro `0xRRGGBB` -> tupla (r, g, b)."""
+    return ((v >> 16) & 0xFF, (v >> 8) & 0xFF, v & 0xFF)
+
+
+class Theme:
+    """Cores do terminal (P49): as 16 ANSI, o default fg/bg e o cursor.
+
+    A configuração semeia a base (`apply_colors`); `OSC 4`/`OSC 10-12`
+    sobrescrevem por aba, como no Rust — o theme mora no próprio `Term`. O
+    cache de floats é por instância: uma aba com cor custom não serve a outra.
+    """
+
+    def __init__(self):
+        self.pal16 = list(PALETTE)
+        self.osc4 = {}  # idx -> (r, g, b), escrito pelo `OSC 4` desta aba
+        self.fg = FG_DEFAULT
+        self.bg = BG_DEFAULT
+        self.cursor = None  # None = mesma cor da frente
+        # o que a configuração disse: o que `OSC 110/111/112` volta a ser
+        self.base_fg, self.base_bg, self.base_cursor = self.fg, self.bg, None
+        self._cache = {}
+
+    def apply_colors(self, colors):
+        """Base da configuração (dict parcial das 19 chaves; ausente = padrão)."""
+        self.pal16 = list(PALETTE)
+        for i in range(16):
+            v = colors.get("color%d" % i)
+            if v is not None:
+                self.pal16[i] = int_rgb(v)
+        self.fg = int_rgb(colors["foreground"]) if "foreground" in colors else FG_DEFAULT
+        self.bg = int_rgb(colors["background"]) if "background" in colors else BG_DEFAULT
+        v = colors.get("cursor_color")
+        self.cursor = int_rgb(v) if v is not None else None
+        self.base_fg, self.base_bg, self.base_cursor = self.fg, self.bg, self.cursor
+        self._cache.clear()
+
+    def color(self, idx):
+        """RGB (r, g, b) do índice 0..15, com o `OSC 4` por cima."""
+        return self.osc4.get(idx, self.pal16[idx])
+
+    def set_osc4(self, idx, rgbv):
+        """`OSC 4;índice;cor` define a entrada desta aba."""
+        self.osc4[idx] = rgbv
+        self._cache.clear()
+
+    def reset_osc4(self, idxs=None):
+        """`OSC 104`: volta as entradas para a base da configuração (None = todas)."""
+        if idxs is None:
+            self.osc4.clear()
+        else:
+            for i in idxs:
+                self.osc4.pop(i, None)
+        self._cache.clear()
+
+    def set_color(self, which, rgbv):
+        """`OSC 10/11/12`: define frente, fundo ou cursor."""
+        if which == 10:
+            self.fg = rgbv
+        elif which == 11:
+            self.bg = rgbv
+        else:
+            self.cursor = rgbv
+        self._cache.clear()
+
+    def reset_color(self, which):
+        """`OSC 110/111/112`: volta para o valor da configuração (a base)."""
+        if which == 10:
+            self.fg = self.base_fg
+        elif which == 11:
+            self.bg = self.base_bg
+        else:
+            self.cursor = self.base_cursor
+        self._cache.clear()
+
+    def rgb_f(self, c):
+        """Cor da célula em floats 0..1, com a paleta desta aba (o cairo pede float)."""
+        v = self._cache.get(c)
+        if v is None:
+            if c == DEF_FG:
+                v = tuple(x / 255 for x in self.fg)
+            elif c == DEF_BG:
+                v = tuple(x / 255 for x in self.bg)
+            elif c & TC:
+                v = (
+                    ((c >> 16) & 0xFF) / 255,
+                    ((c >> 8) & 0xFF) / 255,
+                    (c & 0xFF) / 255,
+                )
+            elif c < 16:
+                v = tuple(x / 255 for x in self.color(c))
+            else:
+                v = _PAL_F[c]
+            if len(self._cache) > 4096:
+                self._cache.clear()
+            self._cache[c] = v
+        return v
+
+    def cursor_f(self):
+        """Cor do cursor em floats: `cursor_color` (config/OSC 12), senão a frente."""
+        r, g, b = self.cursor if self.cursor is not None else self.fg
+        return (r / 255, g / 255, b / 255)
 
 
 # DEC special graphics (ESC ( 0): tecla -> unicode

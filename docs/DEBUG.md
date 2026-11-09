@@ -239,6 +239,10 @@ when it opens, the window shows a security warning toast with the socket path.
 - A widget only receives scroll if its event mask has it: `SCROLL_MASK` for the
   discrete detent and `SMOOTH_SCROLL_MASK` for the touchpad (the `Gtk.Notebook`
   tab label is an `EventBox`, and it had only `BUTTON_PRESS_MASK`).
+- The `#` rule in the configuration: one that **opens** the value is the value
+  (`foreground #d6d6d6` is a color, not a comment); one preceded by a space
+  comments out the rest of the line. It is the Rust `value_of` — a color key
+  parsed as "empty value" means this rule was broken.
 - Verifying the wheel with `tools/xtest.py` needs the **client** coordinate: with
   2+ workspaces the sidebar pushes the notebook to x >= 170, so the tab bar is
   no longer where it was on a single workspace. Capture with
