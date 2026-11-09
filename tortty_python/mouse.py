@@ -24,6 +24,35 @@ WHEEL_UP, WHEEL_DOWN, WHEEL_LEFT, WHEEL_RIGHT = 64, 65, 66, 67
 BACK, FORWARD = 128, 129
 WHEELS = (WHEEL_UP, WHEEL_DOWN, WHEEL_LEFT, WHEEL_RIGHT)
 
+
+class Notches:
+    """Fração de rolagem acumulada até virar um detente (P48).
+
+    O detente do mouse chega inteiro; o touchpad manda frações que só valem
+    quando completam uma unidade. Mudar de direção descarta o resto: o dedo
+    virou e a fração do caminho anterior não é intenção.
+    """
+
+    def __init__(self):
+        self._frac = 0.0
+
+    def add(self, delta, unit=1.0):
+        """Soma `delta` (com sinal) e devolve os detentes completados (0, ±1…)."""
+        if not delta:
+            return 0
+        if self._frac and (delta > 0) != (self._frac > 0):
+            self._frac = 0.0
+        self._frac += delta
+        n = int(self._frac / unit)
+        if n:
+            self._frac -= n * unit
+        return n
+
+    def reset(self):
+        """Descarta a fração pendente (ex.: chegou um detente inteiro)."""
+        self._frac = 0.0
+
+
 # bits de modificador no código do botão
 MOD_SHIFT, MOD_ALT, MOD_CTRL = 4, 8, 16
 MOD_MOTION = 32

@@ -184,6 +184,7 @@ class TermView(Gtk.DrawingArea):
         self._click = (0, 0, -1, -1)  # (time, botão, fileira, coluna) do último clique
         self._click_n = 0  # 1 clique, 2 palavra, 3 linha lógica
         self._press_time, self._press_xy = 0, (-1.0, -1.0)  # press já tratado
+        self._wheel_v = mouse.Notches()  # fração do touchpad no eixo vertical (P48)
         self._sb_drag = False  # arrastando o polegar da barra de rolagem
         self._ctrl = False  # Ctrl apertado: sublinha os hyperlinks (OSC 8)
         self._state = 0  # modificadores do último evento
@@ -1448,6 +1449,26 @@ class TermView(Gtk.DrawingArea):
     def on_scroll(self, widget, ev):
         t = self.term
         self._state = ev.state
+        if ev.direction == Gdk.ScrollDirection.SMOOTH:
+            # touchpad (P48): frações que só valem quando completam um detente;
+            # delta_y > 0 é pra baixo e o acumulador quer o sinal de "pra
+            # trás" (o mesmo sinal do scroll_view). Eixo horizontal liso é
+            # raro e continua sem efeito — o discreto (LEFT/RIGHT) funciona.
+            n = self._wheel_v.add(-ev.delta_y)
+            if not n:
+                return True  # consumido: ainda não completou um passo
+            if self.view_off or not t.mouse_mode:
+                self.scroll_view(3 * n)
+                return True
+            col, row = self.cell_at(ev.x, ev.y)
+            btn = mouse.WHEEL_UP if n > 0 else mouse.WHEEL_DOWN
+            for _ in range(abs(n)):
+                self.report_mouse(btn, col, row, True, px=ev.x, py=ev.y)
+                self.report_mouse(btn, col, row, False, px=ev.x, py=ev.y)
+            return True
+        # detente inteiro (mouse): descarta a fração que o touchpad deixou,
+        # senão este passo seria engolido pelo resto pendente do outro dispositivo
+        self._wheel_v.reset()
         btn = {
             Gdk.ScrollDirection.UP: mouse.WHEEL_UP,
             Gdk.ScrollDirection.DOWN: mouse.WHEEL_DOWN,

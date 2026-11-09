@@ -236,6 +236,13 @@ when it opens, the window shows a security warning toast with the socket path.
 - Storing `OSC 7` in the `Term` moves nothing by itself: the label/title are
   only recomputed when the view notices the change, in the same poll that
   already drains the bell.
+- A widget only receives scroll if its event mask has it: `SCROLL_MASK` for the
+  discrete detent and `SMOOTH_SCROLL_MASK` for the touchpad (the `Gtk.Notebook`
+  tab label is an `EventBox`, and it had only `BUTTON_PRESS_MASK`).
+- Verifying the wheel with `tools/xtest.py` needs the **client** coordinate: with
+  2+ workspaces the sidebar pushes the notebook to x >= 170, so the tab bar is
+  no longer where it was on a single workspace. Capture with
+  `import -window <xid>` and find the active tab's green band before clicking.
 - The `Gtk.Notebook` CSS node `tab` is not the label: a class on the label
   paints only the text and `tab:checked` rules the rest. `label.get_parent()` is
   the Notebook itself; give the label a `set_name` and handle the padding on it

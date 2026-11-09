@@ -988,7 +988,7 @@ pixel diff); `Ctrl+click` hands the URI to `xdg-open` through the whitelist
 `http`/`https`/`file`/`ftp`/`mailto` — verified with a fake `xdg-open` in the
 `PATH`, which recorded the URL, and `javascript:`/`data:` are refused by check.
 
-### P44 — Notifications `OSC 9` / `OSC 777` (2026-11-09)
+### P44 — Notifications `OSC 9` / `OSC 777` (2026-11-08)
 
 The core only counts and keeps the text (`notifs`, `notif_text`, cap
 `NOTIF_MAX`); the window decides, like it already did for the BEL: a
@@ -1002,7 +1002,7 @@ Verified with a real window: notification on a background tab gave
 `notif_pending` 1, closing the tab in front (the other one becomes current)
 gave 0 with `notifs` 1.
 
-### P45 — `ligatures` in the configuration (2026-11-09)
+### P45 — `ligatures` in the configuration (2026-11-08)
 
 Key `ligatures` with `off`/`standard`/`all` (default `standard`), mapped to a
 Pango `font-features` attribute — `liga=0,calt=0`, `liga=1,calt=1` and
@@ -1012,7 +1012,7 @@ value; the layout cache is already keyed by (bold, italic) and is reset by
 `apply_config`, so the mode change lands without restarting. Verified with a
 window and a real capture: `a -> b != c fi ffl` draws with `ligatures all`.
 
-### P46 — Pixel mouse protocol (`?1016`) (2026-11-09)
+### P46 — Pixel mouse protocol (`?1016`) (2026-11-08)
 
 `?1016` tracked as a mode (answered by `DECRQM`). It is the SGR shape with the
 coordinates in pixels, and it decides the shape by itself: there is no legacy
@@ -1020,7 +1020,7 @@ pixel protocol to fall back to. `mouse.encode` gained `pixels=`, `report_mouse`
 converts the event position (minus the padding) when the app asked for it, and
 the cell path did not change.
 
-### P47 — `OSC 7`: the shell's cwd (2026-11-09)
+### P47 — `OSC 7`: the shell's cwd (2026-11-08)
 
 `file://host/path`, `%XX` decoded, control chars out; a payload outside the form
 does not erase a known cwd and an empty one clears it. The tab label already
@@ -1028,6 +1028,18 @@ fell back to the spawn directory; now it follows the shell: the view polls
 `term.cwd` in the same place it already polls the bell, so `cd` moves the label
 and the window title. Verified with a window: `OSC 7` to `/tmp` made WM_NAME
 read `tmp`. It is the fallback for `current_cwd` when `/proc` has no answer.
+
+### P48 — Touchpad wheel and wheel over the tab bar/sidebar (2026-11-08)
+
+`SCROLL_SMOOTH` arrived with `btn is None` and moved nothing — blocker 2 of
+[PORTABILITY.md](PORTABILITY.md), which this closes. `mouse.Notches` accumulates
+the travel until a detent completes and drops the remainder on a direction
+change (pure, so `checks.py` covers it); a discrete detent resets the fraction,
+so a mouse step is never eaten by what the touchpad left pending. The wheel over
+the tab bar cycles from the **active** tab (the whole bar is one target, not the
+label under the pointer) and wraps; over the sidebar it walks one workspace card
+per detent. Verified on a window with XTest: tabs 3→2→1→3, workspaces 2→1 and
+back, and the grid wheel still 6 lines per detent pair.
 
 ## Bugs found and fixed (useful history)
 

@@ -31,12 +31,9 @@ missing is the port existing.
 1. `gui.py` — `gi.require_version("GdkX11", "3.0")` is **outside** the try.
    Without the GdkX11 typelib (mac quartz, Windows win32) the import blows up
    before the fallback that already exists on the next line. One-line fix.
-2. `view.py` — wheel only handles `ScrollDirection.UP/DOWN/LEFT/RIGHT`;
-   mac trackpad and Windows precision touchpad arrive as
-   `SCROLL_SMOOTH` with delta → `btn is None` → scrollback does not scroll.
-3. `view.py` — middle button and copy use `SELECTION_PRIMARY`, which does not
+2. `view.py` — middle button and copy use `SELECTION_PRIMARY`, which does not
    exist outside X11 (silent degradation, needs to fall back to CLIPBOARD).
-4. `view.py` — "Monospace" family hardcoded (better: table per OS);
+3. `view.py` — "Monospace" family hardcoded (better: table per OS);
    `get_scale_factor()` is never read (Retina 2x, Windows 150%). The metric is
    measured from Pango, so the grid adapts — the test is the advance × cell pair
    that the socket `state` returns

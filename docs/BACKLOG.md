@@ -87,3 +87,29 @@ What remains is a known limitation, not an item — wide character (CJK/emoji)
 occupying a single cell, partial kitty keyboard protocol, uninterpreted
 sequences, no configurable theme/palette — all in
 [LIMITATIONS.md](LIMITATIONS.md).
+
+P49 — Configurable palette: `foreground`, `background`, `cursor_color` and
+`color0..15`, plus `OSC 4` setting a palette entry. **Feature.** Request: the
+terminal colors come from `palette.py` fixed in the code today
+([LIMITATIONS.md](LIMITATIONS.md)); the kitty format with `#rrggbb` fits the
+existing config (P33/P34 machinery: validation per key, merge, hot reload), and
+`OSC 4` goes from query-only to set. Trap already known in the Rust
+(`config.rs`): a `#` that **opens** the value is a colour, not a comment.
+
+P50 — Session restore: the workspaces, the tabs and the cwd of each shell come
+back on the next run. **Feature.** Request: closing the window today loses the
+layout ([LIMITATIONS.md](LIMITATIONS.md)); `state.py` already stores the
+geometry in XDG_STATE_HOME and P47 delivered the cwd source (`OSC 7` + the
+spawn directory). Same scope as the Rust: layout comes back, the content does
+not (a fresh shell per tab, no scrollback), and `PYTERM_GEOM` (the measurement
+protocol) neither restores nor saves.
+
+P51 — Render gate on Xvfb: draw known content, capture and compare pixels.
+**Tooling.** Request: the Rust has `tools/render-check.sh` and this project has
+no automatic check that the window paints (a drawing regression only shows up
+to the eye). Same battery: window paints (content changed ⇒ pixel changed),
+colors come out right (`SGR 41/42`), the text lands in the requested cell, a
+still screen does not repaint differently, and each grid line falls in its own
+pixel band. `tools/pixel.py` already reads the PNG; what is missing is the
+runner. Not a test suite replacement: it needs a display (Xvfb) and stays in
+`tools/`.

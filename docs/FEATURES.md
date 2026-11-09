@@ -21,7 +21,10 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
 - **Scrollback** of 1000 lines in the main buffer (`scrollback` option), **with a
   scrollback view**: `Shift+PgUp`/`PgDn` (and `Shift+Home`/`End`) slide the view,
   the **wheel** scrolls the viewport — without talking to the app when it did not
-  ask for mouse, and sending `64`/`65` when it did. It goes back to live on
+  ask for mouse, and sending `64`/`65` when it did. The touchpad works too: the
+  smooth travel accumulates until it completes a detent and a direction change
+  drops the remainder. Over the **tab bar** the wheel cycles tabs (wrapping) and
+  over the **sidebar** it walks the workspace cards. It goes back to live on
   typing, on pasting with the middle button, on clicking when the app asked for
   mouse and on scrolling to the end — and **not** because the child wrote: the
   view stays anchored on the line being read while the app keeps writing.

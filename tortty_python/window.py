@@ -14,7 +14,7 @@ import signal
 import sys
 
 from . import config as config_mod
-from . import debugsock, state, style
+from . import debugsock, mouse, state, style
 from .gui import Gdk, GdkX11, GLib, Gtk, Pango
 from .term import DEFAULT_TITLE
 from .view import TermView, set_debug_log, set_prof
@@ -99,6 +99,7 @@ class Workspace:
         self.views = []
         self._bell_timers = {}  # view -> (fonte do timer, contexto do rótulo)
         self._notif = set()  # views com badge de atenção (`OSC 9`/`777`, P44)
+        self._tab_wheel = mouse.Notches()  # fração do touchpad na barra (P48)
         self.notebook = Gtk.Notebook()
         self.notebook.set_scrollable(True)
         self.notebook.set_show_border(False)
@@ -170,9 +171,14 @@ class Workspace:
         label.set_tooltip_text(self.label_text(v))
         box = Gtk.EventBox()
         box.set_name("tablabel")  # alvo do CSS e do flash do bell (style.py)
-        box.add_events(Gdk.EventMask.BUTTON_PRESS_MASK)
+        box.add_events(
+            Gdk.EventMask.BUTTON_PRESS_MASK
+            | Gdk.EventMask.SCROLL_MASK
+            | Gdk.EventMask.SMOOTH_SCROLL_MASK
+        )
         box.add(label)
         box.connect("button-press-event", self.on_tab_click, v)
+        box.connect("scroll-event", self.on_tab_scroll, v)
         v.tab_label = label  # atualizado no on_view_title
         v.tab_box = box  # o EventBox da aba: alvo do bell e do badge (P34/P44)
         self.notebook.append_page(v, box)
@@ -217,6 +223,28 @@ class Workspace:
             self.close_tab(view)
             return True
         return False
+
+    def on_tab_scroll(self, widget, ev, view):
+        """Roda sobre a barra: cicla uma aba por detente (P48).
+
+        Cicla (com módulo) e não para na ponta: a intenção de rolar é seguir,
+        e a lista de abas é curta.
+        """
+        if ev.direction == Gdk.ScrollDirection.SMOOTH:
+            n = self._tab_wheel.add(-ev.delta_y)  # n>0 = pra cima
+            if not n:
+                return True
+        else:
+            self._tab_wheel.reset()  # detente inteiro não acumula fração
+            n = 1 if ev.direction == Gdk.ScrollDirection.UP else -1
+        if not self.views:
+            return True
+        # cicla a partir da aba ATIVA, não da aba sob o ponteiro: o gesto é
+        # "andar pelas abas", e a barra inteira é um alvo só
+        atual = self.view
+        i = self.views.index(atual) if atual in self.views else 0
+        self.select_tab((i - n) % len(self.views))
+        return True
 
     def on_switch_page(self, nb, page, page_num):
         v = self.views[page_num] if 0 <= page_num < len(self.views) else None
@@ -430,6 +458,10 @@ class TorttyWindow(Gtk.Window):
         apply_style()
         self.sidebar = Gtk.ListBox()
         self.sidebar.set_name("sidebar")  # alvo do CSS (style.py)
+        # roda sobre a lateral: anda um cartão por detente (P48)
+        self.sidebar.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
+        self.sidebar.connect("scroll-event", self.on_sidebar_scroll)
+        self._side_wheel = mouse.Notches()
         self.sidebar.set_size_request(SIDEBAR_W, -1)
         self.sidebar.set_visible(False)  # só com 2+ workspaces
         # sem isto o show_all() da janela mostra a lateral de novo e ela come
@@ -882,6 +914,26 @@ class TorttyWindow(Gtk.Window):
         if 0 <= index < len(self.workspaces):
             return self.select_workspace(self.workspaces[index])
         return False
+
+    def on_sidebar_scroll(self, widget, ev):
+        """Roda sobre a lateral: anda um cartão por detente (P48).
+
+        A lista não rola (cabe na janela), então "andar" é trocar a seleção —
+        o gesto do Rust traduzido para a sidebar que existe aqui.
+        """
+        if ev.direction == Gdk.ScrollDirection.SMOOTH:
+            n = self._side_wheel.add(-ev.delta_y)  # n>0 = pra cima
+            if not n:
+                return True
+        else:
+            self._side_wheel.reset()  # detente inteiro não acumula fração
+            n = 1 if ev.direction == Gdk.ScrollDirection.UP else -1
+        if not self.workspaces:
+            return True
+        ws = self.current
+        i = self.workspaces.index(ws) if ws in self.workspaces else 0
+        self.select_workspace_index((i - n) % len(self.workspaces))
+        return True
 
     def close_workspace(self, ws):
         """Fecha o workspace e todas as abas dele."""

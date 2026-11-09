@@ -647,6 +647,26 @@ def osc7_cwd():
     assert t.cwd is None
 
 
+def wheel_notches():
+    """P48: a fração do touchpad só vira detente ao completar; direção zera."""
+    n = mouse.Notches()
+    assert n.add(0.4) == 0 and n.add(0.4) == 0  # fração não completa
+    assert n.add(0.3) == 1  # 1.1 completa e sobra 0.1
+    assert n.add(-0.6) == 0  # dedo virou: o resto (+0.1) foi descartado
+    assert n.add(-0.5) == -1  # -1.1 completa, sobra -0.1
+    # detente inteiro (mouse) chega de uma vez e não deixa resto pendente
+    n = mouse.Notches()
+    assert n.add(1) == 1 and n.add(-1) == -1
+    # um flick largo entrega vários passos de uma vez
+    n = mouse.Notches()
+    assert n.add(3.2) == 3 and n.add(-0.3) == 0
+    n.reset()
+    assert n.add(0.9) == 0  # reset descarta a fração pendente
+    # unidade maior que 1 (caso geral do acumulador)
+    n = mouse.Notches()
+    assert n.add(3, unit=2) == 1 and n.add(1, unit=2) == 1
+
+
 # -- mouse, seleção e colagem (P1/P7) ----------------------------------
 def mouse_modes_and_sgr():
     """Modos de mouse e a codificação SGR/X10."""
@@ -1029,6 +1049,7 @@ ALL = (
     ligature_config,
     notifications,
     pixel_mouse,
+    wheel_notches,
     osc7_cwd,
     desktop_shortcut,
     shortcut_remove_only_own_name,
