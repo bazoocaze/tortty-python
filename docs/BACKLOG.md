@@ -85,5 +85,6 @@ tools and pitfalls in [DEBUG.md](DEBUG.md).
 
 Nothing is queued: the remaining gaps are the known limitations in
 [LIMITATIONS.md](LIMITATIONS.md) — wide character (CJK/emoji) occupying a single
-cell, partial kitty keyboard protocol, uninterpreted sequences, no configurable
-chrome (`style.py`) — each one waiting for a requirement, not for time.
+cell, partial kitty keyboard protocol, `DECSTR`, sets of SGR (faint, blink,
+hidden, underline color), no configurable chrome (`style.py`) — each one waiting
+for a requirement, not for time.

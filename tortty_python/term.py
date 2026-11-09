@@ -16,6 +16,8 @@ from .palette import (
     DEF_FG,
     INV,
     ITALIC,
+    OVERLINE,
+    STRIKE,
     UL_DOUBLE,
     Theme,
     int_rgb,
@@ -43,6 +45,8 @@ _CSI_MAX = 1024
 # `OSC 9`/`777`: teto do texto guardado — um app que notifica em laço não pode
 # crescer isto sem limite (o texto é para uma linha de toast/badge).
 NOTIF_MAX = 512
+# pilha de título (`CSI 22`/`23 t`): o Rust também para em 16
+TITLE_STACK_MAX = 16
 
 
 def _osc_progress(arg):
@@ -144,6 +148,14 @@ class Term:
         # (quebra mole, não '\n'). É o que permite re-quebrar no resize em vez
         # de recortar. sb_wrapped é o mesmo, paralelo ao scrollback.
         self.row_wrapped = [False] * rows
+        # paradas de tabulação (P53): `ESC H` põe, `CSI g` tira, `CSI I`/`Z`
+        # andam por elas — o Rust também re-semeia a cada 8 no resize
+        self.tabstops = [x % 8 == 0 for x in range(cols)]
+        # último caractere impresso (`REP`, P56); o default do ECMA é espaço
+        self.last_char = " "
+        # teclado numérico em modo de aplicação (DECKPAM, P56): só estado,
+        # os bytes não mudam (decisão do Rust, ver `keypad_app`)
+        self.keypad_app = False
         self.sb_wrapped = []
         self.alt_wrapped = None
         self.cx, self.cy = 0, 0
@@ -177,6 +189,9 @@ class Term:
         self.graphics = Graphics()  # protocolo de imagens do kitty (P6)
         self.apc = ""
         self.title = DEFAULT_TITLE
+        # `CSI 22;Ps t` empilha o título e `23` devolve (P52): vim/less/screen
+        # entram e saem sem deixar o rótulo preso no título deles
+        self.title_stack = []
         self.theme = Theme()  # cores desta aba (P49): config + OSC 4/10-12
         # OSC 8: hyperlink corrente (índice em `links`, 0 = nenhum). O URI é
         # internado, então a célula carrega só um int no quinto campo.
@@ -222,6 +237,9 @@ class Term:
             self._reflow(cols, rows)
         else:
             self._resize_crop(cols, rows)
+        # tabulações (P53): como o Rust, o resize re-semeia a cada 8 em vez de
+        # preservar as que o app pôs — largura nova, paradas no padrão de novo
+        self.tabstops = [x % 8 == 0 for x in range(self.cols)]
 
     def _resize_crop(self, cols, rows):
         """Alt-screen: recorta a tela e re-quebra o buffer principal salvo.
@@ -447,6 +465,23 @@ class Term:
         else:
             self.cy = min(self.cy + 1, self.rows - 1)
 
+    def reverse_index(self):
+        """`ESC M` (RI): no topo da região, rola a região uma linha para baixo."""
+        if self.cy == self.top:
+            self.scroll_down(1)
+        else:
+            self.cy = max(0, self.cy - 1)
+
+    def scroll_down(self, n=1):
+        """`CSI T` (SD) e `ESC M` no topo: a região desce, o topo ganha linha."""
+        self.touch_all()
+        for _ in range(max(1, n)):
+            self.graphics.scroll(self.top, self.bottom, None)
+            self.grid.pop(self.bottom)
+            self.grid.insert(self.top, self._blank_row())
+            self.row_wrapped.pop(self.bottom)
+            self.row_wrapped.insert(self.top, False)
+
     def link_of(self, cell):
         """URI do hyperlink da célula (OSC 8), ou None."""
         i = cell[4] if len(cell) > 4 else 0
@@ -482,7 +517,7 @@ class Term:
             return
         if ch == "\t":
             self.wrap_pending = False
-            self.cx = min(self.cols - 1, ((self.cx // 8) + 1) * 8)
+            self.forward_tab(1)
             return
         if self.wrap_pending:
             # a linha que encheu continua na de baixo (quebra mole): é o que
@@ -493,6 +528,7 @@ class Term:
             self.wrap_pending = False
         if self.charset_dec:
             ch = DEC_SPECIAL.get(ch, ch)
+        self.last_char = ch  # `REP` repete o último impresso (P56)
         cell = [ch, self.fg, self.bg, self.flags]
         if self.link:
             cell.append(self.link)  # o campo extra só existe com link
@@ -504,6 +540,26 @@ class Term:
             self.cx += 1
 
     # -- comandos ----------------------------------------------------
+    def forward_tab(self, n=1):
+        """`HT`/`CSI I`: anda `n` paradas de tabulação para a direita (P53)."""
+        for _ in range(max(1, n)):
+            x = self.cx + 1
+            while x < self.cols and not self.tabstops[x]:
+                x += 1
+            self.cx = min(self.cols - 1, x)
+        self.wrap_pending = False
+
+    def backward_tab(self, n=1):
+        """`CSI Z` (CBT): anda `n` paradas para a esquerda (P53)."""
+        for _ in range(max(1, n)):
+            x = self.cx
+            while x > 0:
+                x -= 1
+                if self.tabstops[x]:
+                    break
+            self.cx = x
+        self.wrap_pending = False
+
     def cursor_to(self, r, c):
         self.cy = max(0, min(self.rows - 1, r))
         self.cx = max(0, min(self.cols - 1, c))
@@ -595,6 +651,14 @@ class Term:
                 self.flags = ul_on(self.flags)
             elif p == 7:
                 self.flags |= INV
+            elif p == 9:
+                self.flags |= STRIKE
+            elif p == 29:
+                self.flags &= ~STRIKE
+            elif p == 53:
+                self.flags |= OVERLINE
+            elif p == 55:
+                self.flags &= ~OVERLINE
             elif p == 21:
                 # ECMA-48: 21 é sublinhado duplo (e não "desliga o negrito")
                 self.flags = ul_on(self.flags, UL_DOUBLE)
@@ -770,6 +834,8 @@ class Term:
                 return 1 if self.bracketed_paste else 2
             if p == 2026:
                 return 1 if self.sync_output else 2
+            if p == 66:
+                return 1 if self.keypad_app else 2
             return 0
         return 0  # modos ANSI (IRM, LNM...): nenhum implementado
 
@@ -827,6 +893,30 @@ class Term:
             if 0 <= t < b < self.rows:
                 self.top, self.bottom = t, b
                 self.cursor_to(0, 0)
+        elif final in "ST":
+            # SU/SD (P55): rola a tela sem mexer no cursor. Não desce para o
+            # histórico ao subir: é rolagem de conteúdo, não de newline.
+            n = get(0, 1) or 1
+            if final == "S":
+                for _ in range(n):
+                    self.scroll_up()
+            else:
+                self.scroll_down(n)
+        elif final == "I":
+            self.forward_tab(get(0, 1) or 1)  # CHT (P53)
+        elif final == "Z":
+            self.backward_tab(get(0, 1) or 1)  # CBT (P53)
+        elif final == "b":
+            # REP (P56): repete o último caractere gráfico impresso
+            for _ in range(get(0, 1) or 1):
+                self.put(self.last_char)
+        elif final == "g":
+            # TBC (P53): 0 tira a parada desta coluna, 3 tira todas
+            n = get(0, 0)
+            if n == 0:
+                self.tabstops[self.cx] = False
+            elif n == 3:
+                self.tabstops = [False] * self.cols
         elif final == "s":
             self.saved = (self.cx, self.cy)
         elif final == "u" and prefix:
@@ -857,6 +947,15 @@ class Term:
                 self.child_out += f"\x1b[6;{ch};{cw}t".encode()
             elif params[0] == 18:
                 self.child_out += f"\x1b[8;{self.rows};{self.cols}t".encode()
+            elif params[0] in (22, 23) and get(1, 0) <= 2:
+                # 22 salva, 23 devolve (xterm); Ps 1/2 são os ícones, que não
+                # existem aqui — o título de janela é o mesmo
+                if params[0] == 22:
+                    if len(self.title_stack) < TITLE_STACK_MAX:
+                        self.title_stack.append(self.title)
+                elif self.title_stack:
+                    # pilha vazia não inventa título: deixa como está
+                    self.title = self.title_stack.pop()
         elif final == "q" and inter == " ":
             # DECSCUSR: 1..6 = forma+pisca; 0 (ou fora da faixa) volta à config
             ps = get(0, 0)
@@ -902,6 +1001,7 @@ class Term:
     def _put_run(self, run):
         """Trecho imprimível de uma vez, com a mesma quebra mole do put."""
         fg, bg, fl = self.fg, self.bg, self.flags
+        self.last_char = run[-1]  # `REP` repete o último impresso (P56)
         i, n = 0, len(run)
         while i < n:
             if self.wrap_pending:
@@ -980,7 +1080,7 @@ class Term:
                 elif ch == "(":
                     self.state = "charset"
                 elif ch == "M":
-                    self.cursor_to(self.cy - 1, self.cx)  # RI
+                    self.reverse_index()  # RI
                     self.state = "ground"
                 elif ch == "7":
                     self.saved = (self.cx, self.cy)
@@ -992,9 +1092,15 @@ class Term:
                 elif ch in "c":
                     self.reset()  # RIS
                 elif ch in "DEH":
+                    if ch == "H":
+                        # HTS: põe uma parada de tabulação na coluna atual (P53)
+                        self.tabstops[self.cx] = True
                     self.state = "ground"  # IND/NEL/HTS: só volta
                 elif ch in "=>":
-                    self.state = "ground"  # teclado numérico
+                    # DECKPAM / DECKPNM (P56): estado do teclado numérico; os
+                    # bytes da tecla não mudam, como no Rust
+                    self.keypad_app = ch == "="
+                    self.state = "ground"
                 else:
                     self.state = "ground"
             elif st == "csi":

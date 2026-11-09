@@ -31,7 +31,7 @@ from .palette import (
     rgb,
     ul_style,
 )
-from .term import Term, link_allowed
+from .term import TITLE_STACK_MAX, Term, link_allowed
 
 
 def _row_text(row):
@@ -886,6 +886,153 @@ def session_restore():
     assert (lay["ws"], lay["tab"]) == (0, 0)
 
 
+def title_stack():
+    """P52: `CSI 22 t` empilha o título e `23 t` devolve, com teto e sem invenção."""
+
+    def set_title(txt):
+        t.feed("\x1b]2;%s\x07" % txt)
+
+    t = Term(cols=20, rows=4)
+    set_title("um")
+    t.feed("\x1b[22;0t")
+    set_title("dois")
+    assert t.title == "dois"
+    t.feed("\x1b[23;0t")  # vim sai: o título de antes volta
+    assert t.title == "um"
+    # pilha vazia não inventa título
+    t.feed("\x1b[23;0t")
+    assert t.title == "um"
+    # Ps acima de 2 (ícone) não mexe na pilha do título
+    set_title("tres")
+    t.feed("\x1b[22;9t")
+    t.feed("\x1b[23;0t")
+    assert t.title == "tres"
+    # aninhado, como o vim empilha ao abrir outro arquivo
+    set_title("a")
+    t.feed("\x1b[22;0t")
+    set_title("b")
+    t.feed("\x1b[22;0t")
+    set_title("c")
+    for esperado in ("b", "a"):
+        t.feed("\x1b[23;0t")
+        assert t.title == esperado, (t.title, esperado)
+    # teto: a pilha não cresce sem limite
+    t2 = Term(cols=20, rows=4)
+    for _ in range(40):
+        t2.feed("\x1b[22;0t")
+    assert len(t2.title_stack) == TITLE_STACK_MAX
+
+
+def tab_stops():
+    """P53: `ESC H`/`CSI g` põem e tiram paradas, `CSI I`/`Z` andam por elas."""
+
+    def cx_after(txt):
+        t = Term(cols=40, rows=3)
+        t.feed(txt)
+        return t.cx
+
+    assert cx_after("\t") == 8  # parada padrão de 8, como antes
+    assert cx_after("\t\t") == 16
+    assert cx_after("\x1b[4I") == 32  # CHT: quatro paradas
+    assert cx_after("\x1b[17G\x1b[2Z") == 0  # CBT: de 16, duas paradas atrás
+    assert cx_after("\x1b[17G\x1b[Z") == 8
+    # parada posta em 3: o HT vai para 3, a próxima é a 8 (a de sempre)
+    assert cx_after("\x1b[4G\x1bH\r\t") == 3
+    assert cx_after("\x1b[4G\x1bH\r\t\t") == 8
+    # `CSI g` tira a parada desta coluna; `3g` tira todas (o HT vai ao fim).
+    # `CSI 9 G` é o índice 8 em 0-based, e é lá que mora a segunda parada
+    t = Term(cols=40, rows=3)
+    t.feed("\x1b[9G\x1b[g\r\t")
+    assert t.cx == 16, t.cx  # a 8 sumiu, então a 16 é a próxima
+    t = Term(cols=40, rows=3)
+    t.feed("\x1b[3g\r\t")
+    assert t.cx == 39, t.cx  # sem parada nenhuma, HT vai à última coluna
+    # o resize re-semeia a cada 8 (decisão do Rust), não preserva as do app
+    t = Term(cols=40, rows=3)
+    t.feed("\x1b[4G\x1bH")
+    t.resize(41, 3)
+    assert t.tabstops[3] is False and t.tabstops[8] is True
+    # tabulação com espaço e texto continua alinhando na célula
+    t = Term(cols=40, rows=3)
+    t.feed("a\tb")
+    assert t.grid[0][0][0] == "a" and t.grid[0][8][0] == "b"
+
+
+def strike_and_overline():
+    """P54: `SGR 9`/`29` e `53`/`55` põem e tiram riscado e sobrelinha."""
+    from .palette import OVERLINE, STRIKE
+
+    t = Term(cols=10, rows=3)
+    t.feed("\x1b[9mx\x1b[29my")
+    assert t.grid[0][0][3] & STRIKE
+    assert not t.grid[0][1][3] & STRIKE
+    t.feed("\x1b[53m\x1b[9mz")
+    fl = t.grid[0][2][3]
+    assert fl & STRIKE and fl & OVERLINE
+    t.feed("\x1b[55m\x1b[0mw")
+    assert not t.grid[0][3][3] & (STRIKE | OVERLINE)
+    # SGR 0 limpa as duas
+    t.feed("\x1b[9;53ma\x1b[mb")
+    assert t.grid[0][4][3] & (STRIKE | OVERLINE)
+    assert not t.grid[0][5][3] & (STRIKE | OVERLINE)
+
+
+def screen_scroll():
+    """P55: `CSI S`/`T` rolam a tela sem mexer no cursor; `ESC M` no topo rola."""
+    t = Term(cols=10, rows=4)
+    t.feed("1\x1b[2;1H2\x1b[3;1H3\x1b[4;1H4")
+    assert [t.row_text(i).strip() for i in range(4)] == ["1", "2", "3", "4"]
+    cy, cx = t.cy, t.cx
+    t.feed("\x1b[S")  # SU: sobe uma linha, conteúdo sai pelo topo
+    assert [t.row_text(i).strip() for i in range(4)] == ["2", "3", "4", ""], [
+        t.row_text(i) for i in range(4)
+    ]
+    assert (t.cy, t.cx) == (cy, cx)  # o cursor não se move
+    t.feed("\x1b[T")  # SD: desce de volta
+    assert [t.row_text(i).strip() for i in range(4)] == ["", "2", "3", "4"]
+    # `n` linhas de uma vez, e a região (DECSTBM) é respeitada
+    t.feed("\x1b[2S")
+    assert [t.row_text(i).strip() for i in range(4)] == ["3", "4", "", ""]
+    # RI no topo da tela rola para baixo: antes disto o cursor só subia
+    t2 = Term(cols=10, rows=3)
+    t2.feed("a\r\nb\x1b[H\x1bM")
+    assert [t2.row_text(i).strip() for i in range(3)] == ["", "a", "b"], [
+        t2.row_text(i) for i in range(3)
+    ]
+
+
+def rep_and_keypad():
+    """P56: `REP` (`CSI b`), `DECKPAM`/`DECKPNM` e o `?66` no DECRQM."""
+    t = Term(cols=20, rows=3)
+    t.feed("-")
+    t.feed("\x1b[4b")  # repete o último impresso quatro vezes
+    assert t.row_text(0).rstrip() == "-----"
+    assert t.cx == 5
+    # sem nada impresso, o REP repete espaço (default do ECMA)
+    t2 = Term(cols=20, rows=3)
+    t2.feed("\x1b[3b")
+    assert t2.row_text(0)[:3] == "   " and not t2.row_text(0)[3:].strip()
+    assert t2.cx == 3
+    # REP com contagem zero (ou ausente) é uma vez
+    t.feed("\x1b[b")
+    assert t.row_text(0).rstrip() == "------"
+    # DECKPAM/DECKPNM: só estado, e o DECRQM resposta acompanha
+    assert t.keypad_app is False
+    t.feed("\x1b=")
+    assert t.keypad_app is True
+    t.child_out = b""
+    t.feed("\x1b[?66$p")
+    assert b"\x1b[?66;1$y" in bytes(t.child_out), bytes(t.child_out)
+    t.feed("\x1b>")
+    assert t.keypad_app is False
+    t.child_out = b""
+    t.feed("\x1b[?66$p")
+    assert b"\x1b[?66;2$y" in bytes(t.child_out), bytes(t.child_out)
+    # RIS limpa o modo (como no Rust)
+    t.feed("\x1b=\x1bc")
+    assert t.keypad_app is False
+
+
 def style_contrast():
     """O cromo da janela: texto claro em fundo escuro, com contraste medido.
 
@@ -1158,6 +1305,11 @@ ALL = (
     ligature_config,
     palette_config,
     session_restore,
+    title_stack,
+    tab_stops,
+    strike_and_overline,
+    screen_scroll,
+    rep_and_keypad,
     notifications,
     pixel_mouse,
     wheel_notches,

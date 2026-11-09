@@ -40,18 +40,21 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
 
 ## VT parser (what is not interpreted)
 
-- **Partial SGR**: implements 0, 1, 3, 4 (with `4:n`), 7, 21, 22, 23, 24, 27,
-  30–37, 39, 40–47, 49, 90–97, 100–107, 38/48 (256 and truecolor). **Does not**
-  implement 2 (half intensity), 5 (blink), 8 (hidden), 9 (strikethrough), 53
-  (overline), 58/59 (underline color). Whoever uses 9 (git diff in some themes,
-  `bat`) gets no line.
+- **Partial SGR**: implements 0, 1, 3, 4 (with `4:n`), 7, 9/29 (strikethrough),
+  21, 22, 23, 24, 27, 30–37, 39, 40–47, 49, 53/55 (overline), 90–97, 100–107,
+  38/48 (256 and truecolor). **Does not** implement 2 (half intensity), 5
+  (blink), 8 (hidden) and 58/59 (underline color, which the Rust draws).
 - **Bold does not become bright color**: with an 8/16 color palette, `SGR 1`
   only thickens the glyph; there is no "bold as bright" (which xterm does).
 - **No `DECAWM` off**: autowrap is always on; `CSI ? 7 l` is ignored.
 - **No origin/special margins**: `DECSTBM` (scroll region) works, but
   `? 6` (origin mode), `? 3` (80/132), `DECDHL`/`DECDWL` (double line) do not.
-- **No `REP`** (`CSI b`), no `DECSTR` (`CSI ! p`) and no `HTS`/`TBC` (tab stop
-  is fixed in steps of 8).
+- **No `DECSTR`** (`CSI ! p`, soft reset) — `RIS` (`ESC c`) exists. Tab stops
+  are real (`HTS`, `TBC`, `CHT`, `CBT`) but the resize re-seeds them every 8
+  instead of preserving what the app set, which is the Rust choice too.
+- **The keypad application mode is state only**: `DECKPAM`/`DECKPNM` (`ESC =` /
+  `ESC >`) and the `?66` query are answered, but the keypad keys send the same
+  bytes either way — same decision as the Rust.
 
 ## OSC (what is not served)
 

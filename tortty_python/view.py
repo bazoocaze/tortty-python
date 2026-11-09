@@ -29,6 +29,8 @@ from .palette import (
     DEF_FG,
     INV,
     ITALIC,
+    OVERLINE,
+    STRIKE,
     UL,
     UL_CURLY,
     UL_DASHED,
@@ -45,6 +47,8 @@ _NOPARSE = bool(os.environ.get("PYTERM_NOPARSE"))  # sonda: só lê o pty e desc
 _DEBUG_LOG = None  # log JSONL do ?2026 x scroll; None = desligado (B22)
 _SYNC_MS = 200  # teto da transação ?2026: app que esquece de fechar não congela
 UL_BITS = UL | UL_MASK  # presença + estilo do sublinhado, como vai para o run
+# o que o run carrega de decoração: sublinhado (+ estilo), riscado e sobrelinha
+DECO_BITS = UL_BITS | STRIKE | OVERLINE
 
 
 def set_prof(on):
@@ -739,6 +743,22 @@ class TermView(Gtk.DrawingArea):
         self._attrs[slot] = al
         return al
 
+    def _deco(self, cr, x0, y0, w, h, deco):
+        """Sublinado, riscado e sobrelinha da corrida (P54): uma passada só.
+
+        `deco` é o `fl & DECO_BITS` da célula: o riscado fica a meia altura e a
+        sobrelinha no topo, ambos na cor do texto (já posta no contexto).
+        """
+        if deco & OVERLINE:
+            cr.rectangle(x0, y0 + 1, w, 1)
+            cr.fill()
+        if deco & STRIKE:
+            cr.rectangle(x0, y0 + round(h / 2), w, 1)
+            cr.fill()
+        ul = deco & UL_BITS
+        if ul:
+            self._underline(cr, x0, y0, w, h, ul_style(ul))
+
     def _underline(self, cr, x0, y0, w, h, style):
         """Sublinha do SGR 4:n no pé da célula (estilo já decodificado)."""
         y = y0 + h - 2
@@ -1137,13 +1157,13 @@ class TermView(Gtk.DrawingArea):
                     if (fl & INV) or s0:
                         fgc, bgc = bgc, fgc  # inverso / seleção = reverso
                     runs.append(
-                        (x, j, cch, fgc, bgc, bool(fl & BOLD), fl & UL_BITS, bool(fl & ITALIC))
+                        (x, j, cch, fgc, bgc, bool(fl & BOLD), fl & DECO_BITS, bool(fl & ITALIC))
                     )
                 x = j
             if runs:
                 quadro.append((row, y * ch, max(ch, og_h - y * ch) if y == last_y else ch, runs))
         for row, ypx, rh, runs in quadro:
-            for x, j, _cch, _fgc, bgc, _bold, _ul, _italic in runs:
+            for x, j, _cch, _fgc, bgc, _bold, _deco, _italic in runs:
                 if bgc is not cur_bg:
                     cr.set_source_rgb(*bgc)
                     cur_bg = bgc
@@ -1152,7 +1172,7 @@ class TermView(Gtk.DrawingArea):
                     cr.rectangle(x * cw, ypx, rw, rh)
                     cr.fill()
         for row, ypx, _rh, runs in quadro:
-            for x, j, cch, fgc, _bgc, bold, ul, italic in runs:
+            for x, j, cch, fgc, _bgc, bold, deco, italic in runs:
                 if fgc is not cur_fg:
                     cr.set_source_rgb(*fgc)
                     cur_fg = fgc
@@ -1191,8 +1211,8 @@ class TermView(Gtk.DrawingArea):
                 else:
                     cr.move_to(x * cw, ypx + base)
                     PangoCairo.show_layout_line(cr, line)
-                if ul:
-                    self._underline(cr, x * cw, ypx, (j - x) * cw, ch, ul_style(ul))
+                if deco:
+                    self._deco(cr, x * cw, ypx, (j - x) * cw, ch, deco)
         # Ctrl apertado: sublinha todo hyperlink da tela (é o convite ao clique)
         if self._ctrl:
             self._draw_links(cr, rows, cw, ch, row_lo, row_hi, col_lo, col_hi)

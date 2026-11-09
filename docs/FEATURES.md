@@ -18,6 +18,17 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
 - **Italic and underline styles** (`3`/`23`, `4`/`4:n`/`21`/`24`): single,
   double, curly, dotted and dashed underline, drawn by style (not a fake color),
   and italic from the real face — `bat`/`diff` with italic work.
+- **Strikethrough and overline** (`9`/`29`, `53`/`55`): the line crosses the
+  cell at half height and the overline sits on the top edge, both in the text
+  color — the struck line `git diff` and `bat` draw shows up.
+- **Title stack** (`CSI 22 t` pushes, `23 t` gives back, cap of 16): `vim`,
+  `less` and `screen` push the title on entry and pop on exit, so the tab label
+  comes back to where it was instead of staying on the app's title.
+- **Real tab stops** (`HTS`/`ESC H` sets, `TBC`/`CSI g` clears one or all,
+  `CHT`/`CSI I` and `CBT`/`CSI Z` walk `n` of them): `HT` follows the stops
+  instead of a fixed step of 8. The resize re-seeds them every 8.
+- **Screen scroll** (`CSI S`/`CSI T`, SU/SD) and `REP` (`CSI b`, repeats the
+  last printed character); `DECKPAM`/`DECKPNM` and the `?66` query are answered.
 - **Scrollback** of 1000 lines in the main buffer (`scrollback` option), **with a
   scrollback view**: `Shift+PgUp`/`PgDn` (and `Shift+Home`/`End`) slide the view,
   the **wheel** scrolls the viewport — without talking to the app when it did not

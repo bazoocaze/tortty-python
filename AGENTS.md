@@ -218,9 +218,10 @@ running. Only which one to use fits here.
 - tools/bench.sh — doom-fire ladder; locks the grid through the socket, measures
   on the current display and on its own Xvfb and does not store a number.
 - tools/render-check.sh — render gate: PASSED/FAILED, `--keep` for the captures,
-  `--display` for another display. Proves what no headless test does: the window
-  paints, the color lands right, the text lands in the cell, a still screen does
-  not repaint differently and grid line `r` is painted in band `r`.
+  `--display` for another display. Proves what no headless test does (6 checks):
+  the window paints, the color lands right, the text lands in the cell, a still
+  screen does not repaint differently, grid line `r` is painted in band `r` and
+  the strikethrough cuts the cell at half height.
 - tortty-python, python3 -m tortty_python, uv run python -m tortty_python — the app (options:
   tortty-python -h).
 - uv run pytest -q, uv run ruff check ., uv run ruff format . — battery and lint

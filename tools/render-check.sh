@@ -14,7 +14,8 @@
 #   3. o texto cai na célula pedida: o glifo pinta dentro da banda da linha;
 #   4. tela parada não repinta diferente (duas capturas seguidas = 0);
 #   5. cada linha da grade cai na própria banda de pixels (a regressão do
-#      espaçamento duplo: a linha `r` saía em `2r`).
+#      espaçamento duplo: a linha `r` saía em `2r`);
+#   6. o riscado (SGR 9) atravessa a célula a meia altura — e só com ele.
 #
 # Precisa de display (o Xvfb sobe sozinho) e do ImageMagick (`import`); é
 # manual, como o resto de tools/ — o teste continua sendo ./run-tests.sh.
@@ -88,7 +89,7 @@ CONF
 # dorme: sem shell, o que entra depois é o eco do pty — byte previsível.
 PYTERM_GEOM=1000x700 DISPLAY=$DISPLAY_XVFB "$ROOT/run.sh" \
     -c "$TMP/tortty.conf" --debug-socket "$SOCK" \
-    --cmd 'printf "\033[41m  \033[0m\033[42m  \033[0m"; sleep 600' \
+    --cmd 'printf "\033[41m  \033[0m\033[42m  \033[0m\r\n\033[9mXXXXXXXX\033[0m\r\nAAAAAAAA\r\n"; sleep 600' \
     >"$TMP/app.log" 2>&1 &
 APP_PID=$!
 
@@ -315,6 +316,95 @@ then
     ok "linha r é pintada na banda r (espaçamento de 1 célula)"
 else
     fail "linhas fora da banda (espaçamento duplo ou cursor deslocado)"
+fi
+
+# 6. riscado (SGR 9, P54): a linha atravessa a célula a meia altura, então a
+# corrida riscada tem uma faixa CONTÍNUA de pixels claros a meia altura — e a
+# mesma palavra sem o SGR não tem. É o caminho de desenho que o teste headless
+# não vê (lá só se confere a flag na célula).
+# as duas palavras vêm do CHILD, não do eco: o driver do pty imprime ESC como
+# `^[` (ECHOCTL), então escrever pelo socket não aplicaria o SGR 9
+sleep 0.3
+take "$OUT_DIR/f.png" || fail "captura 6"
+if python3 - "$SOCK" "$OUT_DIR/f.png" "$X0" "$Y0" "$CWL" "$CHL" <<'PY'
+import json, socket, sys
+
+sock, png, x0, y0, cw, ch = (
+    sys.argv[1], sys.argv[2], float(sys.argv[3]), float(sys.argv[4]),
+    float(sys.argv[5]), float(sys.argv[6]),
+)
+
+
+def q(**kw):
+    c = socket.socket(socket.AF_UNIX)
+    c.connect(sock)
+    f = c.makefile("rwb")
+    f.write(json.dumps(kw).encode() + b"\n")
+    f.flush()
+    r = json.loads(f.readline())
+    c.close()
+    return r
+
+
+st = q(cmd="state")
+grid = q(cmd="text", where="view", count=st["rows"])["lines"]
+
+import gi
+
+gi.require_version("GdkPixbuf", "2.0")
+from gi.repository import GdkPixbuf
+
+pb = GdkPixbuf.Pixbuf.new_from_file(png)
+W, rs, nc = pb.get_width(), pb.get_rowstride(), pb.get_n_channels()
+px = pb.get_pixels()
+
+
+def claro(x, y):
+    o = y * rs + x * nc
+    return px[o] > 120 and px[o + 1] > 120 and px[o + 2] > 120
+
+
+def corrida(yy):
+    """Maior sequência contínua de pixels claros ao longo das 8 células."""
+    melhor = atual = 0
+    for x in range(int(x0), min(int(x0 + cw * 8), W)):
+        if claro(x, yy):
+            atual += 1
+            melhor = max(melhor, atual)
+        else:
+            atual = 0
+    return melhor
+
+
+def achar(prefixo):
+    return next((i for i, ln in enumerate(grid) if ln.startswith(prefixo)), None)
+
+
+def meia(row):
+    return int(y0 + row * ch + round(ch / 2))
+
+
+alvo = int(cw * 8 * 0.85)  # a linha riscada cobre a corrida inteira
+r_strike, r_plano = achar("XXXXXXXX"), achar("AAAAAAAA")
+erros = []
+if r_strike is None or r_plano is None:
+    erros.append(f"nao achei as linhas na grade: {grid[:6]!r}")
+else:
+    if corrida(meia(r_strike)) < alvo:
+        erros.append(
+            "linha riscada sem faixa continua a meia altura "
+            f"({corrida(meia(r_strike))} < {alvo})"
+        )
+    # a mesma palavra sem SGR 9 não pode ter a faixa (senão o teste é cego)
+    if corrida(meia(r_plano)) >= alvo:
+        erros.append("linha sem SGR 9 tambem tem faixa continua: o teste nao discrimina")
+print("; ".join(erros))
+sys.exit(1 if erros else 0)
+PY
+then
+    ok "SGR 9 desenha o riscado a meia altura (e só com ele)"
+else
+    fail "riscado ausente ou indistinguível do texto normal"
 fi
 
 echo

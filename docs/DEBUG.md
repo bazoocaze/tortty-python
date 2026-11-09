@@ -259,6 +259,14 @@ when it opens, the window shows a security warning toast with the socket path.
   (`Alt+1..9`, `Ctrl+Shift+digit`) translates the physical keycode, and 0
   comes back "not ok" — the shortcut died and the digit leaked into the pty.
   `debug_keys` resolves it from the keyval.
+- The pty **echo** prints ESC as `^[` (the driver has `ECHOCTL` on), so writing
+  `ESC[9m` through the socket does not apply a style on screen — only text the
+  CHILD prints goes through the parser. That is why the render gate's strike
+  check rides in the `--cmd` instead of a `write`.
+- Tab stops live in `term.tabstops` and the resize re-seeds them every 8 (the
+  Rust choice). Seeding them anywhere but in `resize` leaves the main buffer
+  with the old list — `len(tabstops) != cols`, and `HT` starts reading past the
+  end of the line.
 - `window.json` carries `layout` (P50) next to the geometry, validated on load
   (`state.layout`): hand-editing is safe — anything wrong becomes "one tab as
   always". `restore_state none` erases it on the next close and `PYTERM_GEOM`

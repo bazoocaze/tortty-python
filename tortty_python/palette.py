@@ -13,9 +13,11 @@ um teste de parser em máquina sem PyGObject.
 # ---------------------------------------------------------------- grade ---
 
 # célula: [char, fg, bg, flags]  (fg/bg: 0-15, 256=default fg, 257=default bg)
-# flags: 1=bold 2=underline 4=inverse 8=italic
+# flags: 1=bold 2=underline 4=inverse 8=italic (bits 4-6 guardam o estilo do
+# sublinhado, então o riscado e a sobrelinha vão acima deles)
 DEF_FG, DEF_BG = 256, 257
 BOLD, UL, INV, ITALIC = 1, 2, 4, 8
+STRIKE, OVERLINE = 128, 256  # SGR 9 e SGR 53 (P54)
 
 # Estilo do sublinhado (SGR 4:n) nos bits 4-6: 0 simples, 1 duplo, 2 curvo,
 # 3 pontilhado, 4 tracejado. `UL` continua dizendo só "tem sublinhado".

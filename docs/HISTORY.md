@@ -1088,6 +1088,55 @@ still-screen check is restricted to the grid rectangle because the toast (10 s
 for a warning) can expire between two captures. Proven to bite: reverting the
 line painter to `y * ch * 2` (the B4 double-spacing bug) fails checks 3 and 5.
 
+### P52 — Title stack (2026-11-08)
+
+`CSI 22;Ps t` pushes the title, `23;Ps t` gives it back: cap of 16, an empty pop
+leaves the title alone (no invention), and `Ps > 2` (the icon form) does not
+touch the stack — same rules as the Rust. Nothing changed in the view: it
+already polls `term.title` since P47, so the label and the window title follow
+the pop by themselves. Verified with a window: `TITULO-B` pushed over
+`TITULO-A`, and after `23` the state read `TITULO-A` again.
+
+### P53 — Real tab stops (2026-11-08)
+
+`term.tabstops` (a bool per column, seeded every 8) replaces the hardcoded
+`((cx // 8) + 1) * 8` in `HT`; `HTS`/`ESC H` sets, `TBC`/`CSI g` clears one (0)
+or all (3), `CHT`/`CSI I` and `CBT`/`CSI Z` walk `n` stops. The resize re-seeds
+the stops instead of preserving them — the Rust does the same, and preserving
+would leave stops beyond the new width. One bug of my own on the way: the reseed
+was first written in `_resize_crop` (the alt-screen path only), so the main
+buffer kept the old list and `len(tabstops) != cols` after a resize; the check
+`t.tabstops[3] is False` after `resize(41, 3)` caught it, and the fix moved the
+reseed to `resize` itself. Verified on a window: a stop set at column 4 made
+`x<TAB>y` land on index 3, and `CSI 3 g` sent the next tab to the last column.
+
+### P54 — Strikethrough and overline (2026-11-08)
+
+`SGR 9`/`29` and `53`/`55` are two new flag bits (`STRIKE`, `OVERLINE`, above the
+underline-style bits) and the run carries `fl & DECO_BITS` (underline + style +
+strike + overline) into a single `_deco` call: overline on the top edge, strike
+at `y0 + round(h/2)`, then the underline by style. Verified by pixels, not by
+eye: the struck run shows a continuous 88 px band at half height, and the sixth
+check of `tools/render-check.sh` (added here) fails when the line is drawn
+anywhere else — proven by moving it to `y0 + 1` and watching `4 < 68`.
+
+### P55 — SU/SD and a real `RI` (2026-11-08)
+
+`CSI S`/`CSI T` roll the screen by `n` without touching the cursor, and
+`ESC M` (RI) at the top of the region now scrolls the region down instead of
+only moving the cursor up — that gap was there before, the Rust `reverse_index`
+calls `scroll_down`. `scroll_down` is new; `scroll_up` already existed.
+
+### P56 — `REP`, `DECKPAM`/`DECKPNM` and `?66` (2026-11-08)
+
+`REP` (`CSI b`) repeats the last printed character (`last_char`, set by both
+`put` and the `_put_run` fast path; space is the ECMA default before the first
+one). `ESC =` / `ESC >` flip a single `keypad_app` bool, answered by `?66` in
+the `DECRQM` reply — the bytes of the keypad keys do not change, which is the
+Rust decision written down in `keypad_app`. Verified on a window: `=` +
+`CSI 5 b` printed six of them, and after `ESC =` a `CSI ?66 $p` came back
+`ESC[?66;1$y` on the screen.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth
