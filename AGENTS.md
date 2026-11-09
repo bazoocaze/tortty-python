@@ -69,6 +69,8 @@ The tortty_python/ package installs the `tortty-python` command and also runs as
   own Xvfb
 - tools/benchrun.py — one rung of the ladder: locks the grid through the
   socket, types the load and prints the result
+- tools/render-check.sh — render gate: draws known content on an isolated Xvfb,
+  captures and compares pixels (5 checks, needs a display)
 - tortty_python/__main__.py — python -m tortty_python (calls cli.run)
 - tortty_python/__init__.py — facade with lazy import (tortty_python.Term does not pull Gtk)
 - tortty_python/palette.py — cell [char, fg, bg, flags], xterm-256 palette (int and
@@ -94,7 +96,8 @@ The tortty_python/ package installs the `tortty-python` command and also runs as
 - tortty_python/data/ — tortty-python.svg (icon) and tortty-python.conf (embedded
   default options)
 - tests/ — pytest runner for tortty_python/checks.py
-- tools/xtest.py, tools/pixel.py — manual test, requires X11
+- tools/xtest.py, tools/pixel.py — manual test, requires X11 (pixel.py is also
+  the comparator of the render gate)
 - tools/doomfire.py — measurement load, not a test
 - tools/uploadbench.py — drawing microbench: N cairo operations against 1
   upload/composition per frame
@@ -214,6 +217,10 @@ running. Only which one to use fits here.
   in one place.
 - tools/bench.sh — doom-fire ladder; locks the grid through the socket, measures
   on the current display and on its own Xvfb and does not store a number.
+- tools/render-check.sh — render gate: PASSED/FAILED, `--keep` for the captures,
+  `--display` for another display. Proves what no headless test does: the window
+  paints, the color lands right, the text lands in the cell, a still screen does
+  not repaint differently and grid line `r` is painted in band `r`.
 - tortty-python, python3 -m tortty_python, uv run python -m tortty_python — the app (options:
   tortty-python -h).
 - uv run pytest -q, uv run ruff check ., uv run ruff format . — battery and lint

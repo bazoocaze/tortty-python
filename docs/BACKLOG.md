@@ -83,17 +83,7 @@ toast box stayed invisible).
 The other items are completed: history and bugs in [HISTORY.md](HISTORY.md),
 tools and pitfalls in [DEBUG.md](DEBUG.md).
 
-What remains is a known limitation, not an item — wide character (CJK/emoji)
-occupying a single cell, partial kitty keyboard protocol, uninterpreted
-sequences, no configurable chrome (`style.py`) — all in
-[LIMITATIONS.md](LIMITATIONS.md).
-
-P51 — Render gate on Xvfb: draw known content, capture and compare pixels.
-**Tooling.** Request: the Rust has `tools/render-check.sh` and this project has
-no automatic check that the window paints (a drawing regression only shows up
-to the eye). Same battery: window paints (content changed ⇒ pixel changed),
-colors come out right (`SGR 41/42`), the text lands in the requested cell, a
-still screen does not repaint differently, and each grid line falls in its own
-pixel band. `tools/pixel.py` already reads the PNG; what is missing is the
-runner. Not a test suite replacement: it needs a display (Xvfb) and stays in
-`tools/`.
+Nothing is queued: the remaining gaps are the known limitations in
+[LIMITATIONS.md](LIMITATIONS.md) — wide character (CJK/emoji) occupying a single
+cell, partial kitty keyboard protocol, uninterpreted sequences, no configurable
+chrome (`style.py`) — each one waiting for a requirement, not for time.

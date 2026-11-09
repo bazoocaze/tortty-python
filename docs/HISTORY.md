@@ -1074,6 +1074,20 @@ built 2 workspaces (/tmp, /usr, /etc and /var), quit, came back with the front
 on /var; the wheel over the sidebar landed on workspace 1 at /etc; `alt+1/2/3`
 walked the tabs; and both `PYTERM_GEOM` and `restore_state none` opened fresh.
 
+### P51 — Render gate on Xvfb (2026-11-08)
+
+`tools/render-check.sh`: 5 checks on an isolated Xvfb — the window paints
+(content changed ⇒ pixel changed), `SGR 41/42` paint color1/color2 in the cell,
+the text lands inside the cell the grid says, two captures of a still screen are
+identical, and grid line `r` is painted in band `r`. `tools/pixel.py` grew the
+scripted interface (`--expect x,y=rrggbb`, `--find`, `--diff A B --max N
+[--region]`). Known trap that shaped the setup: `PYTERM_GEOM` (the measurement
+protocol) is what turns the remembered geometry AND the P50 session restore
+off — without it the gate would inherit the session of whoever runs it. The
+still-screen check is restricted to the grid rectangle because the toast (10 s
+for a warning) can expire between two captures. Proven to bite: reverting the
+line painter to `y * ch * 2` (the B4 double-spacing bug) fails checks 3 and 5.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth
