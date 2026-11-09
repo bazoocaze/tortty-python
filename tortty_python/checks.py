@@ -832,6 +832,60 @@ def palette_config():
     assert t.theme.color(1) == palette.PALETTE[1]
 
 
+def session_restore():
+    """P50: `restore_state` na config e o layout validado no state (puro)."""
+    from . import config, state
+
+    # config: padrão é layout, none desliga, `content` (aqui não existe) é erro
+    cfg = config.load(os.path.join(tempfile.mkdtemp(), "nao-existe.conf"))
+    assert cfg.restore_state == "layout"
+    p = os.path.join(tempfile.mkdtemp(), "c.conf")
+    with open(p, "w") as f:
+        f.write("restore_state none\n")
+    cfg = config.load(p)
+    assert cfg.ok and cfg.restore_state == "none"
+    with open(p, "w") as f:
+        f.write("restore_state content\n")
+    cfg = config.load(p)
+    assert not cfg.ok and cfg.restore_state == "layout"
+
+    # roundtrip com o formato do Rust: workspaces, cwds e o que estava na frente
+    aqui = os.getcwd()
+    lay = state.layout(
+        {
+            "layout": {
+                "workspaces": [
+                    {"name": "ws um", "cwds": [aqui, None]},
+                    {"name": "ws dois", "cwds": ["/tmp"]},
+                ],
+                "ws": 1,
+                "tab": 0,
+            }
+        }
+    )
+    assert lay["workspaces"][0]["cwds"] == [aqui, None]
+    assert (lay["ws"], lay["tab"]) == (1, 0)
+    # sem layout (arquivo antigo) e lixo: None — a janela abre com uma aba
+    assert state.layout({}) is None
+    assert state.layout("x") is None
+    assert state.layout({"layout": {"workspaces": [], "ws": 0, "tab": 0}}) is None
+    assert state.layout({"layout": "x"}) is None
+    assert state.layout({"layout": {"workspaces": [{"name": 1, "cwds": []}]}}) is None
+    # cwd que sumiu vira None (a aba nasce no padrão do shell); índice fora da
+    # faixa é preso na primeira posição
+    lay = state.layout(
+        {
+            "layout": {
+                "workspaces": [{"name": "w", "cwds": ["/nao/existe/xyz", aqui]}],
+                "ws": 9,
+                "tab": 9,
+            }
+        }
+    )
+    assert lay["workspaces"][0]["cwds"][0] is None
+    assert (lay["ws"], lay["tab"]) == (0, 0)
+
+
 def style_contrast():
     """O cromo da janela: texto claro em fundo escuro, com contraste medido.
 
@@ -1103,6 +1157,7 @@ ALL = (
     style_contrast,
     ligature_config,
     palette_config,
+    session_restore,
     notifications,
     pixel_mouse,
     wheel_notches,

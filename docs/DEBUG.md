@@ -243,6 +243,14 @@ when it opens, the window shows a security warning toast with the socket path.
   (`foreground #d6d6d6` is a color, not a comment); one preceded by a space
   comments out the rest of the line. It is the Rust `value_of` — a color key
   parsed as "empty value" means this rule was broken.
+- The socket `keys` verb needs a real `hardware_keycode`: `_digit_of`
+  (`Alt+1..9`, `Ctrl+Shift+digit`) translates the physical keycode, and 0
+  comes back "not ok" — the shortcut died and the digit leaked into the pty.
+  `debug_keys` resolves it from the keyval.
+- `window.json` carries `layout` (P50) next to the geometry, validated on load
+  (`state.layout`): hand-editing is safe — anything wrong becomes "one tab as
+  always". `restore_state none` erases it on the next close and `PYTERM_GEOM`
+  neither reads nor writes it.
 - Verifying the wheel with `tools/xtest.py` needs the **client** coordinate: with
   2+ workspaces the sidebar pushes the notebook to x >= 170, so the tab bar is
   no longer where it was on a single workspace. Capture with

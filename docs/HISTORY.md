@@ -1058,6 +1058,22 @@ cannot serve another. The embedded file now repeats the palette.py values, and
 config background (566,988 px), `OSC 4` on color0 (3,800 px of the new color)
 and `OSC 11` (573,096 px) in the capture.
 
+### P50 — Session restore (2026-11-08)
+
+`restore_state` (`none`/`layout`, the default): the workspaces with their
+names, the tabs in order, the cwd of each shell (`/proc` → `OSC 7`, else None =
+the shell's default) and what was in front — the same `Layout` shape as the
+Rust, in the same `window.json`. `state.layout()` validates on load: junk,
+out-of-range indices and a cwd that no longer exists are dropped or clamped
+(pure, so it lives in `checks.py`). `PYTERM_GEOM` keeps out of it both ways and
+`restore_state none` erases the old layout on the next close. One tool bug
+found on the way: `debug_keys` sent `hardware_keycode = 0`, so `_digit_of`
+returned None and the digit shortcuts (`Alt+1..9`) leaked into the pty — the
+socket now resolves a real keycode from the keyval. Verified on a window:
+built 2 workspaces (/tmp, /usr, /etc and /var), quit, came back with the front
+on /var; the wheel over the sidebar landed on workspace 1 at /etc; `alt+1/2/3`
+walked the tabs; and both `PYTERM_GEOM` and `restore_state none` opened fresh.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

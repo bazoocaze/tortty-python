@@ -137,6 +137,7 @@ window_padding_width 0     # margin around the grid, in px
 bell none                  # none, visual (marks the tab) or audible
 copy_on_select off         # mouse selection already goes to the clipboard
 debug_log /tmp/tortty-python.debug.log  # debug JSONL log; off turns it off
+restore_state layout        # none = start clean; layout = workspaces/tabs/cwd back
 foreground #d6d6d6        # the 19 terminal colors (#RGB/#RRGGBB): foreground,
 background #000000        # background, cursor_color and color0..color15 —
 cursor_color #d6d6d6      # factory values are the classic xterm palette

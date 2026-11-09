@@ -43,6 +43,39 @@ def save(data):
         pass  # não poder salvar não pode derrubar o fechamento
 
 
+def layout(data):
+    """Layout validado do dict salvo (P50), ou None se não houver/for lixo.
+
+    O formato espelha o `Layout` do Rust: workspaces com nome e o cwd de cada
+    aba, mais o índice do que estava na frente. cwd que não existe mais vira
+    None (a aba nasce no diretório padrão do shell), como o Rust.
+    """
+    lay = data.get("layout") if isinstance(data, dict) else None
+    if not isinstance(lay, dict):
+        return None
+    wss = lay.get("workspaces")
+    if not isinstance(wss, list) or not wss:
+        return None
+    out = []
+    for w in wss:
+        if not isinstance(w, dict):
+            return None
+        nome, cwds = w.get("name"), w.get("cwds")
+        if not isinstance(nome, str) or not isinstance(cwds, list):
+            return None
+        limpos = [c if isinstance(c, str) and os.path.isdir(c) else None for c in cwds]
+        if limpos:  # workspace sem aba não existe (fecha junto com a última)
+            out.append({"name": nome, "cwds": limpos})
+    if not out:
+        return None
+    iws = lay.get("ws")
+    iws = iws if isinstance(iws, int) and 0 <= iws < len(out) else 0
+    cwds = out[iws]["cwds"]
+    itab = lay.get("tab")
+    itab = itab if isinstance(itab, int) and 0 <= itab < len(cwds) else 0
+    return {"workspaces": out, "ws": iws, "tab": itab}
+
+
 def fit(x, y, w, h, monitors):
     """Retângulo utilizável: tamanho são, e o canto dentro de algum monitor.
 

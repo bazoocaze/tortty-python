@@ -120,6 +120,13 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   default; with `PYTERM_GEOM` the measurement protocol rules (it neither restores
   nor saves). On Wayland only maximized is remembered: window position does not
   exist there.
+- **Session restore** (`restore_state layout`, the default): the workspaces with
+  their names, the tabs in order and the cwd of each shell (from `OSC 7` or
+  `/proc`) come back on the next run, with the workspace and the tab that were
+  in front. `restore_state none` starts clean; each tab is a fresh shell — the
+  screen and the scrollback do not come back. The state stays in
+  `XDG_STATE_HOME`, and `PYTERM_GEOM` (the measurement protocol) neither
+  restores nor saves.
 - **Dark chrome** (`tortty_python/style.py`): the interface colors (workspace sidebar,
   cards) come from a token table and the CSS is generated from it — with no loose
   hex in the code. The sidebar is black, the active workspace sits in a dark

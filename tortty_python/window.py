@@ -141,11 +141,11 @@ class Workspace:
             return self.views[i]
         return self.views[0] if self.views else None
 
-    def new_tab(self, cmd=None):
-        """Aba nova, herdando o cwd da aba corrente."""
+    def new_tab(self, cmd=None, cwd=None):
+        """Aba nova, herdando o cwd da corrente (ou o dado pela restauração, P50)."""
         v = TermView(
             cmd=cmd if cmd is not None else self.win.cmd,
-            cwd=self.win.current_cwd(self),
+            cwd=cwd if cwd is not None else self.win.current_cwd(self),
             shell=self.win.shell,
             font_family=self.win.font_family,
             font_size=self.win.font_size,
@@ -455,6 +455,12 @@ class TorttyWindow(Gtk.Window):
         self._remember = not os.environ.get("PYTERM_GEOM")
         self._saved = (state.load() or {}) if self._remember else {}
         self._max = bool(self._saved.get("max"))
+        # P50: layout da sessão anterior (workspaces, abas e o cwd de cada
+        # uma); consumido por new_workspace no startup. `restore_state none`
+        # (ou PYTERM_GEOM, que já zera o _saved) não tem o que restaurar.
+        lay = state.layout(self._saved) if self.config.restore_state == "layout" else None
+        self._restore = lay
+        self._restore_front = (lay["ws"], lay["tab"]) if lay else None
 
         apply_style()
         self.sidebar = Gtk.ListBox()
@@ -557,6 +563,7 @@ class TorttyWindow(Gtk.Window):
         self.connect("key-press-event", self.on_window_key)
 
         self.new_workspace()
+        self._restore_session()  # P50: workspaces restantes + a que estava na frente
         # aviso de configuração (P33) só depois da janela existir. Na carga
         # inicial o que validou já valeu (P34): o toast mostra o PRIMEIRO erro,
         # com a contagem dos outros, em vez da lista inteira.
@@ -668,7 +675,11 @@ class TorttyWindow(Gtk.Window):
             estado |= mascaras[m]
         ev.keyval = keyval
         ev.state = estado
-        ev.hardware_keycode = 0
+        # keycode físico real: `_digit_of` (Alt+1..9) traduz o keycode com o
+        # estado zerado, e 0 devolve "não sei" — sem isto os atalhos de dígito
+        # morriam no socket (a tecla vazava pro pty e digitava sozinha)
+        ok, entradas = Gdk.Keymap.get_default().get_entries_for_keyval(keyval)
+        ev.hardware_keycode = entradas[0].keycode if ok and entradas else 0
         v = self.view
         if v is None:
             return {"key": nome, "mods": list(mods), "handled": False}
@@ -887,17 +898,43 @@ class TorttyWindow(Gtk.Window):
         return f"ws{id(ws)}"
 
     def new_workspace(self):
-        """Workspace novo, com uma aba herdando o cwd do workspace atual."""
+        """Workspace novo, com uma aba herdando o cwd do workspace atual.
+
+        No startup o `layout` salvo (P50) dá nome e cwds; ele vai sendo
+        consumido, então as chamadas do usuário depois disso são normais.
+        """
+        mem = None
+        if self._restore and self._restore["workspaces"]:
+            mem = self._restore["workspaces"].pop(0)
         ws = Workspace(self, len(self.workspaces) + 1)
+        if mem:
+            ws.name = mem["name"]
         self.workspaces.append(ws)
         self.stack.add_named(ws.notebook, self._stack_name(ws))
         self.sidebar.add(ws.row)
         ws.notebook.show_all()
         ws.row.show_all()
         self.select_workspace(ws)
-        ws.new_tab()
+        cwds = mem["cwds"] if mem else [None]
+        ws.new_tab(cwd=cwds[0])
+        for cwd in cwds[1:]:
+            ws.new_tab(cwd=cwd)
         self.sidebar.set_visible(len(self.workspaces) > 1)
         return ws
+
+    def _restore_session(self):
+        """P50: cria as workspaces restantes do salvo e põe a frente na dele."""
+        while self._restore and self._restore["workspaces"]:
+            self.new_workspace()
+        front, self._restore_front = self._restore_front, None
+        if front is None:
+            return
+        iws, itab = front
+        if iws < len(self.workspaces):
+            ws = self.workspaces[iws]
+            self.select_workspace(ws)
+            if itab < len(ws.views):
+                ws.notebook.set_current_page(itab)
 
     def select_workspace(self, ws):
         if ws not in self.workspaces:
@@ -1012,11 +1049,13 @@ class TorttyWindow(Gtk.Window):
         return self.handle_shortcut(ev)
 
     # -- cwd herdado ----------------------------------------------------
-    def current_cwd(self, ws=None):
-        """cwd do filho da aba corrente (`/proc/<pid>/cwd`), sem OSC 7."""
-        ws = ws or self.current
-        v = ws.view if ws is not None else None
-        if v is not None and v.child_pid:
+    def _cwd_view(self, v):
+        """cwd de uma view para o filho nascer: /proc (folha) → OSC 7 → None.
+
+        None = a aba abriu no diretório padrão do shell (sem OSC 7 e sem
+        /proc legível) — é o que a restauração (P50) guarda nesse caso.
+        """
+        if v.child_pid:
             # O filho do pty é `sh -c "<cmd>"`, e o sh NÃO faz exec quando o
             # comando tem argumento (`bash --norc`): o programa de verdade é
             # neto, e o cwd do `sh` fica parado em /proc. Descer até o último
@@ -1026,9 +1065,16 @@ class TorttyWindow(Gtk.Window):
                     return os.readlink(f"/proc/{pid}/cwd")
                 except OSError:
                     pass
-        if v is not None and v.term.cwd:
+        if v.term.cwd:
             return v.term.cwd  # OSC 7: o shell disse onde está (P47)
-        return os.getcwd()
+        return None
+
+    def current_cwd(self, ws=None):
+        """cwd do filho da aba corrente, sem OSC 7 (o spawn cai no atual)."""
+        ws = ws or self.current
+        v = ws.view if ws is not None else None
+        c = self._cwd_view(v) if v is not None else None
+        return c if c is not None else os.getcwd()
 
     # -- título da janela ----------------------------------------------
     def sync_title(self, v=None):
@@ -1124,12 +1170,30 @@ class TorttyWindow(Gtk.Window):
         self._max = bool(ev.new_window_state & Gdk.WindowState.MAXIMIZED)
         return False
 
+    def _layout_memory(self):
+        """Workspaces, abas e o cwd de cada uma, na ordem da sessão (P50)."""
+        wss = [
+            {"name": w.name, "cwds": [self._cwd_view(v) for v in w.views]} for w in self.workspaces
+        ]
+        if not wss:
+            return None
+        iws = self.workspaces.index(self.current) if self.current in self.workspaces else 0
+        ws = self.workspaces[iws]
+        itab = ws.views.index(ws.view) if ws.view in ws.views else 0
+        return {"workspaces": wss, "ws": iws, "tab": itab}
+
     def _save_geometry(self):
         """Grava o que os handlers já coletaram (com PYTERM_GEOM não grava nada)."""
         if not self._remember:
             return
         s = dict(self._saved)
         s["max"] = self._max
+        if self.config.restore_state == "layout":
+            lay = self._layout_memory()
+            if lay:
+                s["layout"] = lay
+        else:
+            s.pop("layout", None)  # `none`: o velho do arquivo não pode voltar
         if not self._is_x11():
             s.pop("x", None)  # no Wayland não existe posição para lembrar
             s.pop("y", None)

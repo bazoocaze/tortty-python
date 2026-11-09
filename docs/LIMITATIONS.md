@@ -138,8 +138,10 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
   fixed in the code is the **chrome** color (`style.py`) and the shortcuts;
   font in **points** (terminal convention, converted by the display's DPI), not
   pixels.
-- **No persistent tabs/workspaces**: tabs and workspaces live only in the run;
-  closing the window loses the layout.
+- **No session content**: `restore_state layout` (P50) brings back the
+  workspaces, the tabs and the cwd of each shell, but not what each tab had on
+  screen — no scrollback, no processes (`restore_state content` of the Rust is
+  not implemented here). `PYTERM_GEOM` neither restores nor saves, by design.
 - **No copy/scrollback mode**: no text editor over the scrollback.
 - **No context menu**: no menu in the sidebar or in the tab, and a tab does not
   reorder by dragging.

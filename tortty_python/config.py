@@ -31,6 +31,9 @@ DEFAULTS = {
     "bell": "none",
     "copy_on_select": "off",
     "debug_log": "/tmp/tortty-python.debug.log",  # `off` desliga
+    # none = não restaura nada; layout = workspaces, abas e o cwd de cada uma
+    # (P50). `content` (a foto da tela) não existe aqui.
+    "restore_state": "layout",
 }
 DATA = Path(__file__).with_name("data") / "tortty-python.conf"
 
@@ -50,6 +53,7 @@ LIGATURE_FEATURES = {
     "all": "liga=1,calt=1,dlig=1",
 }
 BELLS = ("none", "visual", "audible")
+RESTORE_STATES = ("none", "layout")
 BOOLS = {
     "on": True,
     "yes": True,
@@ -173,6 +177,10 @@ def check_copy_on_select(valor):
     return _bool(valor, "copy_on_select")
 
 
+def check_restore_state(valor):
+    return _enum(valor, "restore_state", RESTORE_STATES)
+
+
 def check_scrollback(valor):
     return _number(valor, "scrollback", 0, SCROLLBACK_MAX, inteiro=True)
 
@@ -212,6 +220,7 @@ CHECKS = {
     "bell": check_bell,
     "copy_on_select": check_copy_on_select,
     "debug_log": check_debug_log,
+    "restore_state": check_restore_state,
 }
 CHECKS.update({k: check_color for k in COLOR_KEYS})
 
@@ -301,6 +310,11 @@ class Config:
                 if c is not None:
                     out[k] = c
         return out
+
+    @property
+    def restore_state(self):
+        """`none`/`layout` (P50): o que a próxima execução herda desta."""
+        return self._get("restore_state").lower()
 
     @property
     def ok(self):
