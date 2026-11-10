@@ -328,6 +328,10 @@ def config_options():
         ("cursor_shape square", "cursor_shape invalid"),
         ("cursor_blink talvez", "cursor_blink invalid"),
         ("scrollback -1", "scrollback out of range"),
+        ("scrollback 0", "scrollback out of range (1..10000)"),  # era aceito
+        ("scrollback 10001", "scrollback out of range"),
+        ("font_size 30.5", "font_size out of range"),  # teto 30 desde 0.0.14
+        ("window_padding_width 201", "window_padding_width out of range"),
         ("window_padding_width 8px", "is not a number"),
         ("bell beep", "bell invalid"),
         ("copy_on_select 2", "copy_on_select invalid"),
@@ -337,6 +341,12 @@ def config_options():
         cfg = config.load(p)
         assert not cfg.ok and esperado in config.message(cfg), (lixo, config.message(cfg))
         assert cfg.font_size == 20.0  # a linha válida antes do erro aplicou
+
+    # as pontas válidas continuam valendo (faixa inclusiva)
+    with open(p, "w") as f:
+        f.write("font_size 4\nfont_size 30\nscrollback 1\nscrollback 10000\n")
+    cfg = config.load(p)
+    assert (cfg.ok, cfg.font_size, cfg.scrollback) == (True, 30.0, 10000), cfg.errors
 
     # o toast da carga inicial é UM só: primeiro erro + contagem dos outros
     with open(p, "w") as f:

@@ -94,8 +94,13 @@ BOOLS = {
     "false": False,
     "0": False,
 }
-FONT_MIN, FONT_MAX = 4.0, 96.0  # pontos
-SCROLLBACK_MAX = 100000
+# Teto de 30 pt porque a célula cresce em área: 4 a 30 cobre do terminal
+# pequeno ao grande, e 96 pt era um valor herdado que só cabia numa tela 4K.
+FONT_MIN, FONT_MAX = 4.0, 30.0  # pontos
+# 10000 é o último degrau de graça: a ~50 B por célula são ~100 MB em 200
+# colunas, e o corte do histórico é O(teto) na memória por linha que entra.
+# 100000 (o teto do Rust, de célula mais barata) custava ~1 GB e 2,4x por linha.
+SCROLLBACK_MIN, SCROLLBACK_MAX = 1, 10000
 PADDING_MAX = 200  # px
 
 
@@ -212,7 +217,8 @@ def check_restore_state(valor):
 
 
 def check_scrollback(valor):
-    return _number(valor, "scrollback", 0, SCROLLBACK_MAX, inteiro=True)
+    """1 não é escolha: `0` desligava o histórico em silêncio, agora é erro."""
+    return _number(valor, "scrollback", SCROLLBACK_MIN, SCROLLBACK_MAX, inteiro=True)
 
 
 def check_padding(valor):
