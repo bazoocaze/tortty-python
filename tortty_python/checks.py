@@ -167,7 +167,17 @@ def argv_parsing():
     """--help sai sem abrir janela; opção inválida é erro de uso (exit 2)."""
     from . import cli
 
-    assert cli.parse_args(["tortty_python"]) == (None, 0, None, None, None, None, None)
+    assert cli.parse_args(["tortty_python"]) == (
+        None,
+        0,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+    )
     assert cli.parse_args(["tortty_python", "--cmd", "mc", "--quit-after", "2"]) == (
         "mc",
         2,
@@ -176,7 +186,14 @@ def argv_parsing():
         None,
         None,
         None,
+        None,
+        None,
     )
+    # --cols/--rows (P63): trava a grade; zero e não-número são erro de uso
+    assert cli.parse_args(["tortty_python", "--cols", "80", "--rows", "24"])[7:] == (80, 24)
+    assert cli.parse_args(["tortty_python", "--cols", "0"])[6] == "--cols"
+    assert cli.parse_args(["tortty_python", "--rows", "x"])[6] == "--rows"
+    assert cli.parse_args(["tortty_python", "--cols"])[6] == "--cols"
     assert cli.parse_args(["tortty_python", "-c", "/tmp/x.conf"])[3] == "/tmp/x.conf"
     assert cli.parse_args(["tortty_python", "--config", "/tmp/x.conf"])[3] == "/tmp/x.conf"
     # --debug-log troca o caminho do log; `off` desliga (vence a config)
@@ -745,6 +762,44 @@ def selection():
     assert t.selection_text((1, 1), (0, 1)) == "bc\nde"
 
 
+def block_selection():
+    """P61: Alt+arrasto copia a coluna (mesmas colunas em toda linha)."""
+    from .term import CellAnchor, Term
+
+    t = Term(cols=20, rows=4)
+    t.feed("alpha\r\nbravo\r\ncharlie")
+    g = t.abs_gen
+    # colunas 1..3 das três linhas: "lph", "rav", "har"
+    a = CellAnchor(0, 1, g)
+    b = CellAnchor(2, 3, g)
+    assert t.anchor_block_text(a, b) == "lph\nrav\nhar"
+    # a ordem do arrasto não importa (de baixo para cima, da direita para a esquerda)
+    assert t.anchor_block_text(b, a) == "lph\nrav\nhar"
+    assert t.anchor_block_text(CellAnchor(0, 3, g), CellAnchor(2, 1, g)) == "lph\nrav\nhar"
+    # a linear, na mesma âncora, junta o resto das linhas (é a diferença do bloco)
+    assert t.anchor_text(a, b) == "lpha\nbravo\nchar"
+    # coluna única e ponta além da linha: espaço à direita sai fora
+    assert t.anchor_block_text(CellAnchor(0, 0, g), CellAnchor(1, 0, g)) == "a\nb"
+    assert t.anchor_block_text(CellAnchor(2, 10, g), CellAnchor(2, 18, g)) == ""
+
+
+def dropped_path():
+    """P62: o caminho solto na janela vai cotado pro shell (regra do Rust)."""
+    from .term import shell_quoted
+
+    # o que passa sem aspas: caminho comum e os caracteres que o shell aceita
+    assert shell_quoted("/tmp/a.txt") == "/tmp/a.txt"
+    assert shell_quoted("/a,b=c@d:e+f-g_h.i/j") == "/a,b=c@d:e+f-g_h.i/j"
+    # espaço, `$`, `*` e afins pedem aspas simples
+    assert shell_quoted("/tmp/a b.txt") == "'/tmp/a b.txt'"
+    assert shell_quoted("/tmp/$HOME*") == "'/tmp/$HOME*'"
+    assert shell_quoted("/tmp/a;rm -rf /") == "'/tmp/a;rm -rf /'"
+    # a aspa simples dentro do caminho vira '\'' (senão a citação fecha cedo)
+    assert shell_quoted("/tmp/it's") == "'/tmp/it'\\''s'"
+    # vazio também é cotado: sem aspas, o shell receberia nada
+    assert shell_quoted("") == "''"
+
+
 def paste_markers():
     """?2004 liga/desliga os marcadores da colagem."""
     t = Term()
@@ -1052,6 +1107,48 @@ def rep_and_keypad():
     assert t.keypad_app is False
 
 
+def lnm_and_soft_reset():
+    """P58/P59: `LNM` (LF volta a coluna) e `DECSTR` (soft reset sem limpar)."""
+    from .palette import DEF_BG, DEF_FG
+    from .term import Term
+
+    # LNM desligado (padrão): `\n` mantém a coluna — é o que faz a escada
+    t = Term(cols=20, rows=3)
+    t.feed("ab\nc")
+    assert t.row_text(1).startswith("  c"), repr(t.row_text(1))
+    assert (t.cy, t.cx) == (1, 3)
+    # LNM ligado: `\n` volta a coluna ao zero
+    t = Term(cols=20, rows=3)
+    t.feed("\x1b[20hab\nc")
+    assert t.row_text(1).startswith("c"), repr(t.row_text(1))
+    assert (t.cy, t.cx) == (1, 1)
+    # DECRQM responde pelo modo ANSI (sem `?`: é modo ANSI, não privado)
+    t.feed("\x1b[20$p")
+    assert t.child_out == b"\x1b[20;1$y", t.child_out
+    t.child_out = b""
+    t.feed("\x1b[20l\x1b[20$p")
+    assert t.child_out == b"\x1b[20;2$y", t.child_out
+
+    # DECSTR: atributos e modos voltam ao padrão, a tela e o histórico ficam
+    t = Term(cols=20, rows=4)
+    t.feed("\x1b[1;4;9;31;42mtexto")  # bold+under+strike, fg 1, bg 2
+    t.feed("\x1b[2;3r")  # região de scroll 1..2 (0-based)
+    t.feed("\x1b[?1h\x1b[?25l\x1b=\x1b[10;10H")
+    antes = [t.row_text(y) for y in range(4)]
+    t.feed("\x1b[!p")
+    assert (t.fg, t.bg, t.flags) == (DEF_FG, DEF_BG, 0)
+    assert (t.cursor_visible, t.app_cursor, t.keypad_app) == (True, False, False)
+    assert (t.top, t.bottom) == (0, 3)
+    assert [t.row_text(y) for y in range(4)] == antes  # grade intacta
+    # o que o Rust também deixa de fora: LNM e o cursor pedido por `CSI 6 q`
+    t = Term(cols=20, rows=3)
+    t.feed("\x1b[20h\x1b[4 q\x1b[!p")
+    assert (t.lnm, t.app_cursor_style) == (True, ("underline", False))
+    # sem parâmetro nenhum de verdade (`CSI ! p` cru, params vazios)
+    t.feed("\x1b[1m\x1b[!p")
+    assert t.flags == 0
+
+
 def style_contrast():
     """O cromo da janela: texto claro em fundo escuro, com contraste medido.
 
@@ -1316,6 +1413,8 @@ ALL = (
     redraw_keeps_history_position,
     mouse_modes_and_sgr,
     selection,
+    block_selection,
+    dropped_path,
     double_and_triple_click,
     hyperlinks,
     paste_markers,
@@ -1325,6 +1424,7 @@ ALL = (
     palette_config,
     session_restore,
     title_stack,
+    lnm_and_soft_reset,
     tab_stops,
     strike_and_overline,
     screen_scroll,

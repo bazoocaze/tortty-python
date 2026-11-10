@@ -431,6 +431,8 @@ class TorttyWindow(Gtk.Window):
         config_path=None,
         debug_log=None,
         debug_socket=None,
+        cols=None,
+        rows=None,
     ):
         super().__init__(title="TorTTY (Python)")
         # O comando dado na linha de comando é replicado em cada aba nova
@@ -452,7 +454,10 @@ class TorttyWindow(Gtk.Window):
         # geometria lembrada entre execuções. Com PYTERM_GEOM quem manda é o
         # protocolo de medição: não restaura e não salva (a grade do bench
         # precisa ser a mesma nos dois terminais comparados).
-        self._remember = not os.environ.get("PYTERM_GEOM")
+        # --cols/--rows (P63) também travam a grade: quem manda é a linha de
+        # comando, então a sessão anterior não é restaurada nem regravada
+        self._pin = (cols, rows)
+        self._remember = not os.environ.get("PYTERM_GEOM") and not any(self._pin)
         self._saved = (state.load() or {}) if self._remember else {}
         self._max = bool(self._saved.get("max"))
         # P50: layout da sessão anterior (workspaces, abas e o cwd de cada
@@ -468,6 +473,10 @@ class TorttyWindow(Gtk.Window):
         # roda sobre a lateral: anda um cartão por detente (P48)
         self.sidebar.add_events(Gdk.EventMask.SCROLL_MASK | Gdk.EventMask.SMOOTH_SCROLL_MASK)
         self.sidebar.connect("scroll-event", self.on_sidebar_scroll)
+        # arquivo solto em qualquer ponto da janela vira o caminho colado (P62)
+        self.drag_dest_set(Gtk.DestDefaults.ALL, [], Gdk.DragAction.COPY)
+        self.drag_dest_add_uri_targets()
+        self.connect("drag-data-received", self.on_drop)
         self._side_wheel = mouse.Notches()
         self.sidebar.set_size_request(SIDEBAR_W, -1)
         self.sidebar.set_visible(False)  # só com 2+ workspaces
@@ -656,9 +665,13 @@ class TorttyWindow(Gtk.Window):
     def debug_keys(self, spec):
         """Tecla pelo caminho do app (atalho, scroll, encoder), não pelo pty."""
         nome, mods = debugsock.parse_key(spec)
-        keyval = Gdk.keyval_from_name(nome)
-        if keyval == Gdk.KEY_VoidSymbol:  # nome que o keysym não conhece
-            keyval = 0
+        # o keysym é `F13`, `Page_Up`; quem digita no socket manda minúsculo
+        keyval = 0
+        for cand in (nome, nome.capitalize(), nome.title(), nome.upper()):
+            kv = Gdk.keyval_from_name(cand)
+            if kv != Gdk.KEY_VoidSymbol:
+                keyval = kv
+                break
         if not keyval and len(nome) == 1:
             keyval = ord(nome)
         if not keyval:
@@ -699,6 +712,21 @@ class TorttyWindow(Gtk.Window):
             return [t.row_text(y).rstrip() for y in range(start, min(t.rows, start + count))]
         linhas = t.visible_rows(v.view_off)[start : start + count]
         return ["".join(c[0] for c in row).rstrip() for row in linhas]
+
+    def debug_sel(self):
+        """Seleção atual: o texto e se é bloco (o verbo `sel` do Rust)."""
+        v = self.view
+        if v is None:
+            return {"text": None, "block": False}
+        return {"text": v.selection_text(), "block": bool(v.sel_block)}
+
+    def debug_drop(self, path):
+        """O que um arquivo solto na janela faz, sem precisar de origem XDND."""
+        v = self.view
+        if v is None:
+            raise ValueError("sem aba")
+        v.drop_path(path)
+        return {"path": path}
 
     def debug_write(self, data):
         """Bytes crus no pty, como se o usuário tivesse digitado."""
@@ -1047,6 +1075,45 @@ class TorttyWindow(Gtk.Window):
 
     def on_window_key(self, widget, ev):
         return self.handle_shortcut(ev)
+
+    # -- arquivo solto na janela (P62) ---------------------------------
+    def on_drop(self, widget, ctx, x, y, data, info, time):
+        """O caminho do arquivo entra no filho como colagem, cotado pro shell.
+
+        Nada além disso: nem aba nova nem `cd` — o terminal não sabe o que está
+        rodando, e um programa que não é shell ainda recebe um caminho legível
+        (a mesma decisão do Rust).
+        """
+        from gi.repository import Gio
+
+        uris = data.get_uris() if data is not None else None
+        v = self.view
+        if not uris or v is None:
+            return False
+        caminho = Gio.File.new_for_uri(uris[0]).get_path()
+        if not caminho:
+            return False
+        v.drop_path(caminho)
+        return True
+
+    def pin_grid(self, cols=None, rows=None):
+        """Trava a grade em cols x rows (`--cols`/`--rows`, P63).
+
+        A conta parte do que já está na tela: o tamanho da janela que sobra
+        fora da grade (barra de abas, lateral, padding) é medido na alocação
+        viva e somado de volta, então a primeira passada já cai na grade certa.
+        """
+        v = self.view
+        if v is None or not (cols or rows):
+            return
+        cw, ch = (int(m) for m in v.metrics())
+        c = cols or v.term.cols
+        r = rows or v.term.rows
+        larg = c * cw + 2 * v.padding
+        alt = r * ch + 2 * v.padding
+        larg += self.get_allocated_width() - v.get_allocated_width()
+        alt += self.get_allocated_height() - v.get_allocated_height()
+        self.resize(max(1, larg), max(1, alt))
 
     # -- cwd herdado ----------------------------------------------------
     def _cwd_view(self, v):

@@ -29,6 +29,14 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   instead of a fixed step of 8. The resize re-seeds them every 8.
 - **Screen scroll** (`CSI S`/`CSI T`, SU/SD) and `REP` (`CSI b`, repeats the
   last printed character); `DECKPAM`/`DECKPNM` and the `?66` query are answered.
+- **`LNM`** (`CSI 20 h`/`l`): with it a `LF` also returns to column 0, which is
+  what a program that sends only `\n` expects (without it the output is a
+  staircase). Answered by `DECRQM`.
+- **`DECSTR`** (`CSI ! p`, soft reset): attributes, colours, cursor visible,
+  `DECCKM`, keypad, origin and the scroll region go back to the defaults
+  without touching the screen or the history.
+- **`F13`–`F24`** arrive as `F1`–`F12` with Shift (`kf13=\E[1;2P` in xterm's
+  terminfo), which is what those keys are on a PC keyboard.
 - **Scrollback** of 1000 lines in the main buffer (`scrollback` option), **with a
   scrollback view**: `Shift+PgUp`/`PgDn` (and `Shift+Home`/`End`) slide the view,
   the **wheel** scrolls the viewport — without talking to the app when it did not
@@ -130,7 +138,9 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   run. If the monitor is gone or the file is junk, the window opens at the
   default; with `PYTERM_GEOM` the measurement protocol rules (it neither restores
   nor saves). On Wayland only maximized is remembered: window position does not
-  exist there.
+  exist there. `--cols N`/`--rows N` pin the grid in columns and rows (the
+  window is sized from the live cell metrics) and, like the measurement
+  protocol, neither restore nor save the session.
 - **Session restore** (`restore_state layout`, the default): the workspaces with
   their names, the tabs in order and the cwd of each shell (from `OSC 7` or
   `/proc`) come back on the next run, with the workspace and the tab that were
@@ -161,6 +171,15 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   whole logical line — a line that broke softly is glued back and comes out
   without the trailing space. The pick already goes to PRIMARY (and to
   CLIPBOARD with `copy_on_select`).
+- **Block selection** (**Alt+drag**): the same columns on every row, copied one
+  line each — the column of a table, dragged from any corner. A soft-wrapped
+  row does not continue into the next one here: a block is cut per row, because
+  the point of it is the columns.
+- **A file dropped on the window** becomes its path, written into the child
+  like a paste: quoted for the shell (single quotes when the path has a space,
+  `$`, `*` or a quote of its own) and bracketed when the child asked for
+  `?2004`. Nothing else happens — no new tab, no `cd`: the terminal does not
+  know what is running.
 - **Hyperlinks** (`OSC 8`): the link travels in the cell (interned URI, an extra
   field only on linked cells). With `Ctrl` held, every link on screen is
   underlined; `Ctrl+click` hands the URI to `xdg-open` — only `http`, `https`,

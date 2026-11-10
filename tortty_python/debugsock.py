@@ -14,7 +14,18 @@ import socket as socket_mod
 import stat
 import struct
 
-VERBS = ("state", "text", "write", "keys", "resize", "prof", "log", "quit")
+VERBS = (
+    "state",
+    "text",
+    "write",
+    "drop",
+    "sel",
+    "keys",
+    "resize",
+    "prof",
+    "log",
+    "quit",
+)
 MODS = ("ctrl", "shift", "alt", "super")
 # nomes que o keysym do X não conhece (PgUp não é "Page_Up" para o Gdk)
 KEY_ALIASES = {
@@ -71,7 +82,7 @@ def dispatch(target, line):
     """Pedido JSON -> resposta JSON de uma linha. Nunca levanta.
 
     O alvo é duck-typed: `debug_state`, `debug_text`, `debug_write`,
-    `debug_log` e `debug_quit` (a janela implementa).
+    `debug_drop`, `debug_sel`, `debug_log` e `debug_quit` (a janela implementa).
     """
     try:
         req = json.loads(line)
@@ -109,6 +120,13 @@ def dispatch(target, line):
                 return _err("write precisa de data (string)")
             target.debug_write(data)
             return _ok()
+        if cmd == "sel":
+            return _ok(**target.debug_sel())
+        if cmd == "drop":
+            path = req.get("path")
+            if not isinstance(path, str):
+                return _err("drop precisa de path (string)")
+            return _ok(**target.debug_drop(path))
         if cmd == "log":
             return _ok(path=target.debug_log(str(req.get("value", ""))))
         if cmd == "quit":

@@ -196,6 +196,11 @@ when it opens, the window shows a security warning toast with the socket path.
   a list. X keysym name (`Page_Up`, `F2`, `Return`) plus the shortcuts `PgUp`,
   `PgDn`, `Esc`, `Enter`, `Del`, `BS`, `Ins`; modifiers `ctrl`, `shift`, `alt`,
   `super`. An unknown key is an error, not silence.
+- `{"cmd": "drop", "path": "/tmp/a b.txt"}` — the same thing a file dropped on
+  the window does (quoted path into the child as a paste), without needing an
+  XDND source. Same function as the real drop.
+- `{"cmd": "sel"}` — the selection as `{"text": ..., "block": true|false}`,
+  without copying to the clipboard. `block` is the Alt+drag rectangle.
 - `{"cmd": "resize", "cols": 100, "rows": 34}` — resizes the WINDOW and lets
   the normal path happen (allocation, `TIOCSWINSZ`, `SIGWINCH`); the result
   comes out in the next `state`.
@@ -267,6 +272,13 @@ when it opens, the window shows a security warning toast with the socket path.
   Rust choice). Seeding them anywhere but in `resize` leaves the main buffer
   with the old list — `len(tabstops) != cols`, and `HT` starts reading past the
   end of the line.
+- The pty translates `\n` into `\r\n` on output (`ONLCR`), so a child never
+  shows the difference `LNM` makes: to test it the child has to run
+  `stty -onlcr` first. Without that, both cases look identical and the test
+  proves nothing.
+- The debug socket takes keysym names, and the keysym is `F13`/`Page_Up` while
+  people type `f13`. The name is tried as given, then capitalised, titled and
+  uppercased before giving up.
 - `window.json` carries `layout` (P50) next to the geometry, validated on load
   (`state.layout`): hand-editing is safe — anything wrong becomes "one tab as
   always". `restore_state none` erases it on the next close and `PYTERM_GEOM`

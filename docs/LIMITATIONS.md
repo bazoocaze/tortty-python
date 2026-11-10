@@ -49,9 +49,9 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
 - **No `DECAWM` off**: autowrap is always on; `CSI ? 7 l` is ignored.
 - **No origin/special margins**: `DECSTBM` (scroll region) works, but
   `? 6` (origin mode), `? 3` (80/132), `DECDHL`/`DECDWL` (double line) do not.
-- **No `DECSTR`** (`CSI ! p`, soft reset) — `RIS` (`ESC c`) exists. Tab stops
-  are real (`HTS`, `TBC`, `CHT`, `CBT`) but the resize re-seeds them every 8
-  instead of preserving what the app set, which is the Rust choice too.
+- **Tab stops are re-seeded on resize**: `HTS`, `TBC`, `CHT` and `CBT` are
+  real, but a resize puts the stops back every 8 instead of preserving what the
+  app set — the Rust choice too.
 - **The keypad application mode is state only**: `DECKPAM`/`DECKPNM` (`ESC =` /
   `ESC >`) and the `?66` query are answered, but the keypad keys send the same
   bytes either way — same decision as the Rust.
@@ -73,8 +73,9 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
 
 ## Mouse and selection
 
-- **No block/rectangular selection** (and no selection by column): dragging,
-  double and triple click cover only whole cells of a line.
+- **A block does not survive a resize by its columns**: the corners are
+  carried like a linear selection, so a reflow moves the rectangle with the
+  characters instead of re-deriving the column range.
 - **The scrollbar has no hover and no context menu**: click and drag only, no
   "jump to mark".
 - **No search in the scrollback**.

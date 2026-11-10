@@ -73,6 +73,23 @@ SIMPLE = {
     Gdk.KEY_F12: "\x1b[24~",
 }
 
+# F13..F24 -> F1..F12 (P60): tabela explícita, porque um erro de aritmética de
+# keyval só apareceria na tecla e o Shift já entra como modificador.
+F_KEY_SHIFT = {
+    Gdk.KEY_F13: Gdk.KEY_F1,
+    Gdk.KEY_F14: Gdk.KEY_F2,
+    Gdk.KEY_F15: Gdk.KEY_F3,
+    Gdk.KEY_F16: Gdk.KEY_F4,
+    Gdk.KEY_F17: Gdk.KEY_F5,
+    Gdk.KEY_F18: Gdk.KEY_F6,
+    Gdk.KEY_F19: Gdk.KEY_F7,
+    Gdk.KEY_F20: Gdk.KEY_F8,
+    Gdk.KEY_F21: Gdk.KEY_F9,
+    Gdk.KEY_F22: Gdk.KEY_F10,
+    Gdk.KEY_F23: Gdk.KEY_F11,
+    Gdk.KEY_F24: Gdk.KEY_F12,
+}
+
 # DECCKM (?1) ligado: setas, Home e End em modo aplicação (\EOA..\EOD).
 # É o que o terminfo de xterm chama de "aplicação" e o que mc/vim/less ligam.
 APP_CURSOR = {
@@ -161,6 +178,11 @@ def encode_key(
     ctrl = bool(state & Gdk.ModifierType.CONTROL_MASK)
     alt = bool(state & Gdk.ModifierType.MOD1_MASK)
     shift = bool(state & Gdk.ModifierType.SHIFT_MASK)
+    # F13..F24 são, num teclado de PC, F1..F12 com Shift — é o que o terminfo
+    # do xterm diz (`kf13=\E[1;2P`, P60). O Shift entra como modificador e a
+    # sequência sai a mesma de F1 com Shift.
+    if kv in F_KEY_SHIFT:
+        kv, shift = F_KEY_SHIFT[kv], True
     out = None
 
     if kbd_flags and not dead_mark:

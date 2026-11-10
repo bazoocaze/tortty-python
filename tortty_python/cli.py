@@ -11,6 +11,8 @@ usage: tortty-python [options]
   --cmd CMD          initial command (default: the config `shell` option)
   -c, --config FILE  configuration file (default:
                      ~/.config/tortty-python/tortty-python.conf)
+  --cols N           grid width in columns, pinned (skips session restore)
+  --rows N           grid height in rows, pinned (skips session restore)
   --quit-after SEG   closes by itself after SEG seconds
   --dump-to FILE     saves the visible grid on exit
   --debug-log FILE   JSONL debug log of ?2026 x scroll (default: the option
@@ -33,10 +35,23 @@ def parse_args(argv):
     tudo certo.
     """
     cmd, quit_after, dump_to, conf, dlog, dsock = None, 0, None, None, None, None
+    cols = rows = None
     args = list(argv[1:])
     while args:
         a = args.pop(0)
-        if a == "--cmd" and args:
+        if a in ("--cols", "--rows") and args:
+            # a grade trava em colunas/linhas: número positivo, senão é erro
+            try:
+                n = int(args.pop(0))
+            except ValueError:
+                return cmd, quit_after, dump_to, conf, dlog, dsock, a, cols, rows
+            if n <= 0:
+                return cmd, quit_after, dump_to, conf, dlog, dsock, a, cols, rows
+            if a == "--cols":
+                cols = n
+            else:
+                rows = n
+        elif a == "--cmd" and args:
             cmd = args.pop(0)
         elif a in ("-c", "--config") and args:
             conf = args.pop(0)
@@ -49,8 +64,8 @@ def parse_args(argv):
         elif a == "--debug-socket" and args:
             dsock = args.pop(0)
         else:
-            return cmd, quit_after, dump_to, conf, dlog, dsock, a
-    return cmd, quit_after, dump_to, conf, dlog, dsock, None
+            return cmd, quit_after, dump_to, conf, dlog, dsock, a, cols, rows
+    return cmd, quit_after, dump_to, conf, dlog, dsock, None, cols, rows
 
 
 def run():
@@ -92,7 +107,7 @@ def main(argv=None):
         return selftest()
     if "--install-shortcut" in argv or "--remove-shortcut" in argv:
         return _shortcut("--install-shortcut" in argv)
-    cmd, quit_after, dump_to, conf, dlog, dsock, erro = parse_args(argv)
+    cmd, quit_after, dump_to, conf, dlog, dsock, erro, cols, rows = parse_args(argv)
     if erro:
         print(f"tortty-python: invalid option: {erro}\n\n{USAGE}", file=sys.stderr)
         return 2
@@ -126,8 +141,12 @@ def main(argv=None):
         config_path=conf,
         debug_log=dlog,
         debug_socket=dsock,
+        cols=cols,
+        rows=rows,
     )
     win.show_all()
+    # depois do show: a medida da barra/lateral vem da alocação viva (P63)
+    win.pin_grid(cols, rows)
     # O Marco (MATE) nega present() com timestamp 0 (GDK_CURRENT_TIME): é
     # preciso o timestamp ATUAL do servidor X, como fazem os apps Qt.
     gdkwin = win.get_window()

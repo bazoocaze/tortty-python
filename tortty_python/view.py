@@ -39,7 +39,7 @@ from .palette import (
     UL_MASK,
     ul_style,
 )
-from .term import DEFAULT_TITLE, CellAnchor, Term, link_allowed
+from .term import DEFAULT_TITLE, CellAnchor, Term, link_allowed, shell_quoted
 
 _PROF = bool(os.environ.get("PYTERM_PROF"))  # mede o custo de draw e de pty
 _NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem desenho
@@ -120,6 +120,15 @@ def surface_from_image(img, cairo):
     return surf, buf
 
 
+def _in_block(y, x, b):
+    """A célula (y, x) está dentro do bloco (r1, c1, r2, c2)? (P61)
+
+    Diferente de `_in_sel`, as colunas valem em TODA linha do intervalo — é o
+    que faz a coluna de uma tabela sair inteira.
+    """
+    return b[0] <= y <= b[2] and b[1] <= x <= b[3]
+
+
 def _in_sel(y, x, sel):
     """A célula (y, x) está dentro da seleção? (r1,c1,r2,c2) inclusivo."""
     r1, c1, r2, c2 = sel
@@ -182,6 +191,7 @@ class TermView(Gtk.DrawingArea):
         # posição de tela quando o conteúdo rola (B17)
         self.sel_start = None
         self.sel_end = None
+        self.sel_block = False  # P61: Alt+arrasto = bloco (colunas fixas)
         self.press_anchor = None  # célula do press: a seleção nasce no arrasto
         self.press_at = None  # pixel do press: a folga de arrasto é medida nele
         self.dragging = False
@@ -942,6 +952,7 @@ class TermView(Gtk.DrawingArea):
     def clear_selection(self):
         if self.sel_start is not None or self.sel_end is not None:
             self.sel_start = self.sel_end = None
+            self.sel_block = False
             self.press_anchor = None
             self.press_at = None
             self.queue_draw()
@@ -1064,6 +1075,29 @@ class TermView(Gtk.DrawingArea):
         c2 = b.col if r2 < t.rows else t.cols - 1
         return (max(0, r1), c1, min(t.rows - 1, r2), c2)
 
+    def sel_block_rect(self):
+        """(r1, c1, r2, c2) do bloco nas fileiras da visão, ou None (P61).
+
+        As colunas são as mesmas em toda linha; a linha que ficou fora da tela
+        é presa na borda, como na seleção linear.
+        """
+        if not self.sel_block:
+            return None
+        span = self.sel_span()
+        if span is None:
+            return None
+        t = self.term
+        a, b = span
+        r1, r2 = t.anchor_row(a, self.view_off), t.anchor_row(b, self.view_off)
+        if r1 >= t.rows or r2 < 0:
+            return None
+        return (
+            max(0, r1),
+            min(a.col, b.col),
+            min(t.rows - 1, r2),
+            min(max(a.col, b.col), t.cols - 1),
+        )
+
     def on_draw(self, area, cr):
         if not _PROF:
             return self._on_draw(area, cr)
@@ -1103,7 +1137,8 @@ class TermView(Gtk.DrawingArea):
         # só a faixa que mudou — sem isso o laço desenharia a tela toda de
         # qualquer jeito e o custo do spinner voltaria (P27)
         clip_x0, clip_y0, clip_x1, clip_y1 = cr.clip_extents()
-        sel = self.sel_range()
+        blk = self.sel_block_rect()
+        sel = blk if blk is not None else self.sel_range()
         rows = self.visible_rows()
         # sobra sub-célula: quase nunca a janela é múltiplo exato de (cw, ch).
         # A faixa que sobra embaixo/à direita pertence à última fileira/coluna
@@ -1119,7 +1154,8 @@ class TermView(Gtk.DrawingArea):
         col_lo = max(0, int(clip_x0 // cw))
         col_hi = min(t.cols, int(clip_x1 // cw) + 1)
         bg_def = t.theme.rgb_f(DEF_BG)  # uma vez por draw, não a cada run (P37)
-        rgb, in_sel, sel_on = t.theme.rgb_f, _in_sel, bool(sel)
+        rgb, sel_on = t.theme.rgb_f, bool(sel)
+        in_sel = _in_block if blk is not None else _in_sel
         quadro = []
         for y, row in enumerate(rows):
             if y < row_lo or y > row_hi:
@@ -1298,6 +1334,15 @@ class TermView(Gtk.DrawingArea):
         row = max(0, min(t.rows - 1, int((py - self.padding) // int(ch))))
         return col, row
 
+    def drop_path(self, path):
+        """Arquivo solto na janela (P62): o caminho entra como colagem.
+
+        Um só caminho para o XDND e para o verbo `drop` do socket — é o que
+        deixa o drop ser testável sem arrastar de verdade.
+        """
+        self.back_to_live()  # quem cola fala com o app: a visão vai pro vivo
+        self._write_child(self.term.paste_payload(shell_quoted(path)))
+
     def _write_child(self, data):
         if not data:
             return
@@ -1380,6 +1425,8 @@ class TermView(Gtk.DrawingArea):
             # nem sobrescrever o PRIMARY com 1 caractere. E clicar no histórico
             # NÃO volta pro vivo: o arrasto é justamente para copiar dali (B16)
             self.clear_selection()
+            # Alt+arrasto = bloco (P61), como no Rust
+            self.sel_block = bool(ev.state & Gdk.ModifierType.MOD1_MASK)
             self.press_anchor = t.anchor_at(self.view_off, row, col)
             self.press_at = (ev.x, ev.y)
             self.dragging = True
@@ -1427,6 +1474,7 @@ class TermView(Gtk.DrawingArea):
             start, end = t.logical_line_span(line)
         self.sel_start = CellAnchor(start[0], start[1], t.abs_gen)
         self.sel_end = CellAnchor(end[0], end[1], t.abs_gen)
+        self.sel_block = False  # palavra/linha nunca é bloco
         self.dragging = False  # o release não pode desfazer nem recopiar
         self.copy(Gdk.SELECTION_PRIMARY)
         if self.copy_on_select:
@@ -1519,16 +1567,23 @@ class TermView(Gtk.DrawingArea):
         return False
 
     # -- área de transferência ----------------------------------------
+    def selection_text(self):
+        """Texto da seleção (bloco ou linear) sem copiar; None = sem seleção."""
+        span = self.sel_span()
+        if span is None:
+            return None
+        if self.sel_block:
+            return self.term.anchor_block_text(*span)
+        return self.term.anchor_text(*span)
+
     def copy(self, selection=Gdk.SELECTION_CLIPBOARD):
         """Copia a seleção — ou a viewport inteira, se não houver seleção."""
-        span = self.sel_span()
-        if span:
-            # Sem `+ "\n"`: o kitty só junta as linhas com "\n" ENTRE elas, e
-            # o fim de linha entra quando o arrasto chega na coluna 0 da linha
-            # seguinte (aí a última "linha" da seleção é vazia). O newline
-            # incondicional fazia colar "abcdef" executar `abcdef`.
-            text = self.term.anchor_text(*span)
-        else:
+        # Sem `+ "\n"`: o kitty só junta as linhas com "\n" ENTRE elas, e o fim
+        # de linha entra quando o arrasto chega na coluna 0 da linha seguinte
+        # (aí a última "linha" da seleção é vazia). O newline incondicional
+        # fazia colar "abcdef" executar `abcdef`.
+        text = self.selection_text()
+        if text is None:
             text = self.term.all_text(rows=self.visible_rows())
         cb = Gtk.Clipboard.get(selection)
         cb.set_text(text, -1)

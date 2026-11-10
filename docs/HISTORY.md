@@ -1137,7 +1137,7 @@ Rust decision written down in `keypad_app`. Verified on a window: `=` +
 `CSI 5 b` printed six of them, and after `ESC =` a `CSI ?66 $p` came back
 `ESC[?66;1$y` on the screen.
 
-### P33 — Configuration: parity with the Rust (2026-11-09)
+### P33 — Configuration: parity with the Rust (2026-11-10)
 
 The leftover was written as "the palette and shortcut remapping": the palette
 landed in P49, and remapping is `M-H` in the Rust, still open there — a `map`
@@ -1150,6 +1150,63 @@ value as `FALLBACK`, colors in); `debug_log` empty = **off** and an empty
 **colour is an error**. Kept as *tuning*: `scrollback` 1000 (10000 ≈ 168 MB at
 84 B/cell), the `debug_log` path default and the `shell` PATH check the Rust
 lacks. `restore_state content` left LIMITATIONS (it is a feature) → queued P57.
+
+### P58 — `LNM` (2026-11-10)
+
+`CSI 20 h`/`l` sets `term.lnm`: with it the `\n` of the parser zeroes the column
+before the line advance, so a program that sends only `\n` stops drawing a
+staircase. `DECRQM` answers `20;1$y`/`20;2$y`. The mode is a flag checked only on
+`\n`, outside the hot path. Verified on a window with a child running
+`stty -onlcr` (without that the pty turns `\n` into `\r\n` and the test proves
+nothing): `ab\nc` gives `ab` / `  c` with the mode off and `ab` / `c` with it on.
+
+### P59 — `DECSTR` (2026-11-10)
+
+`CSI ! p` (soft reset) resets the pen (`fg`, `bg`, `flags`), cursor visible,
+`DECCKM`, keypad, the scroll region and the pending wrap — and touches neither
+the grid nor the history. The field list is the Rust `soft_reset`; `LNM` and the
+cursor asked by `CSI 6 q` stay out, as they do there. Verified by pixels: the
+same screen keeps its text, the background of the cell written before the reset
+is the colour it was (`#00cd00`) and the one written after is the default
+(`#000000`).
+
+### P60 — `F13`–`F24` (2026-11-10)
+
+They are `F1`–`F12` with Shift on a PC keyboard, which is what xterm's terminfo
+says (`kf13=\E[1;2P`). An explicit table (`F_KEY_SHIFT`) translates the keyval
+and forces `shift`, and `_special` already built the modifier parameter. Verified
+on a window with a `cat -v` child: `f13` arrives as `^[[1;2P`, the same bytes as
+`shift+f12`, and `f12` stays `^[[24~`.
+
+### P61 — Block selection (2026-11-10)
+
+`Alt+drag` takes the same columns on every row (`view.sel_block`), copied one
+line each by `Term.anchor_block_text` — a soft-wrapped row does not continue into
+the next one, because the point of a block is the columns. The drawing needed a
+second predicate: `_in_sel` constrains the columns only on the first and last
+row, `_in_block` constrains them on every row, and the draw picks one per frame.
+`copy` and the new `selection_text` share the block/linear choice. Verified with
+a real Alt+drag under XTest over a 3×3 table: the `sel` verb read
+`{"text": "b1\nb2\nb3", "block": true}`.
+
+### P62 — A dropped file becomes its path (2026-11-10)
+
+`drag_dest_set` with URI targets on the window; the first URI's path goes into
+the child through `Term.paste_payload`, so `?2004` brackets it. `shell_quoted`
+is the Rust rule: pass through when every character is safe, otherwise single
+quotes with `'\''` for a quote inside. One function serves the XDND event and
+the new `drop` verb of the debug socket (the Rust has the same verb, for the same
+reason). Verified by running the quoted paths through a real `sh` (they come back
+identical, apostrophe and tab included) and by dropping on a `cat -v` child,
+which showed `'/tmp/a b.txt'`.
+
+### P63 — `--cols` / `--rows` (2026-11-10)
+
+They pin the grid: after `show_all` the window is sized from the live cell
+metrics plus the space outside the grid (tab bar, sidebar, padding) measured in
+the allocation, so the first pass already lands on the exact grid. Like
+`PYTERM_GEOM`, pinning means the session is neither restored nor saved. Verified
+with `--cols 100 --rows 24`: `state` reported exactly `100x24`.
 
 ## Bugs found and fixed (useful history)
 

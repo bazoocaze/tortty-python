@@ -49,6 +49,21 @@ NOTIF_MAX = 512
 TITLE_STACK_MAX = 16
 
 
+_SHELL_SAFE = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-+=@,:")
+
+
+def shell_quoted(path):
+    """Caminho pronto para o shell (P62): direto se é seguro, senão aspas simples.
+
+    Mesma regra do Rust (`shell_quoted`): só ganha aspas o que tem espaço,
+    `$`, `*`, `'` ou qualquer coisa fora do conjunto seguro — e a aspa simples
+    dentro do caminho vira `'\''`.
+    """
+    if path and all(c in _SHELL_SAFE for c in path):
+        return path
+    return "'" + path.replace("'", "'\\''") + "'"
+
+
 def _osc_progress(arg):
     """`9;4;estado[;%]`: progresso do mintty/ConEmu, não uma mensagem (P44)."""
     parts = arg.split(";")
@@ -160,6 +175,8 @@ class Term:
         self.alt_wrapped = None
         self.cx, self.cy = 0, 0
         self.fg, self.bg, self.flags = DEF_FG, DEF_BG, 0
+        # LNM (`CSI 20 h`, P58): com ele o LF volta também para a coluna 0
+        self.lnm = False
         self.top, self.bottom = 0, rows - 1  # scroll region
         self.wrap_pending = False
         self.cursor_visible = True
@@ -510,6 +527,8 @@ class Term:
             return
         if ch == "\n":
             self.wrap_pending = False
+            if self.lnm:  # P58: LF também volta a coluna para o zero
+                self.cx = 0
             self.newline()
             return
         if ch == "\b":
@@ -744,9 +763,25 @@ class Term:
             return [vals[0], 2] + last3
         return [0 if v is None else v for v in vals]
 
+    def soft_reset(self):
+        """DECSTR (P59): volta atributos e modos ao padrão, sem limpar a tela.
+
+        A lista é a do Rust (`soft_reset`): o que não existe aqui (cor de
+        sublinhado, origin, autowrap) não tem o que resetar, e o LNM e o
+        cursor pedido por `CSI 6 q` ficam de fora — o Rust também os deixa.
+        """
+        self.fg, self.bg, self.flags = DEF_FG, DEF_BG, 0
+        self.cursor_visible = True
+        self.app_cursor = False
+        self.keypad_app = False
+        self.top, self.bottom = 0, self.rows - 1
+        self.wrap_pending = False
+
     def set_mode(self, params, private, on):
         for p in params:
-            if private and p == 25:
+            if not private and p == 20:
+                self.lnm = on  # P58
+            elif private and p == 25:
                 self.cursor_visible = on
             elif private and p == 1:
                 # DECCKM: com o modo ligado as setas viram \EOA..\EOD
@@ -837,7 +872,9 @@ class Term:
             if p == 66:
                 return 1 if self.keypad_app else 2
             return 0
-        return 0  # modos ANSI (IRM, LNM...): nenhum implementado
+        if p == 20:  # LNM (P58); os outros modos ANSI (IRM...) não existem
+            return 1 if self.lnm else 2
+        return 0
 
     def csi_dispatch(self, final, params, prefix="", inter=""):
         def get(i, d):
@@ -933,6 +970,9 @@ class Term:
             self.child_out += b"\x1b[>1;100;0c"
         elif final == "c" and not prefix and params in ((), (0,)):
             self.child_out += b"\x1b[?62c"  # DA1: VT102
+        elif final == "p" and inter == "!" and (not params or params == (0,)):
+            # DECSTR (P59): soft reset — não toca na grade nem no histórico
+            self.soft_reset()
         elif final == "p" and inter == "$":
             # DECRQM: o app pergunta se um modo existe/suporta
             ps = get(0, 0)
@@ -1419,6 +1459,26 @@ class Term:
         if any(r is None for r in rows):
             return ""
         return self._span_text(rows, (0, start.col), (len(rows) - 1, end.col))
+
+    def anchor_block_text(self, start, end):
+        """Bloco (P61): as mesmas colunas em toda linha, uma linha por vez.
+
+        A linha que quebrou mole NÃO continua na de baixo aqui — o bloco é
+        cortado por linha, porque o que se quer são as colunas (é a regra do
+        Rust). Espaço à direita de cada linha sai fora.
+        """
+        if not (self.anchor_alive(start) and self.anchor_alive(end)):
+            return ""
+        lo = min(start.col, end.col)
+        hi = max(start.col, end.col) + 1
+        y1, y2 = min(start.line, end.line), max(start.line, end.line)
+        out = []
+        for line in range(y1, y2 + 1):
+            row = self.abs_row(line)
+            if row is None:
+                return ""
+            out.append("".join(c[0] for c in row[lo:hi]).rstrip())
+        return "\n".join(out)
 
     # -- texto (cópia) ------------------------------------------------
     def paste_payload(self, text):
