@@ -1137,6 +1137,20 @@ Rust decision written down in `keypad_app`. Verified on a window: `=` +
 `CSI 5 b` printed six of them, and after `ESC =` a `CSI ?66 $p` came back
 `ESC[?66;1$y` on the screen.
 
+### P33 — Configuration: parity with the Rust (2026-11-09)
+
+The leftover was written as "the palette and shortcut remapping": the palette
+landed in P49, and remapping is `M-H` in the Rust, still open there — a `map`
+dialect here would be a second format for the same file, so none was invented.
+What closed was the parity of the keys, read against `config.rs`: the embedded
+`.conf` is the source and the in-code dict only the safety net (`DEFAULTS` →
+`FALLBACK`, as a key added only to the file came back as `unknown key`); the
+Rust's `defaults_parse_clean` became an assertion (zero errors, every key, same
+value as `FALLBACK`, colors in); `debug_log` empty = **off** and an empty
+**colour is an error**. Kept as *tuning*: `scrollback` 1000 (10000 ≈ 168 MB at
+84 B/cell), the `debug_log` path default and the `shell` PATH check the Rust
+lacks. `restore_state content` left LIMITATIONS (it is a feature) → queued P57.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

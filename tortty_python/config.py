@@ -17,9 +17,12 @@ from typing import NamedTuple
 
 from .palette import parse_color
 
-# Só para pacote mal montado (o `data/tortty-python.conf` é a fonte normal dos padrões).
+# O PADRÃO é o arquivo `data/tortty-python.conf`: ele embarca no pacote e é lido
+# como qualquer configuração. Este dict é só a rede de segurança para pacote mal
+# montado (arquivo ausente) — a mesma função do `fallback()` do Rust, e o check
+# `config_options` garante que os dois não divergem.
 # Também é a lista de chaves conhecidas: chave fora daqui é erro (P33).
-DEFAULTS = {
+FALLBACK = {
     "shell": "",  # vazio = herda o $SHELL do ambiente (ver effective_shell)
     "font_family": "Monospace",
     "font_size": "12",
@@ -37,13 +40,40 @@ DEFAULTS = {
 }
 DATA = Path(__file__).with_name("data") / "tortty-python.conf"
 
-# As 19 chaves de cor (P49): frente, fundo, cursor e as 16 ANSI. Vazio no
-# DEFAULTS = "usa o padrão embutido do palette.py" (a paleta clássica do
-# xterm, que é onde mc/htop e ls --color foram calibrados).
+# As 19 chaves de cor (P49): frente, fundo, cursor e as 16 ANSI — a paleta
+# clássica do xterm, que é onde mc/htop e ls --color foram calibrados. Os mesmos
+# valores do `data/tortty-python.conf` e do `palette.py`.
 COLOR_KEYS = ("foreground", "background", "cursor_color") + tuple("color%d" % i for i in range(16))
-DEFAULTS.update({k: "" for k in COLOR_KEYS})
+FALLBACK.update(
+    dict(
+        zip(
+            COLOR_KEYS,
+            (
+                "#d6d6d6",
+                "#000000",
+                "#d6d6d6",
+                "#000000",
+                "#cd0000",
+                "#00cd00",
+                "#cdcd00",
+                "#0000ee",
+                "#cd00cd",
+                "#00cdcd",
+                "#e5e5e5",
+                "#7f7f7f",
+                "#ff0000",
+                "#00ff00",
+                "#ffff00",
+                "#5c5cff",
+                "#ff00ff",
+                "#00ffff",
+                "#ffffff",
+            ),
+        )
+    )
+)
 
-KNOWN = tuple(DEFAULTS)
+KNOWN = tuple(FALLBACK)
 CURSOR_SHAPES = ("block", "beam", "underline")
 LIGATURES = ("off", "standard", "all")
 # `font-features` do Pango por modo (P45); "all" soma as discricionárias
@@ -190,15 +220,15 @@ def check_padding(valor):
 
 
 def check_debug_log(valor):
-    """`off` desliga; qualquer outro valor é caminho de arquivo."""
-    if valor.lower() == "off" or valor:
-        return None
-    return "debug_log is empty (use off to disable)"
+    """`off` (ou vazio, como no Rust) desliga; o resto é caminho de arquivo."""
+    return None  # a chave aceita qualquer valor; `debug_log_path` interpreta
 
 
 def check_color(valor):
-    """`#RGB`/`#RRGGBB`; vazio = o padrão embutido (P49)."""
-    if valor and parse_color(valor) is None:
+    """`#RGB`/`#RRGGBB`, obrigatório — como no Rust, cor vazia é erro."""
+    if not valor:
+        return "color is empty (use #RRGGBB)"
+    if parse_color(valor) is None:
         return "invalid color: %s (use #RRGGBB)" % valor
     return None
 
@@ -246,7 +276,7 @@ class Config:
         self.exists = exists  # o arquivo do usuário existe?
 
     def _get(self, key):
-        return self.values.get(key, DEFAULTS[key])
+        return self.values.get(key, FALLBACK[key])
 
     @property
     def shell(self):
@@ -360,7 +390,7 @@ def _validated(vals, base):
 def load(path=None):
     """Config mesclada (embutido <- usuário). Nunca levanta exceção."""
     path = Path(path) if path else default_path()
-    base = dict(DEFAULTS)
+    base = dict(FALLBACK)
     emb = _read(DATA)
     if emb is None:
         errors = ["defaults file not found: %s" % DATA]

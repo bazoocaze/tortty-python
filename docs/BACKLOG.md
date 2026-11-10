@@ -49,41 +49,27 @@ throughput/latency, install form. The study, the blocks in the code and the cost
 of each route (conda, Qt, FFI) are in [PORTABILITY.md](PORTABILITY.md); none of
 it is decided.
 
-P33 — Configuration file: **v1 implemented** (2026-10-29), real use is missing.
-The scope decision was "start with `shell` only": no colors, font or shortcuts.
-What exists:
-
-- `tortty_python/config.py` pure (no `gi`): parse of the kitty format (`chave valor`,
-  `#` comments to the end of the line, leading/trailing space, repeated key the
-  last one wins), validation per key and merge **always** with the default;
-- default embedded in `tortty_python/data/tortty-python.conf` (goes in the wheel like
-  the icon);
-- user file at `$XDG_CONFIG_HOME/tortty-python/tortty-python.conf`, and `-c FILE` /
-  `--config FILE` changes only that path (the merge with the default continues);
-- `shell` (empty in the default) becomes the command of each new tab; `--cmd`
-  wins. Empty inherits the environment's `$SHELL`, and the `$SHELL` handed to
-  the child is always the shell that actually runs (before, the inherited one
-  stayed, even with another one configured);
-- auto-reload via `Gio.FileMonitor` with a 250 ms debounce; on reload, an error
-  keeps the previous configuration (nothing changes) and the error goes to a
-  10 s toast at the base of the window (Android style, `Gtk.Revealer` + `#toast`
-  in `style.py`);
-- `Ctrl+Shift+F2` opens the user file in `vim`, in a new tab.
-
-Font, cursor, scrollback, padding, bell and copy have already landed (P34,
-completed). What remains for later: palette (`color0..15`, `foreground`,
-`background`, `cursor`, with `#rrggbb` in the kitty format) and shortcut
-remapping.
-
-Two bugs found on the way, recorded in `docs/HISTORY.md`: `Gio.FileMonitor` was
-collected by the GC (without a kept reference the reload never fired) and
-`no_show_all` blocks even the `show_all()` called directly on the widget (the
-toast box stayed invisible).
+P57 — `restore_state content`: the photograph of each tab. **Feature.** The
+Rust has the third degree of `restore_state` (P50 implemented `none` and
+`layout`): besides the workspaces and the tabs, what each one had on screen and
+in the history comes back — the shell starts again in the same directory, the
+processes do not. The route there is already settled and it is the route here:
+the snapshot is **ANSI**, not a private format (`crates/core/src/snapshot.rs`),
+because the reader already exists — the parser. SGR, `OSC 8` links and
+soft-wrapped rows go in as bytes, so a snapshot taken in a wide window and
+reopened narrow reflows by the same code as a live resize; images, clipboard,
+notification and title stay out (a photograph, not a process). One file per
+(workspace, tab) in the state directory (`state.save_snapshots`), written on
+the way out and fed to a fresh `Term` on the way in. What is missing here is the
+emitter: `Term` reads SGR and `OSC 8` but does not write them back, so it is a
+`term.py` companion (`snapshot(term) -> bytes`, pure, so `--selftest` covers
+it) plus the `state.py` plumbing and the marker the terminal writes to separate
+the restored picture from the new run.
 
 The other items are completed: history and bugs in [HISTORY.md](HISTORY.md),
 tools and pitfalls in [DEBUG.md](DEBUG.md).
 
-Nothing is queued: the remaining gaps are the known limitations in
+Everything else is the known limitations in
 [LIMITATIONS.md](LIMITATIONS.md) — wide character (CJK/emoji) occupying a single
 cell, partial kitty keyboard protocol, `DECSTR`, sets of SGR (faint, blink,
 hidden, underline color), no configurable chrome (`style.py`) — each one waiting

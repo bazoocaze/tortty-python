@@ -265,19 +265,28 @@ def config_file():
     cfg = config.load(p)
     assert (cfg.shell, cfg.ok) == ("", False)
     assert "line 2: shell not executable" in config.message(cfg)
+    # paridade fina com o Rust: cor vazia é erro, `debug_log` vazio desliga
+    with open(p, "w") as f:
+        f.write("color3\ndebug_log\n")
+    cfg = config.load(p)
+    assert [e.split(": ")[1] for e in cfg.errors] == ["color is empty (use #RRGGBB)"]
+    assert cfg.debug_log is None  # vazio = `off` (Rust), não erro
 
 
 def config_options():
     """P34: fonte, cursor, histórico, padding, bell e copy_on_select."""
     from . import config
 
-    # o default embarcado documenta TODAS as chaves, com os valores de fábrica
-    # (as 19 de cor repetem o palette.py — o guard está no palette_config)
+    # o default embarcado é a FONTE dos valores, e é o `defaults_parse_clean` do
+    # Rust: ele tem que carregar sem erro nenhum, com todas as chaves e com o
+    # mesmo valor da rede de segurança (`FALLBACK`) — se divergir, alguém editou
+    # um dos dois.
     emb = {e.key: e.value for e in config.parse(config.DATA.read_text())}
-    assert {k: v for k, v in emb.items() if k not in config.COLOR_KEYS} == {
-        k: v for k, v in config.DEFAULTS.items() if k not in config.COLOR_KEYS
-    }
-    assert {k for k in emb if k in config.COLOR_KEYS} == set(config.COLOR_KEYS)
+    assert set(emb) == set(config.KNOWN), set(emb) ^ set(config.KNOWN)
+    assert emb == config.FALLBACK, set(emb.items()) ^ set(config.FALLBACK.items())
+    padroes = config.load(os.path.join(tempfile.mkdtemp(), "nao-existe.conf"))
+    assert (padroes.ok, padroes.warnings) == (True, []), config.message(padroes)
+    # as 19 de cor repetem a paleta do palette.py (o guard está no palette_config)
     d = tempfile.mkdtemp()
     p = os.path.join(d, "tortty_python.conf")
     # sem arquivo do usuário valem os padrões, chave a chave
@@ -309,8 +318,8 @@ def config_options():
     assert config.load(p).debug_log is None
     with open(p, "w") as f:
         f.write("debug_log\n")
-    cfg = config.load(p)
-    assert not cfg.ok and "debug_log is empty" in cfg.errors[0]
+    cfg = config.load(p)  # vazio desliga, como no Rust (não é erro)
+    assert (cfg.ok, cfg.debug_log) == (True, None)
     # erro é por linha: o válido aplica, o inválido fica no padrão
     for lixo, esperado in (
         ("font_size abc", "font_size is not a number"),
