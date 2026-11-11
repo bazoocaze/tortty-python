@@ -1,13 +1,15 @@
 # TorTTY-Python — backlog (pending)
 
-Current and future activities. Id `P<n>`.
-Completed activities do not stay here; they must go to `HISTORY.md`.
+Current and future activities. Id `P<n>`. A completed activity leaves here and
+goes to [HISTORY.md](HISTORY.md); what is not an item — a limit accepted by
+decision, a tool and its pitfalls — belongs to [LIMITATIONS.md](LIMITATIONS.md)
+and [DEBUG.md](DEBUG.md).
 
 P26 — Drawing: `cr.show_glyphs` with precomputed glyphs. **Experiment, not a
 commitment.** It is the only path that really attacks the emission cost:
 2.43 → 0.76 µs (-69%, ~24% of the drawing). The price is leaving Pango: no font
 fallback, no bold attrs and no widget resolution (the app uses 130 dpi).
-Measured: 440–958 different bytes out of 56,000 in a cell ~0.8% of the bytes)
+Measured: 440–958 different bytes out of 56,000 in a cell (~0.8% of the bytes)
 and optimal `dy` equal to Pango's. The faithful path (extract the glyphs *from*
 Pango and call `show_glyphs`) **does not exist in pygobject**:
 `GlyphString.glyphs` blows up "Stack overflow protection" and returns `[]`. If
@@ -65,12 +67,3 @@ emitter: `Term` reads SGR and `OSC 8` but does not write them back, so it is a
 `term.py` companion (`snapshot(term) -> bytes`, pure, so `--selftest` covers
 it) plus the `state.py` plumbing and the marker the terminal writes to separate
 the restored picture from the new run.
-
-The other items are completed: history and bugs in [HISTORY.md](HISTORY.md),
-tools and pitfalls in [DEBUG.md](DEBUG.md).
-
-Everything else is the known limitations in
-[LIMITATIONS.md](LIMITATIONS.md) — wide character (CJK/emoji) occupying a single
-cell, partial kitty keyboard protocol, `DECSTR`, sets of SGR (faint, blink,
-hidden, underline color), no configurable chrome (`style.py`) — each one waiting
-for a requirement, not for time.

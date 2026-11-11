@@ -84,14 +84,17 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   foreground, background and cursor, and `104`/`110`/`111`/`112` go back to the
   configured value.
 - **Configuration file** (kitty key/value, in
-  `$XDG_CONFIG_HOME/tortty-python/tortty-python.conf`, merged over the default
-  embedded in the package and applied live while the app runs): font family and
-  size (points), `ligatures`, `cursor_shape`/`cursor_blink`, the 19 palette
-  colors, `scrollback`, `window_padding_width`, `bell` (`none`/`visual`/
-  `audible`), `copy_on_select`, `restore_state`, `shell` and `debug_log`. The
-  keys and their ranges live in `tortty_python/config.py`, the default values in
-  `tortty_python/data/tortty-python.conf`; a bad line is reported alone and what
-  validated still applies.
+  `$XDG_CONFIG_HOME/tortty-python/tortty-python.conf`, always merged over the
+  default embedded in the package): font family and size (points), `ligatures`,
+  `cursor_shape`/`cursor_blink`, the 19 palette colors, `scrollback`,
+  `window_padding_width`, `bell` (`none`/`visual`/`audible`), `copy_on_select`,
+  `restore_state`, `shell` and `debug_log`. The keys and their ranges live in
+  `tortty_python/config.py`, the default values in
+  `tortty_python/data/tortty-python.conf`.
+- **`Ctrl+Shift+F2` opens that file in `vim`**, in a new tab, with the window
+  still open behind it. The file is watched: saving applies the configuration to
+  every tab on the spot (font, padding, cursor, colors, scrollback), and a file
+  that does not validate changes nothing — the toast shows the error instead.
 - **Drawing** with cairo + Pango: runs grouped by attributes, bold,
   underline, inverse, block cursor, real shaping (connected Arabic,
   combinations) and font fallback (CJK, color emoji).
