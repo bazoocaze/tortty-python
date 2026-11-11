@@ -39,19 +39,16 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   the family (`font_family`) and the ligature mode (`ligatures`: off, standard,
   all) are configurable, but the machine's default Monospace (DejaVu) has
   almost no ligature — whoever wants it needs a Fira Code or JetBrains
-  installed and to pick it. There is no `letter_spacing` option, and
-  `font_size` is in **points** (terminal convention, converted by the display's
-  DPI), not pixels.
+  installed and to pick it. `font_size` is in **points** (terminal convention,
+  converted by the display's DPI), not pixels.
 
 ## VT parser (what is not interpreted)
 
-- **Partial SGR**: implements 0, 1, 3, 4 (with `4:n`), 7, 9/29 (strikethrough),
-  21, 22, 23, 24, 27, 30–37, 39, 40–47, 49, 53/55 (overline), 90–97, 100–107,
-  38/48 (256 and truecolor). **Does not** implement 2 (half intensity), 5 and 6
-  (blink), 8 (hidden) and 58/59 (underline color, which the Rust draws).
-- **Bold does not become bright color**: with an 8/16 color palette, `SGR 1`
-  only thickens the glyph; there is no "bold as bright" (which xterm does).
-- **No `DECAWM` off**: autowrap is always on; `CSI ? 7 l` is ignored.
+- **Partial SGR**: implements 0, 1, 2 (faint), 3, 4 (with `4:n`), 7, 8
+  (hidden), 9/29 (strikethrough), 21, 22, 23, 24, 27, 30–37, 39, 40–47, 49,
+  53/55 (overline), 90–97, 100–107, 38/48 (256 and truecolor). **Does not**
+  implement 5 and 6 (blink — needs a redraw timer) and 58/59 (underline color,
+  which the Rust draws).
 - **No origin/special margins**: `DECSTBM` (scroll region) works, but
   `? 6` (origin mode), `? 3` (80/132), `DECDHL`/`DECDWL` (double line) do not.
 - **Tab stops are re-seeded on resize**: `HTS`, `TBC`, `CHT` and `CBT` are
@@ -63,8 +60,6 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 
 ## OSC (what is not served)
 
-- **No `OSC 52`** (clipboard): copying from the app to the system does not go
-  through the sequence — only through the mouse selection (which is local).
 - **`OSC 8` ignores the parameters**: the `id=`/`key=value` part is accepted and
   discarded, and there is no hover without `Ctrl` (the underline only appears
   with the modifier held, so the screen matches what a plain capture shows).

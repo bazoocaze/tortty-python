@@ -26,6 +26,9 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
 - **Strikethrough and overline** (`9`/`29`, `53`/`55`): the line crosses the
   cell at half height and the overline sits on the top edge, both in the text
   color — the struck line `git diff` and `bat` draw shows up.
+- **Faint and hidden** (`2`/`8`, and `22` clears both intensities): faint draws
+  halfway to the background, hidden drops the glyph — background and
+  decoration stay.
 - **Title stack** (`CSI 22 t` pushes, `23 t` gives back, cap of 16): `vim`,
   `less` and `screen` push the title on entry and pop on exit, so the tab label
   comes back to where it was instead of staying on the app's title.
@@ -88,7 +91,8 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   default embedded in the package): font family and size (points), `ligatures`,
   `cursor_shape`/`cursor_blink`, the 19 palette colors, `scrollback`,
   `window_padding_width`, `bell` (`none`/`visual`/`audible`), `copy_on_select`,
-  `restore_state`, `shell` and `debug_log`. The keys and their ranges live in
+  `bold_as_bright`, `letter_spacing`, `restore_state`, `shell` and
+  `debug_log`. The keys and their ranges live in
   `tortty_python/config.py`, the default values in
   `tortty_python/data/tortty-python.conf`.
 - **`Ctrl+Shift+F2` opens that file in `vim`**, in a new tab, with the window
@@ -146,6 +150,10 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   card; visiting the tab acknowledges it. The window also asks for urgency.
   `9;4;state[;%]` (the mintty/ConEmu progress bar) is swallowed — a busy TUI
   repeats it at 1 Hz and would pin the toast forever.
+- **App clipboard** (`OSC 52`): a base64 payload from the app lands in the
+  system clipboard (CLIPBOARD, or PRIMARY with `p`/`s`) the way the mouse
+  selection does; a query answers with an empty payload, because the content
+  lives in the Gtk clipboard, not in the pure `Term`.
 - **Closes when the shell ends**: `GLib.child_watch_add` reaps the child (no
   zombie) and closes the window on `Ctrl+D`/`exit`; before closing it drains what
   is left in the pty (otherwise the last screen disappears) and sends `SIGHUP` to

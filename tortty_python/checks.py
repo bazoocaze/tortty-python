@@ -21,7 +21,9 @@ from .palette import (
     BOLD,
     DEF_BG,
     DEF_FG,
+    DIM,
     FG_DEFAULT,
+    HIDDEN,
     ITALIC,
     UL,
     UL_CURLY,
@@ -312,6 +314,7 @@ def config_options():
     assert (cfg.cursor_shape, cfg.cursor_blink) == ("block", False)
     assert (cfg.scrollback, cfg.padding) == (1000, 0)
     assert (cfg.bell, cfg.copy_on_select) == ("none", False)
+    assert (cfg.bold_as_bright, cfg.letter_spacing) == (False, 0)
     assert cfg.debug_log == "/tmp/tortty-python.debug.log"
     # valor válido de cada chave: família com espaço, fonte fracionária
     with open(p, "w") as f:
@@ -319,6 +322,7 @@ def config_options():
             "font_family DejaVu Sans Mono\nfont_size 12.5\ncursor_shape beam\n"
             "cursor_blink yes\nscrollback 200\nwindow_padding_width 4\n"
             "bell visual\ncopy_on_select on\n"
+            "bold_as_bright on\nletter_spacing 5\n"
         )
     cfg = config.load(p)
     assert cfg.ok, config.message(cfg)
@@ -326,6 +330,7 @@ def config_options():
     assert (cfg.cursor_shape, cfg.cursor_blink) == ("beam", True)
     assert (cfg.scrollback, cfg.padding) == (200, 4)
     assert (cfg.bell, cfg.copy_on_select) == ("visual", True)
+    assert (cfg.bold_as_bright, cfg.letter_spacing) == (True, 5)
     # debug_log: caminho livre, `off` desliga, vazio é erro
     with open(p, "w") as f:
         f.write("debug_log /tmp/outro.log\n")
@@ -352,6 +357,10 @@ def config_options():
         ("window_padding_width 8px", "is not a number"),
         ("bell beep", "bell invalid"),
         ("copy_on_select 2", "copy_on_select invalid"),
+        ("bold_as_bright talvez", "bold_as_bright invalid"),
+        ("letter_spacing 21", "letter_spacing out of range"),
+        ("letter_spacing -1", "letter_spacing out of range"),
+        ("letter_spacing 1.5", "letter_spacing is not a number"),
     ):
         with open(p, "w") as f:
             f.write("font_size 20\n" + lixo + "\n")
@@ -361,9 +370,17 @@ def config_options():
 
     # as pontas válidas continuam valendo (faixa inclusiva)
     with open(p, "w") as f:
-        f.write("font_size 4\nfont_size 30\nscrollback 1\nscrollback 10000\n")
+        f.write(
+            "font_size 4\nfont_size 30\nscrollback 1\nscrollback 10000\n"
+            "letter_spacing 0\nletter_spacing 20\n"
+        )
     cfg = config.load(p)
-    assert (cfg.ok, cfg.font_size, cfg.scrollback) == (True, 30.0, 10000), cfg.errors
+    assert (cfg.ok, cfg.font_size, cfg.scrollback, cfg.letter_spacing) == (
+        True,
+        30.0,
+        10000,
+        20,
+    ), cfg.errors
 
     # o toast da carga inicial é UM só: primeiro erro + contagem dos outros
     with open(p, "w") as f:
@@ -472,6 +489,66 @@ def wrap_and_control():
     assert t.grid[0][0] is t.grid[1][1]
     t.feed("x")
     assert t.grid[0][0][0] == "x" and t.grid[1][1][0] == " "
+
+
+def deccawm():
+    """P64: `CSI ?7 l` desliga a quebra mole — o cursor para na última coluna."""
+    t = Term(cols=5, rows=2)
+    t.feed("\x1b[?7l")
+    assert not t.autowrap
+    t.feed("abcdef")  # 'f' sobrescreve a última coluna, sem ir para a linha 2
+    assert (_row_text(t.grid[0]), _row_text(t.grid[1])) == ("abcdf", "     ")
+    assert (t.cx, t.cy, t.row_wrapped[0]) == (4, 0, False)
+    # DECRQM acompanha e o DECSTR volta ao padrão (wrap ligado)
+    t.child_out = bytearray()
+    t.feed("\x1b[?7$p")
+    assert bytes(t.child_out) == b"\x1b[?7;2$y", bytes(t.child_out)
+    t.feed("\x1b[!p")
+    assert t.autowrap
+    # religado, a quebra mole volta (o inverso do P15)
+    t = Term(cols=5, rows=2)
+    t.feed("\x1b[?7labcdef\x1b[?7hXY")
+    assert (_row_text(t.grid[0]), _row_text(t.grid[1])) == ("abcdX", "Y    ")
+    assert (t.cx, t.cy, t.row_wrapped[0]) == (1, 1, True)
+
+
+def sgr_faint_and_hidden():
+    """P64: SGR 2 (faint) e 8 (hidden) entram nas flags; 22 tira os dois."""
+    t = Term()
+    t.feed("\x1b[2m")
+    assert t.flags & DIM
+    t.feed("\x1b[8m\x1b[1m")
+    assert t.flags & (HIDDEN | BOLD)
+    t.feed("\x1b[22m")  # intensidade normal: nem negrito nem faint
+    assert not t.flags & (BOLD | DIM)
+    assert t.flags & HIDDEN  # o 22 não mexe no hidden
+    t.feed("\x1b[0m")
+    assert t.flags == 0
+    # a flag entra na célula (é o run do desenho que lê, não o estado atual)
+    t.feed("\x1b[2mx\x1b[8my")
+    assert t.grid[0][0][3] & DIM
+    assert t.grid[0][1][3] & HIDDEN
+
+
+def osc52_clipboard():
+    """P64: `OSC 52` decodifica base64 para o clipboard; consulta devolve vazio."""
+    t = Term()
+    payload = base64.b64encode("oi".encode()).decode()
+    t.feed("\x1b]52;c;" + payload + "\x07")
+    assert (t.clip_seq, t.clip_text, t.clip_sel) == (1, "oi", "clipboard")
+    t.feed("\x1b]52;p;" + base64.b64encode("primário".encode()).decode() + "\x1b\\")
+    assert (t.clip_seq, t.clip_text, t.clip_sel) == (2, "primário", "primary")
+    # base64 inválido e payload sem `;` não viram clipboard nem contam
+    t.feed("\x1b]52;c;!!!\x07\x1b]52;so\x07")
+    assert (t.clip_seq, t.clip_text) == (2, "primário")
+    # consulta: mesmo formato com payload vazio (o conteúdo mora no Gtk)
+    t.child_out = bytearray()
+    t.feed("\x1b]52;p;?\x07")
+    assert bytes(t.child_out) == b"\x1b]52;p;;\x1b\\", bytes(t.child_out)
+    assert t.clip_seq == 2  # consulta não mexe no clipboard
+    # payload vazio limpa o clipboard (conta como entrega)
+    t.feed("\x1b]52;c;\x07")
+    assert (t.clip_seq, t.clip_text, t.clip_sel) == (3, "", "clipboard")
 
 
 # -- reflow e histórico (P2/P3) ----------------------------------------
@@ -1405,6 +1482,9 @@ ALL = (
     graphics_image_and_offset,
     graphics_follow_history,
     wrap_and_control,
+    deccawm,
+    sgr_faint_and_hidden,
+    osc52_clipboard,
     reflow,
     history,
     scroll_anchor,

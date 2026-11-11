@@ -18,6 +18,7 @@ um teste de parser em máquina sem PyGObject.
 DEF_FG, DEF_BG = 256, 257
 BOLD, UL, INV, ITALIC = 1, 2, 4, 8
 STRIKE, OVERLINE = 128, 256  # SGR 9 e SGR 53 (P54)
+DIM, HIDDEN = 512, 1024  # SGR 2 (faint) e SGR 8 (P64)
 
 # Estilo do sublinhado (SGR 4:n) nos bits 4-6: 0 simples, 1 duplo, 2 curvo,
 # 3 pontilhado, 4 tracejado. `UL` continua dizendo só "tem sublinhado".

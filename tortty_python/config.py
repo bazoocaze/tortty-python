@@ -33,6 +33,11 @@ FALLBACK = {
     "window_padding_width": "0",
     "bell": "none",
     "copy_on_select": "off",
+    # P64: `SGR 1` nas cores 0..7 vira a variante brilhante (boldColors do
+    # xterm); off = só engrossa o traço, como sempre
+    "bold_as_bright": "off",
+    # P64: espaço extra entre caracteres, em px — a célula cresce junto
+    "letter_spacing": "0",
     "debug_log": "/tmp/tortty-python.debug.log",  # `off` desliga
     # none = não restaura nada; layout = workspaces, abas e o cwd de cada uma
     # (P50). `content` (a foto da tela) não existe aqui.
@@ -102,6 +107,9 @@ FONT_MIN, FONT_MAX = 4.0, 30.0  # pontos
 # 100000 (o teto do Rust, de célula mais barata) custava ~1 GB e 2,4x por linha.
 SCROLLBACK_MIN, SCROLLBACK_MAX = 1, 10000
 PADDING_MAX = 200  # px
+# 20 px extra já é muito além do entrelinha que qualquer fonte pede; o que
+# importa é o piso 0 (a célula continua o avanço do glifo, alinhada)
+LETTER_SPACING_MAX = 20  # px
 
 
 class Entry(NamedTuple):
@@ -212,6 +220,14 @@ def check_copy_on_select(valor):
     return _bool(valor, "copy_on_select")
 
 
+def check_bold_as_bright(valor):
+    return _bool(valor, "bold_as_bright")
+
+
+def check_letter_spacing(valor):
+    return _number(valor, "letter_spacing", 0, LETTER_SPACING_MAX, inteiro=True)
+
+
 def check_restore_state(valor):
     return _enum(valor, "restore_state", RESTORE_STATES)
 
@@ -255,6 +271,8 @@ CHECKS = {
     "window_padding_width": check_padding,
     "bell": check_bell,
     "copy_on_select": check_copy_on_select,
+    "bold_as_bright": check_bold_as_bright,
+    "letter_spacing": check_letter_spacing,
     "debug_log": check_debug_log,
     "restore_state": check_restore_state,
 }
@@ -329,6 +347,16 @@ class Config:
     @property
     def copy_on_select(self):
         return BOOLS.get(self._get("copy_on_select").lower(), False)
+
+    @property
+    def bold_as_bright(self):
+        """`SGR 1` em 0..7 escolhe a cor brilhante (xterm `boldColors`)."""
+        return BOOLS.get(self._get("bold_as_bright").lower(), False)
+
+    @property
+    def letter_spacing(self):
+        """Espaço extra entre caracteres em px (0..20); a célula acompanha."""
+        return int(self._get("letter_spacing"))
 
     @property
     def debug_log(self):

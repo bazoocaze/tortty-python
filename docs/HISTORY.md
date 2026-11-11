@@ -1208,6 +1208,19 @@ the allocation, so the first pass already lands on the exact grid. Like
 `PYTERM_GEOM`, pinning means the session is neither restored nor saved. Verified
 with `--cols 100 --rows 24`: `state` reported exactly `100x24`.
 
+### P64 — Five small limits: DECAWM, SGR 2/8, OSC 52, two options (2026-11-10)
+
+`CSI ?7 l` (DECAWM) stops the soft wrap: the cursor stays on the last column
+and the next character overwrites; `DECSTR` and DECRQM follow. `SGR 2` (faint)
+and `SGR 8` (hidden) joined the flags — faint draws halfway to the background,
+hidden drops the glyph and keeps background and decoration, `SGR 22` clears
+bold and faint together. `OSC 52` decodes base64 into the clipboard the way the
+mouse selection does (the query answers with an empty payload: the content
+lives in the Gtk clipboard, not in the pure `Term`). Config gained
+`bold_as_bright` (SGR 1 over colors 0..7 picks the bright variant — xterm
+`boldColors`, default off) and `letter_spacing` (0..20 px, cell grows with it).
+Checks: `./run-tests.sh` (49) and `tools/render-check.sh` (6).
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

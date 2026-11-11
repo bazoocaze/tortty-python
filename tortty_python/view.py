@@ -27,6 +27,8 @@ from .palette import (
     BOLD,
     DEF_BG,
     DEF_FG,
+    DIM,
+    HIDDEN,
     INV,
     ITALIC,
     OVERLINE,
@@ -161,6 +163,8 @@ class TermView(Gtk.DrawingArea):
         cursor_shape="block",
         cursor_blink=False,
         copy_on_select=False,
+        bold_as_bright=False,
+        letter_spacing=0,
         scrollback=1000,
         colors=None,
         on_exit=None,
@@ -177,6 +181,7 @@ class TermView(Gtk.DrawingArea):
         self.shortcuts = shortcuts  # atalhos da janela (prioridade)
         self.font_features = font_features  # liga/calt do Pango (P45)
         self._notifs = 0  # `OSC 9`/`777` já entregues ao host
+        self._clip_seq = 0  # `OSC 52` já entregue ao clipboard (P64)
         self._cwd = None  # último `OSC 7` já refletido no rótulo (P47)
         self._title = DEFAULT_TITLE
         self.app_title = False  # o app já mandou OSC 0/2?
@@ -236,6 +241,8 @@ class TermView(Gtk.DrawingArea):
         self.cursor_shape = cursor_shape
         self.cursor_blink = cursor_blink
         self.copy_on_select = copy_on_select
+        self.bold_as_bright = bold_as_bright  # P64: SGR 1 em 0..7 vira brilhante
+        self.letter_spacing = letter_spacing  # px extra na célula (P64)
         self._blink_on = True  # fase do pisca: True = cursor aparece nela
         self._blink_timer = 0
         self._metrics = None
@@ -535,6 +542,16 @@ class TermView(Gtk.DrawingArea):
             self._cwd = self.term.cwd
             if self.on_title:  # o rótulo sem OSC 0/2 é o cwd
                 self.on_title(self, self._title)
+        if self.term.clip_seq != self._clip_seq:  # `OSC 52` (P64): clipboard
+            self._clip_seq = self.term.clip_seq
+            sel = (
+                Gdk.SELECTION_PRIMARY
+                if self.term.clip_sel == "primary"
+                else Gdk.SELECTION_CLIPBOARD
+            )
+            cb = Gtk.Clipboard.get(sel)
+            cb.set_text(self.term.clip_text, -1)
+            cb.store()
         if self.cursor_blink or (self.term.app_cursor_style or (0, 0))[1]:
             self._blink_on = True  # output novo: cursor volta a aparecer
             self._ensure_blink()
@@ -720,7 +737,12 @@ class TermView(Gtk.DrawingArea):
         # avanço fica em px porque a célula é o teto dele e a diferença vira
         # letter_spacing (o run tem que ocupar exatamente N células)
         self._advance = w / Pango.SCALE
-        self._metrics = (math.ceil(self._advance), math.ceil(h / Pango.SCALE))
+        # letra extra (P64) entra na largura da célula: o glifo i continua na
+        # coluna i, só o vão entre eles cresce — o run fecha N células
+        self._metrics = (
+            math.ceil(self._advance + self.letter_spacing),
+            math.ceil(h / Pango.SCALE),
+        )
         self.term.cell_size = self._metrics  # o protocolo de imagem usa isso
         return self._metrics
 
@@ -975,6 +997,8 @@ class TermView(Gtk.DrawingArea):
         self.cursor_shape = cfg.cursor_shape
         self.cursor_blink = cfg.cursor_blink
         self.copy_on_select = cfg.copy_on_select
+        self.bold_as_bright = cfg.bold_as_bright
+        self.letter_spacing = cfg.letter_spacing
         self.term.set_scrollback(cfg.scrollback)
         # tudo que saiu da fonte medida (layout cacheado incluído)
         self._font_desc = None
@@ -1147,6 +1171,7 @@ class TermView(Gtk.DrawingArea):
         og_w = max(0, self.get_allocated_width() - 2 * self.padding)
         og_h = max(0, self.get_allocated_height() - 2 * self.padding)
         last_y = len(rows) - 1
+        dimmed = None  # memo por draw do SGR 2 (P64): (fg, bg) -> fg ao meio
         # limites do dano já em linha/coluna: comparar inteiro em vez de
         # multiplicar por célula em todo run (P37)
         row_lo = max(0, int(clip_y0 // ch))
@@ -1190,16 +1215,36 @@ class TermView(Gtk.DrawingArea):
                     # "cor 1" (vermelho), porque 256/257 são sentinelas e não
                     # índices da paleta
                     fgc, bgc = rgb(fg), rgb(bg)
+                    if self.bold_as_bright and fl & BOLD and 0 <= fg <= 7:
+                        fgc = rgb(fg + 8)  # P64: como o `boldColors` do xterm
                     if (fl & INV) or s0:
                         fgc, bgc = bgc, fgc  # inverso / seleção = reverso
+                    if fl & DIM:
+                        if dimmed is None:
+                            dimmed = {}
+                        k = (fgc, bgc)
+                        v = dimmed.get(k)
+                        if v is None:
+                            v = dimmed[k] = tuple((a + b) / 2.0 for a, b in zip(fgc, bgc))
+                        fgc = v  # faint: contraste menor com o fundo
                     runs.append(
-                        (x, j, cch, fgc, bgc, bool(fl & BOLD), fl & DECO_BITS, bool(fl & ITALIC))
+                        (
+                            x,
+                            j,
+                            cch,
+                            fgc,
+                            bgc,
+                            bool(fl & BOLD),
+                            fl & DECO_BITS,
+                            bool(fl & ITALIC),
+                            bool(fl & HIDDEN),
+                        )
                     )
                 x = j
             if runs:
                 quadro.append((row, y * ch, max(ch, og_h - y * ch) if y == last_y else ch, runs))
         for row, ypx, rh, runs in quadro:
-            for x, j, _cch, _fgc, bgc, _bold, _deco, _italic in runs:
+            for x, j, _cch, _fgc, bgc, _bold, _deco, _italic, _hidden in runs:
                 if bgc is not cur_bg:
                     cr.set_source_rgb(*bgc)
                     cur_bg = bgc
@@ -1208,10 +1253,16 @@ class TermView(Gtk.DrawingArea):
                     cr.rectangle(x * cw, ypx, rw, rh)
                     cr.fill()
         for row, ypx, _rh, runs in quadro:
-            for x, j, cch, fgc, _bgc, bold, deco, italic in runs:
+            for x, j, cch, fgc, _bgc, bold, deco, italic, hidden in runs:
                 if fgc is not cur_fg:
                     cr.set_source_rgb(*fgc)
                     cur_fg = fgc
+                if hidden:
+                    # SGR 8 (P64): o glifo fica de fora; o fundo já saiu na
+                    # passada de trás e a decoração continua na cor do texto
+                    if deco:
+                        self._deco(cr, x * cw, ypx, (j - x) * cw, ch, deco)
+                    continue
                 # run de uma célula é o caso comum (fundo por célula): pega
                 # o char do unpack em vez de montar slice + join (P37)
                 txt = cch if j == x + 1 else "".join([c[0] for c in row[x:j]])

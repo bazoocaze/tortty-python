@@ -4,6 +4,7 @@ Sem GTK aqui dentro — é o que deixa o parser testável por `--selftest` sem
 abrir janela (e sem display). Quem desenha é `window.TorttyWindow`.
 """
 
+import base64
 import re
 from typing import NamedTuple
 from urllib.parse import unquote
@@ -14,6 +15,8 @@ from .palette import (
     DEC_SPECIAL,
     DEF_BG,
     DEF_FG,
+    DIM,
+    HIDDEN,
     INV,
     ITALIC,
     OVERLINE,
@@ -179,6 +182,7 @@ class Term:
         self.lnm = False
         self.top, self.bottom = 0, rows - 1  # scroll region
         self.wrap_pending = False
+        self.autowrap = True  # DECAWM (?7): desligado para na última coluna
         self.cursor_visible = True
         self.app_cursor = False  # DECCKM (?1): setas em modo aplicação
         # DECSCUSR (CSI 6 q): (forma, pisca) pedido pelo app; None = config
@@ -188,6 +192,11 @@ class Term:
         # aqui; quem decide toast, badge e urgência é a janela
         self.notifs = 0
         self.notif_text = ""
+        # `OSC 52` (clipboard do app, P64): o texto decodificado e o contador;
+        # quem põe no Gtk.Clipboard é a view (mesmo molde das notificações)
+        self.clip_seq = 0
+        self.clip_text = ""
+        self.clip_sel = "clipboard"  # alvo: clipboard (c, 0-7) ou primary (p, s)
         self.cwd = None  # `OSC 7`: diretório do shell (fallback do /proc)
         self.mouse_mode = 0  # ?1000=1 ?1002=2 ?1003=3 (0 = off)
         self.mouse_sgr = False  # ?1006: coordenadas SGR
@@ -554,7 +563,7 @@ class Term:
         self.grid[self.cy][self.cx] = cell
         self.dirty.add(self.cy)
         if self.cx == self.cols - 1:
-            self.wrap_pending = True
+            self.wrap_pending = self.autowrap
         else:
             self.cx += 1
 
@@ -664,12 +673,16 @@ class Term:
                 self.fg, self.bg, self.flags = DEF_FG, DEF_BG, 0
             elif p == 1:
                 self.flags |= BOLD
+            elif p == 2:
+                self.flags |= DIM  # faint: cor a meio caminho do fundo (P64)
             elif p == 3:
                 self.flags |= ITALIC
             elif p == 4:
                 self.flags = ul_on(self.flags)
             elif p == 7:
                 self.flags |= INV
+            elif p == 8:
+                self.flags |= HIDDEN  # o glifo sai; fundo e decoração ficam (P64)
             elif p == 9:
                 self.flags |= STRIKE
             elif p == 29:
@@ -682,7 +695,8 @@ class Term:
                 # ECMA-48: 21 é sublinhado duplo (e não "desliga o negrito")
                 self.flags = ul_on(self.flags, UL_DOUBLE)
             elif p == 22:
-                self.flags &= ~BOLD
+                # intensidade normal (ECMA-48): nem negrito nem faint
+                self.flags &= ~(BOLD | DIM)
             elif p == 23:
                 self.flags &= ~ITALIC
             elif p == 24:
@@ -767,13 +781,14 @@ class Term:
         """DECSTR (P59): volta atributos e modos ao padrão, sem limpar a tela.
 
         A lista é a do Rust (`soft_reset`): o que não existe aqui (cor de
-        sublinhado, origin, autowrap) não tem o que resetar, e o LNM e o
+        sublinhado, origin) não tem o que resetar, e o LNM e o
         cursor pedido por `CSI 6 q` ficam de fora — o Rust também os deixa.
         """
         self.fg, self.bg, self.flags = DEF_FG, DEF_BG, 0
         self.cursor_visible = True
         self.app_cursor = False
         self.keypad_app = False
+        self.autowrap = True
         self.top, self.bottom = 0, self.rows - 1
         self.wrap_pending = False
 
@@ -788,6 +803,12 @@ class Term:
                 # (é o que o terminfo de xterm chama de "aplicação"; mc,
                 # vim e less ligam isso ao entrar em tela cheia)
                 self.app_cursor = on
+            elif private and p == 7:
+                # DECAWM (P64): desligado o cursor para na última coluna — o
+                # caractere seguinte sobrescreve, sem quebra mole
+                self.autowrap = on
+                if not on:
+                    self.wrap_pending = False
             elif p in (47, 1047, 1049):
                 # a troca de buffer muda o mapa absoluto: âncora velha morre
                 self.touch_all()  # o buffer inteiro troca
@@ -853,6 +874,8 @@ class Term:
         if private:
             if p == 1:
                 return 1 if self.app_cursor else 2
+            if p == 7:
+                return 1 if self.autowrap else 2
             if p == 25:
                 return 1 if self.cursor_visible else 2
             if p in (47, 1047, 1049):
@@ -1057,7 +1080,7 @@ class Term:
             if k >= avail:  # enche até a última coluna: quebra mole
                 row[cx:] = self._cells(run[i : i + avail], fg, bg, fl)
                 self.cx = self.cols - 1
-                self.wrap_pending = True
+                self.wrap_pending = self.autowrap
                 i += avail
             else:
                 row[cx : cx + k] = self._cells(run[i:], fg, bg, fl)
@@ -1216,6 +1239,8 @@ class Term:
                 self._notify(o[2:])
         elif o.startswith("777;"):
             self._osc_notify777(o[4:])
+        elif o.startswith("52;"):
+            self._osc_clip(o[3:])
         elif o.startswith("8;"):
             # OSC 8 ; params ; URI: URI vazio fecha o link corrente
             parts = o.split(";", 2)
@@ -1269,6 +1294,28 @@ class Term:
         elif o in ("110", "111", "112"):
             # `OSC 110/111/112`: frente, fundo e cursor de volta ao configurado
             self.theme.reset_color(int(o) - 100)
+
+    def _osc_clip(self, arg):
+        """`OSC 52;Pc;Pd` (P64): Pd em base64 vira clipboard; `?` consulta.
+
+        Pc escolhe o alvo (`p`/`s` = primary, o resto = clipboard); o
+        conteúdo do `?` mora no clipboard do Gtk, então a resposta é o
+        mesmo formato com payload vazio.
+        """
+        parts = arg.split(";", 1)
+        if len(parts) != 2:
+            return
+        sel, data = parts
+        if data == "?":
+            self.child_out += ("\x1b]52;" + sel + ";;\x1b\\").encode()
+            return
+        try:
+            raw = base64.b64decode(data, validate=True)
+        except ValueError:  # binascii.Error é subclasse de ValueError
+            return
+        self.clip_text = raw.decode("utf-8", "replace")
+        self.clip_sel = "primary" if sel in ("p", "s") else "clipboard"
+        self.clip_seq += 1
 
     def _notify(self, text):
         """Notificação do app (P44): texto limpo e contador.

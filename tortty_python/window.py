@@ -154,6 +154,8 @@ class Workspace:
             cursor_shape=self.win.cursor_shape,
             cursor_blink=self.win.cursor_blink,
             copy_on_select=self.win.copy_on_select,
+            bold_as_bright=self.win.bold_as_bright,
+            letter_spacing=self.win.letter_spacing,
             scrollback=self.win.config.scrollback,
             colors=self.win.config.colors,  # P49: as 19 chaves da configuração
             on_exit=self.on_view_exit,
@@ -760,6 +762,8 @@ class TorttyWindow(Gtk.Window):
         self.cursor_shape = cfg.cursor_shape
         self.cursor_blink = cfg.cursor_blink
         self.copy_on_select = cfg.copy_on_select
+        self.bold_as_bright = cfg.bold_as_bright  # P64: negrito como o xterm
+        self.letter_spacing = cfg.letter_spacing  # P64: px extra na célula
         # log JSONL de depuração do ?2026: `off` desliga, o CLI vence a config
         log = self._debug_log_cli
         set_debug_log(config_mod.debug_log_path(log if log is not None else cfg.debug_log))
