@@ -5,14 +5,19 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
 
 - **Real pty** with a `forkpty`-equivalent (`pty.fork`), resize through
   `TIOCSWINSZ`.
-- **VT parser** with ground/esc/csi/osc states, SGR (16 colors, 256 and
-  real 24-bit truecolor, bold, italic and underline styles), cursor (`CUP`/`CUU`/`CUD`/`CUF`/`CUB`/`CNL`/`CPL`/`CHA`),
-  erasing (`ED`/`EL`/`ECH`), line and character insertion/removal
+- **VT parser** with ground/esc/csi/osc states, SGR (the colors and the styles
+  have their own bullets below), cursor
+  (`CUP`/`CUU`/`CUD`/`CUF`/`CUB`/`CNL`/`CPL`/`CHA`),
+  erasing (`ED`/`EL`/`ECH`, and `CSI 3J` throws the scrollback away), line and
+  character insertion/removal
   (`IL`/`DL`/`ICH`/`DCH`), scroll region (`DECSTBM`), save/restore
-  (`DECSC`/`DECRC`, `CSI s`/`u`), `DECAWM`, cursor on/off (`?25`),
+  (`DECSC`/`DECRC`, `CSI s`/`u`), `DECAWM`, cursor on/off (`?25`) and the
+  app's own cursor shape/blink (`DECSCUSR`, `CSI Ps SP q`),
   **alt-screen** (`?1047`/`?1049`), DEC charset (`ESC ( 0`) for box drawing,
   title through `OSC 0/2`, `OSC 7` (the shell's cwd, which the tab label
-  follows), `DA`/`DA2`/`CPR`/`DECRQM` replies back to the child,
+  follows), `DA`/`DA2`/`CPR`/`DECRQM` replies back to the child, the cell size
+  and the text area in characters (`CSI 16 t`/`18 t`, which `pi` and `nvim`
+  ask for at startup),
   **drawing transaction** (`?2026`, synchronized output: the frame only goes out
   at the close of the transaction).
 - **Italic and underline styles** (`3`/`23`, `4`/`4:n`/`21`/`24`): single,
@@ -55,7 +60,7 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   not exist in alt-screen (there is nothing to scroll) and it answers before the
   mouse report, so it works inside `mc` and `vim`.
 - **Keyboard**: letters (including UTF-8), arrows, Home/End, PgUp/PgDn,
-  Insert/Delete, F1–F12, Ctrl+letter, Alt+letter, Shift+Tab. It respects
+  Insert/Delete, F1–F24, Ctrl+letter, Alt+letter, Shift+Tab. It respects
   **DECCKM (`?1`)**: with application mode on (which `mc`, `vim` and `less`
   do in full screen) the arrows become `\EOA`..`\EOD`, as in the xterm
   terminfo — without that `mc` ignored the arrows.
@@ -78,6 +83,15 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   redefines an entry **of that tab's own palette** (0..15), `OSC 10/11/12` set
   foreground, background and cursor, and `104`/`110`/`111`/`112` go back to the
   configured value.
+- **Configuration file** (kitty key/value, in
+  `$XDG_CONFIG_HOME/tortty-python/tortty-python.conf`, merged over the default
+  embedded in the package and applied live while the app runs): font family and
+  size (points), `ligatures`, `cursor_shape`/`cursor_blink`, the 19 palette
+  colors, `scrollback`, `window_padding_width`, `bell` (`none`/`visual`/
+  `audible`), `copy_on_select`, `restore_state`, `shell` and `debug_log`. The
+  keys and their ranges live in `tortty_python/config.py`, the default values in
+  `tortty_python/data/tortty-python.conf`; a bad line is reported alone and what
+  validated still applies.
 - **Drawing** with cairo + Pango: runs grouped by attributes, bold,
   underline, inverse, block cursor, real shaping (connected Arabic,
   combinations) and font fallback (CJK, color emoji).
@@ -107,13 +121,13 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   longer gets one more `\n` at the end (that was what made the command run by
   itself).
 - **Tabs** (`Gtk.Notebook`): `Ctrl+Shift+T` opens, `Ctrl+Shift+W` closes, `Alt+1`
-  … `Alt+9` selects (`Alt+0` = the 10th), middle click on the label closes. The
-  label is the app title (OSC 0/2) or, without OSC, the session's **cwd** —
-  which follows `OSC 7`, so `cd` moves the label; a new
-  tab inherits the current one's cwd through `/proc/<pid>/cwd` (and `OSC 7`
-  when `/proc` has no answer), and each tab has
-  its own `Term`, scrollback, selection and pty (`P8` became per tab: the last
-  one closes the window).
+  … `Alt+9` selects (`Alt+0` = the 10th), middle click on the label closes and
+  dragging the tab reorders it. The label is the app title (OSC 0/2) or,
+  without OSC, the session's **cwd** — which follows `OSC 7`, so `cd` moves the
+  label; a new tab inherits the current one's cwd through `/proc/<pid>/cwd` (and
+  `OSC 7` when `/proc` has no answer), and each tab has its own `Term`,
+  scrollback, selection and pty (`P8` became per tab: the last one closes the
+  window).
 - **Workspaces** (cmux-like): each with its own set of tabs, in a sidebar
   on the left that only appears with 2+ workspaces. `Ctrl+Shift+N`/`Super+N`
   creates, `Ctrl+Shift+1`…`9`/`Super+1`…`9` selects, `Ctrl+Shift+Q`/`Super+Q`
@@ -142,12 +156,11 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   window is sized from the live cell metrics) and, like the measurement
   protocol, neither restore nor save the session.
 - **Session restore** (`restore_state layout`, the default): the workspaces with
-  their names, the tabs in order and the cwd of each shell (from `OSC 7` or
-  `/proc`) come back on the next run, with the workspace and the tab that were
-  in front. `restore_state none` starts clean; each tab is a fresh shell — the
-  screen and the scrollback do not come back. The state stays in
-  `XDG_STATE_HOME`, and `PYTERM_GEOM` (the measurement protocol) neither
-  restores nor saves.
+  their names, the tabs in order and the cwd of each shell come back on the next
+  run, with the workspace and the tab that were in front. `restore_state none`
+  starts clean; each tab is a fresh shell — the screen and the scrollback do not
+  come back. The state stays in `XDG_STATE_HOME`, and `PYTERM_GEOM` disables
+  this restore too.
 - **Dark chrome** (`tortty_python/style.py`): the interface colors (workspace sidebar,
   cards) come from a token table and the CSS is generated from it — with no loose
   hex in the code. The sidebar is black, the active workspace sits in a dark

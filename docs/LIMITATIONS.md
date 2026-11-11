@@ -1,12 +1,12 @@
 # TorTTY-Python — limits
 
 Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
-(`P<n>`); here the id is `L<n>`. Limitations already overcome must leave here and
-go to `HISTORY.md` (probably through a `BACKLOG` activity).
+(`P<n>`). A limitation already overcome leaves here and goes to `HISTORY.md`
+(through a `BACKLOG` activity).
 
 ## Performance (the cost of the path in Python)
 
-- **Throughput of a few MB/s, against ~6x more from kitty on the same load** —
+- **Throughput of a few MB/s, several times below kitty on the same load** —
   it is not a bug, it is the measurement, and the pair (with date, governor,
   frequency and the ladder that decomposes it) is in
   [`BENCHMARKS.md`](BENCHMARKS.md). After P20–P22 the pty IO stopped
@@ -30,19 +30,24 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
   `vim` with wide chars) comes out misaligned. Fixing it requires touching the
   cell model, not the drawing.
 - **No cell combining for a complex grapheme**: each cell carries one
-  character; a combining mark is drawn by Pango, but does not take its own cell
-  nor change the app's column count.
+  character and `put` does not glue a combining mark to the cell before it, so
+  `e` + acute accent takes **two** cells and pushes the rest of the line one
+  column right — Pango shapes what is inside the cell, not what is spread over
+  two. Accents typed at the keyboard are fine (they are composed before
+  reaching the parser); the gap is an app that emits the mark separately.
 - **Ligature depends on the installed font**: shaping exists (Pango) and both
   the family (`font_family`) and the ligature mode (`ligatures`: off, standard,
   all) are configurable, but the machine's default Monospace (DejaVu) has
   almost no ligature — whoever wants it needs a Fira Code or JetBrains
-  installed and to pick it. There is no `letter_spacing` option.
+  installed and to pick it. There is no `letter_spacing` option, and
+  `font_size` is in **points** (terminal convention, converted by the display's
+  DPI), not pixels.
 
 ## VT parser (what is not interpreted)
 
 - **Partial SGR**: implements 0, 1, 3, 4 (with `4:n`), 7, 9/29 (strikethrough),
   21, 22, 23, 24, 27, 30–37, 39, 40–47, 49, 53/55 (overline), 90–97, 100–107,
-  38/48 (256 and truecolor). **Does not** implement 2 (half intensity), 5
+  38/48 (256 and truecolor). **Does not** implement 2 (half intensity), 5 and 6
   (blink), 8 (hidden) and 58/59 (underline color, which the Rust draws).
 - **Bold does not become bright color**: with an 8/16 color palette, `SGR 1`
   only thickens the glyph; there is no "bold as bright" (which xterm does).
@@ -76,8 +81,7 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
 - **A block does not survive a resize by its columns**: the corners are
   carried like a linear selection, so a reflow moves the rectangle with the
   characters instead of re-deriving the column range.
-- **The scrollbar has no hover and no context menu**: click and drag only, no
-  "jump to mark".
+- **The scrollbar has no hover**: click and drag only, no "jump to mark".
 - **No search in the scrollback**.
 - **No urxvt extended mouse mode** (`? 1015`) and no UTF-8 coordinates
   (`? 1005`) beyond the SGR/legacy already supported: `? 1016` (the SGR shape
@@ -88,13 +92,11 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
 ## Keyboard
 
 - **Partial kitty protocol**: no `report alternate keys` (flag 4 — Gdk
-  does not deliver the alternate keysym directly), no repeat distinguished from
-  press (Gdk repeats as key-press) and no numeric keypad mode.
+  does not deliver the alternate keysym directly) and no repeat distinguished
+  from press (Gdk repeats as key-press).
 - **Non-US layouts**: the keyval→bytes translation is by table; text comes from
   Gdk's `ev.string` when it exists, but shortcuts with dead keys and an exotic
   layout depend on what Gdk delivers.
-- **No key remapping**: the shortcuts are fixed in `tortty_python/window.py`,
-  a consequence of there being no configuration file.
 - **Freezing the output (`Ctrl+S`/`Ctrl+Q`) is the tty's, not the terminal's**:
   whoever stops and resumes byte delivery is the kernel's *line discipline*
   (`IXON` in termios). The app only delivers `0x13`/`0x11` to the child — and
@@ -139,13 +141,9 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
   (P33/P34) covers font, size, cursor, scrollback, padding, bell, copy and,
   since P49, the 19 terminal colors (`foreground`, `background`,
   `cursor_color`, `color0..15`) plus `OSC 4/10-12` at runtime. What remains
-  fixed in the code is the **chrome** color (`style.py`) and the shortcuts;
-  font in **points** (terminal convention, converted by the display's DPI), not
-  pixels.
+  fixed in the code is the **chrome** color (`style.py`) and the shortcuts.
 - **No copy/scrollback mode**: no text editor over the scrollback.
-- **No context menu**: no menu in the sidebar or in the tab, and a tab does not
-  reorder by dragging.
-- **No file DnD** in the window.
+- **No context menu**: no menu in the sidebar, in the tab or on the scrollbar.
 
 ## Scope (decision, not lack)
 
@@ -159,9 +157,10 @@ go to `HISTORY.md` (probably through a `BACKLOG` activity).
   portability promised for later; it is where it runs.
 - **Pure Python is a decision, not a pending item**: the experiment asked
   whether it was possible to make a whole terminal in Python and the answer was
-  yes — it is used daily like this. The throughput ceiling (~6x kitty) is the
-  accepted price, and it is attacked by optimizing the path in Python (parse,
-  drawing), not by rewriting in C.
+  yes — it is used daily like this. The throughput ceiling (the pair against
+  kitty is in [`BENCHMARKS.md`](BENCHMARKS.md)) is the accepted price, and it is
+  attacked by optimizing the path in Python (parse, drawing), not by rewriting
+  in C.
 - **Native core (C or Rust) does not enter**: it was tried before, in the
   sibling experiment that embeds the kitty core as a C lib: ~4.9 thousand lines
   of hand-written C and 68 commits in 6 days, and the expensive bugs were of the
