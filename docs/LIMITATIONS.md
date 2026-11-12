@@ -68,8 +68,8 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   shell that emits it — the app does not ship shell integration. **No `OSC
   133`** (prompt marks).
 - **Notifications stay inside the window**: `OSC 9` and `777;notify` become a
-  toast/badge plus window urgency; there is no desktop notification daemon and
-  the `9;4` progress form is swallowed, not shown as a progress bar.
+  toast/badge plus window urgency; there is no desktop notification daemon, and
+  the `9;4` progress reaches only the tab label (no taskbar entry).
 
 ## Mouse and selection
 

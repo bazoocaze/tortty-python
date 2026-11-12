@@ -1221,6 +1221,18 @@ lives in the Gtk clipboard, not in the pure `Term`). Config gained
 `boldColors`, default off) and `letter_spacing` (0..20 px, cell grows with it).
 Checks: `./run-tests.sh` (49) and `tools/render-check.sh` (6).
 
+### P65 — `OSC 9;4` progress on the tab label + sidebar card text (2026-11-11)
+
+`9;4;state[;%]` (mintty/ConEmu/Ghostty, 0..4) stopped being swallowed:
+`Term.progress = (state, pct)` (pct clamped, invalid shape still falls into
+`_notify`, state 0 clears), delivered by the view on the same `_on_pty` poll as
+`notifs`, and the tab label gained a textual prefix — `50% · `, `! · ` on error,
+`… · ` without pct — no color, no toast; window title, tooltip and card stay
+clean. Same card, text only, realigned to the Rust `card_lines`: default name
+is `""` (never renamed shows `n  title` on line 1, line 2 blank keeping the
+height), no tab count on card or tooltip, rename accepts empty, dump falls back
+to `-`. Checks: `./run-tests.sh` (50) and `tools/render-check.sh` (6).
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

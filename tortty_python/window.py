@@ -90,12 +90,24 @@ def _card_info(text):
     return "<small>" + GLib.markup_escape_text(text) + "</small>"
 
 
+def _progress_prefix(p):
+    """Prefixo textual do `OSC 9;4` no rótulo da aba (P65), sem cor."""
+    if p is None:
+        return ""
+    state, pct = p
+    if state == 2:  # erro
+        return "! · "
+    if pct is not None:
+        return f"{pct}% · "
+    return "… · "  # 3 indeterminado, 4 pausado sem %, 1 sem %
+
+
 class Workspace:
     """Um conjunto de abas + o cartão dele na lateral."""
 
-    def __init__(self, win, index):
+    def __init__(self, win):
         self.win = win
-        self.name = f"workspace {index}"
+        self.name = ""  # nunca renomeada: a linha 1 do cartão vira o título (P65)
         self.views = []
         self._bell_timers = {}  # view -> (fonte do timer, contexto do rótulo)
         self._notif = set()  # views com badge de atenção (`OSC 9`/`777`, P44)
@@ -105,7 +117,7 @@ class Workspace:
         self.notebook.set_show_border(False)
         self.notebook.connect("switch-page", self.on_switch_page)
 
-        # cartão da lateral: "<n>  <nome>" e, embaixo, a aba ativa
+        # cartão da lateral: "<n>  <nome|título>" e, embaixo, o título (P65)
         # ellipsize + max_width_chars(1): o texto deixa de definir a largura (o
         # mínimo o ellipsize já zera, o natural o max_width_chars) e quem manda
         # é o SIDEBAR_W; trunca no que sobrar, inteiro no tooltip (P14)
@@ -160,6 +172,7 @@ class Workspace:
             colors=self.win.config.colors,  # P49: as 19 chaves da configuração
             on_exit=self.on_view_exit,
             on_title=self.on_view_title,
+            on_progress=self.on_view_progress,
             on_bell=self.win.on_view_bell,
             on_notify=self.win.on_view_notify,
             shortcuts=self.win.handle_shortcut,
@@ -167,7 +180,7 @@ class Workspace:
         self.views.append(v)
         # mesmo motivo do cartão (P14): sem limite o título longo vira largura
         # mínima e a janela inteira estica (o notebook se recusa a encolher)
-        label = Gtk.Label(label=self.label_text(v))
+        label = Gtk.Label(label=self.label_text(v, progress=True))
         label.set_ellipsize(Pango.EllipsizeMode.END)
         label.set_width_chars(TAB_TITLE_CHARS)
         label.set_max_width_chars(TAB_TITLE_CHARS)
@@ -281,11 +294,17 @@ class Workspace:
         # EventBox do clique do meio), então mexe no texto do Label guardado
         label = getattr(view, "tab_label", None)
         if label is not None:
-            label.set_text(self.label_text(view))
+            label.set_text(self.label_text(view, progress=True))
             label.set_tooltip_text(self.label_text(view))
         self.update_card()
         if view is self.view:
             self.win.sync_title()
+
+    def on_view_progress(self, view, progress):
+        """`OSC 9;4`: o prefixo de progresso entra no rótulo da aba (P65)."""
+        label = getattr(view, "tab_label", None)
+        if label is not None:
+            label.set_text(self.label_text(view, progress=True))
 
     def on_view_exit(self, view):
         """O shell da aba morreu: fecha a aba (P8, agora por aba)."""
@@ -337,7 +356,7 @@ class Workspace:
             box.get_style_context().remove_class("notif")
         self.update_card()
 
-    def label_text(self, view):
+    def label_text(self, view, progress=False):
         """Rótulo da aba: título do app ou, sem OSC, o cwd da sessão.
 
         O bash não manda OSC 0/2 por padrão, então todas as abas ficariam
@@ -345,28 +364,40 @@ class Workspace:
         está (o `Alt+N` já dá o número, por isso não tem prefixo numérico).
         """
         if view.app_title and view._title:
-            return view._title
-        # sem OSC 0/2: o cwd do shell — `OSC 7` quando ele avisa (P47), senão o
-        # diretório com que a sessão nasceu
-        cwd = view.term.cwd or view.start_cwd
-        return os.path.basename(cwd or "") or "TorTTY (Python)"
+            text = view._title
+        else:
+            # sem OSC 0/2: o cwd do shell — `OSC 7` quando ele avisa (P47), senão o
+            # diretório com que a sessão nasceu
+            cwd = view.term.cwd or view.start_cwd
+            text = os.path.basename(cwd or "") or "TorTTY (Python)"
+        # o prefixo de progresso (P65) só nos dois sites do RÓTULO da aba:
+        # título da janela, tooltip, cartão e dump ficam limpos
+        return _progress_prefix(view.term.progress) + text if progress else text
 
     # -- cartão da lateral ---------------------------------------------
     def update_card(self, v=None):
-        """Cartão da lateral: nome da workspace, título e contagem de abas."""
+        """Cartão da lateral: número, nome (ou o título, quando sem nome)."""
         try:
             n = self.win.workspaces.index(self) + 1
         except ValueError:
             n = 0
-        self.name_label.set_markup(f"<b>{n}</b>  {GLib.markup_escape_text(self.name)}")
         v = v if v is not None else self.view
         title = self.label_text(v) if v is not None else "-"
-        k = len(self.views)
-        info = f"{title} ({k} aba{'s' if k != 1 else ''})"
+        if self.name:
+            line1 = f"<b>{n}</b>  {GLib.markup_escape_text(self.name)}"
+            line2 = title
+            tip = f"{n}. {self.name}\n{title}"
+        else:
+            # nunca renomeada (como o Rust `card_lines`): a linha 1 é o título
+            # e a 2 fica em branco — o espaço mantém a altura de duas linhas (P65)
+            line1 = f"<b>{n}</b>  {GLib.markup_escape_text(title)}"
+            line2 = " "
+            tip = f"{n}. {title}"
         if self._notif:  # aviso esperando visita (`OSC 9`/`777`, P44)
-            info = "• " + info
-        self.info_label.set_markup(_card_info(info))
-        self.card.set_tooltip_text(f"{n}. {self.name}\n{info}")
+            line2 = "• " + line2
+        self.name_label.set_markup(line1)
+        self.info_label.set_markup(_card_info(line2))
+        self.card.set_tooltip_text(tip)
 
     def on_card_click(self, widget, ev):
         if ev.type == Gdk.EventType._2BUTTON_PRESS and ev.button == 1:
@@ -398,7 +429,7 @@ class Workspace:
                 return False
             done.append(True)
             novo = entry.get_text().strip()
-            if keep and novo:
+            if keep:  # vazio limpa o nome (a linha 1 volta ao título, P65)
                 self.name = novo
             box.remove(entry)
             box.pack_start(self.name_label, False, False, 0)
@@ -938,7 +969,7 @@ class TorttyWindow(Gtk.Window):
         mem = None
         if self._restore and self._restore["workspaces"]:
             mem = self._restore["workspaces"].pop(0)
-        ws = Workspace(self, len(self.workspaces) + 1)
+        ws = Workspace(self)
         if mem:
             ws.name = mem["name"]
         self.workspaces.append(ws)
@@ -1162,7 +1193,7 @@ class TorttyWindow(Gtk.Window):
         multi_ws = len(self.workspaces) > 1
         for wi, ws in enumerate(self.workspaces, 1):
             if multi_ws:
-                parts.append(f"=== workspace {wi}: {ws.name} ===")
+                parts.append(f"=== workspace {wi}: {ws.name or '-'} ===")
             multi = len(ws.views) > 1
             for i, v in enumerate(ws.views, 1):
                 if multi:

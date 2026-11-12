@@ -171,6 +171,7 @@ class TermView(Gtk.DrawingArea):
         on_title=None,
         on_bell=None,
         on_notify=None,
+        on_progress=None,
         shortcuts=None,
     ):
         super().__init__()
@@ -178,9 +179,11 @@ class TermView(Gtk.DrawingArea):
         self.on_title = on_title  # chamada quando o título (OSC) muda
         self.on_bell = on_bell  # chamada quando o app manda BEL (P34)
         self.on_notify = on_notify  # chamada no `OSC 9`/`777` (P44)
+        self.on_progress = on_progress  # chamada no `OSC 9;4` (P65)
         self.shortcuts = shortcuts  # atalhos da janela (prioridade)
         self.font_features = font_features  # liga/calt do Pango (P45)
-        self._notifs = 0  # `OSC 9`/`777` já entregues ao host
+        self._notifs = 0  # `OSC 9`/`777` já entregues ao host (P44)
+        self._progress = None  # último `OSC 9;4` já entregue ao host (P65)
         self._clip_seq = 0  # `OSC 52` já entregue ao clipboard (P64)
         self._cwd = None  # último `OSC 7` já refletido no rótulo (P47)
         self._title = DEFAULT_TITLE
@@ -538,6 +541,10 @@ class TermView(Gtk.DrawingArea):
             self._notifs = self.term.notifs
             if self.on_notify:
                 self.on_notify(self, self.term.notif_text)
+        if self.term.progress != self._progress:  # `OSC 9;4` (P65)
+            self._progress = self.term.progress
+            if self.on_progress:
+                self.on_progress(self, self._progress)
         if self.term.cwd != self._cwd:  # `OSC 7` (P47): o cwd do shell mudou
             self._cwd = self.term.cwd
             if self.on_title:  # o rótulo sem OSC 0/2 é o cwd

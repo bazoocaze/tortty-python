@@ -747,6 +747,24 @@ def notifications():
     assert len(t.notif_text) == term.NOTIF_MAX
 
 
+def osc9_progress():
+    """`OSC 9;4` guarda (estado, %) em `Term.progress` (P65)."""
+    t = Term()
+    assert t.progress is None
+    t.feed("\x1b]9;4;1;50\x07")
+    assert t.progress == (1, 50)
+    t.feed("\x1b]9;4;3\x07")
+    assert t.progress == (3, None)  # sem % (indeterminado/pausado)
+    t.feed("\x1b]9;4;1;999\x07")
+    assert t.progress == (1, 100)  # % fora de 0..100: clamp
+    t.feed("\x1b]9;4;7\x07")
+    assert t.progress == (1, 100) and t.notifs == 0  # estado 7: engolido
+    t.feed("\x1b]9;4;0\x07")
+    assert t.progress is None
+    t.feed("\x1b]9;4;1;x\x07")  # forma ruim: recado, como o `9;` comum
+    assert t.notifs == 1 and t.progress is None
+
+
 def osc7_cwd():
     """P47: `OSC 7` guarda o cwd do shell, com `%XX` decodificado."""
     t = Term()
@@ -1510,6 +1528,7 @@ ALL = (
     screen_scroll,
     rep_and_keypad,
     notifications,
+    osc9_progress,
     pixel_mouse,
     wheel_notches,
     osc7_cwd,

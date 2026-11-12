@@ -68,9 +68,14 @@ def shell_quoted(path):
 
 
 def _osc_progress(arg):
-    """`9;4;estado[;%]`: progresso do mintty/ConEmu, não uma mensagem (P44)."""
+    """`9;4;estado[;%]`: progresso (estado, %) do mintty/ConEmu, ou None (P65)."""
     parts = arg.split(";")
-    return parts[0] == "4" and 2 <= len(parts) <= 3 and all(p.isdigit() for p in parts[1:])
+    if parts[0] != "4" or not 2 <= len(parts) <= 3:
+        return None
+    if not all(p.isdigit() for p in parts[1:]):
+        return None
+    pct = min(100, int(parts[2])) if len(parts) == 3 else None
+    return (int(parts[1]), pct)
 
 
 # CSI curto inteiro no buffer: corpo sem intermediários, final em 0x40-0x7e.
@@ -192,6 +197,9 @@ class Term:
         # aqui; quem decide toast, badge e urgência é a janela
         self.notifs = 0
         self.notif_text = ""
+        # progresso (`OSC 9;4`, P65): (estado, %) ou None; quem mostra é a
+        # janela (o rótulo da aba), no mesmo poll em que `notifs` é entregue
+        self.progress = None
         # `OSC 52` (clipboard do app, P64): o texto decodificado e o contador;
         # quem põe no Gtk.Clipboard é a view (mesmo molde das notificações)
         self.clip_seq = 0
@@ -1233,10 +1241,15 @@ class Term:
         elif o.startswith("7;"):
             self._osc_cwd(o[2:])
         elif o.startswith("9;"):
-            # `9;4;estado[;%]` é a barra de progresso do mintty/ConEmu (um TUI
-            # ocupado manda isso a 1 Hz): engolir, não virar toast
-            if not _osc_progress(o[2:]):
+            # `9;4;estado[;%]` é a barra de progresso (mintty/ConEmu): vira
+            # estado na aba (P65); um TUI ocupado manda a 1 Hz, não é toast
+            p = _osc_progress(o[2:])
+            if p is None:
                 self._notify(o[2:])
+            elif p[0] == 0:
+                self.progress = None
+            elif p[0] <= 4:
+                self.progress = p  # estado fora de 0..4: engolido, como sempre
         elif o.startswith("777;"):
             self._osc_notify777(o[4:])
         elif o.startswith("52;"):

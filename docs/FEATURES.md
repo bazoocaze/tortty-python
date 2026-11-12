@@ -139,17 +139,20 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   on the left that only appears with 2+ workspaces. `Ctrl+Shift+N`/`Super+N`
   creates, `Ctrl+Shift+1`…`9`/`Super+1`…`9` selects, `Ctrl+Shift+Q`/`Super+Q`
   closes the current workspace with all tabs (or middle click on the card);
-  **double click** on the card renames it (default "workspace N"). `Super+q` on
+  **double click** on the card renames it (empty = back to showing the title).
+  `Super+q` on
   the last workspace quits the program. If your WM uses `Super+digit` (on GNOME
   the dash does), use the `Ctrl+Shift` variant. The card
-  shows `1  <name>` and, below it, the active tab and the count. Closing the last
+  shows `1  <name>` or, when never renamed, `1  <title>`; below it, the active
+  tab, without the count. Closing the last
   tab closes the workspace; closing the last workspace closes the program.
 - **Notifications** (`OSC 9`, `777;notify`): on the tab in front it is an 8 s
   toast; on a background tab it is a **badge on the label** that has no timer
   (a bell flash would be gone before anyone looked) and a `•` on the workspace
   card; visiting the tab acknowledges it. The window also asks for urgency.
-  `9;4;state[;%]` (the mintty/ConEmu progress bar) is swallowed — a busy TUI
-  repeats it at 1 Hz and would pin the toast forever.
+  `9;4;state[;%]` (the mintty/ConEmu progress bar) becomes a prefix on the tab
+  label — `50% · `, `! · ` on error, `… · ` without pct — never a toast (a busy
+  TUI repeats it at 1 Hz).
 - **App clipboard** (`OSC 52`): a base64 payload from the app lands in the
   system clipboard (CLIPBOARD, or PRIMARY with `p`/`s`) the way the mouse
   selection does; a query answers with an empty payload, because the content
