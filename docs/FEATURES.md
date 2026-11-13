@@ -29,6 +29,10 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
 - **Faint and hidden** (`2`/`8`, and `22` clears both intensities): faint draws
   halfway to the background, hidden drops the glyph — background and
   decoration stay.
+- **Combining marks glue to the cell before** (`e` + acute, emoji + VS16): the
+  mark joins the previous cell instead of taking one of its own, so the line
+  stops shifting a column right. A per-string cache keeps the check out of the
+  fast path.
 - **Blink** (`5`/`6`, and `25` stops it): the cell alternates visible/hidden
   with a timer of its own that runs only while a visible cell blinks — `6`
   shares the rhythm of `5`, as xterm does.
@@ -59,7 +63,9 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   mouse and on scrolling to the end — and **not** because the child wrote: the
   view stays anchored on the line being read while the app keeps writing.
   Clicking and dragging in the scrollback does **not** go back to live: that is
-  how you copy an old excerpt. An `↑N` in the corner shows how far back you went;
+  how you copy an old excerpt. Being **one line** from the end is live again on
+  the next output (there is nothing to read there). An `↑N` in the corner shows
+  how far back you went;
   the app's cursor is not drawn in the scrollback. A **scrollbar** of 8 px
   sits over the last column while there is scrollback (proportional thumb,
   translucent, brighter while the pointer is over it): clicking on the track
@@ -95,8 +101,9 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   default embedded in the package): font family and size (points), `ligatures`,
   `cursor_shape`/`cursor_blink`, the 19 palette colors, `scrollback`,
   `window_padding_width`, `bell` (`none`/`visual`/`audible`), `copy_on_select`,
-  `bold_as_bright`, `letter_spacing`, `restore_state`, `shell` and
-  `debug_log`. The keys and their ranges live in
+  `bold_as_bright`, `letter_spacing`, the eight chrome colors (`chrome_bg`,
+  `chrome_fg` and the rest — sidebar, tabs and cards), `restore_state`, `shell`
+  and `debug_log`. The keys and their ranges live in
   `tortty_python/config.py`, the default values in
   `tortty_python/data/tortty-python.conf`.
 - **`Ctrl+Shift+F2` opens that file in `vim`**, in a new tab, with the window
@@ -153,7 +160,9 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
 - **Notifications** (`OSC 9`, `777;notify`): on the tab in front it is an 8 s
   toast; on a background tab it is a **badge on the label** that has no timer
   (a bell flash would be gone before anyone looked) and a `•` on the workspace
-  card; visiting the tab acknowledges it. The window also asks for urgency.
+  card; visiting the tab acknowledges it. The window also asks for urgency,
+  and when it is **not in front** the notice also goes to the desktop daemon
+  (`org.freedesktop.Notifications`, D-Bus, silent when there is none).
   `9;4;state[;%]` (the mintty/ConEmu progress bar) becomes a prefix on the tab
   label — `50% · `, `! · ` on error, `… · ` without pct — never a toast (a busy
   TUI repeats it at 1 Hz).
@@ -212,7 +221,9 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   `?2004`. Nothing else happens — no new tab, no `cd`: the terminal does not
   know what is running.
 - **Hyperlinks** (`OSC 8`): the link travels in the cell (interned URI, an extra
-  field only on linked cells). The link **under the pointer** is underlined (and
+  field only on linked cells), and the `id=` of the parameters groups cells into
+  **one** link — a link broken over two lines underlines whole. The link **under
+  the pointer** is underlined (and
   with `Ctrl` held, every link on screen); `Ctrl+click` hands the URI to
   `xdg-open` — only `http`, `https`,
   `file`, `ftp` and `mailto`, since the URI comes from the child.

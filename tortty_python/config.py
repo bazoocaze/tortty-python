@@ -15,6 +15,7 @@ import shutil
 from pathlib import Path
 from typing import NamedTuple
 
+from . import style
 from .palette import parse_color
 
 # O PADRÃO é o arquivo `data/tortty-python.conf`: ele embarca no pacote e é lido
@@ -43,6 +44,12 @@ FALLBACK = {
     # (P50). `content` (a foto da tela) não existe aqui.
     "restore_state": "layout",
 }
+# P75: o chrome (lateral, abas, cartões) também vem da configuração; o padrão
+# de cada chave é o token de `style.py` — uma fonte só, sem cópia de hex aqui.
+CHROME_KEYS = tuple(style.CHROME)
+FALLBACK.update(style.defaults())
+
+
 DATA = Path(__file__).with_name("data") / "tortty-python.conf"
 
 # As 19 chaves de cor (P49): frente, fundo, cursor e as 16 ANSI — a paleta
@@ -277,6 +284,7 @@ CHECKS = {
     "restore_state": check_restore_state,
 }
 CHECKS.update({k: check_color for k in COLOR_KEYS})
+CHECKS.update({k: check_color for k in CHROME_KEYS})
 
 
 def effective_shell(value, env=None):
@@ -374,6 +382,11 @@ class Config:
                 if c is not None:
                     out[k] = c
         return out
+
+    @property
+    def chrome(self):
+        """As cores do chrome (P75) em '#rrggbb', para o `style.css`."""
+        return {k: self._get(k) for k in CHROME_KEYS if self._get(k)}
 
     @property
     def restore_state(self):

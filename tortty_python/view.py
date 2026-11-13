@@ -215,7 +215,7 @@ class TermView(Gtk.DrawingArea):
         self._sb_drag = False  # arrastando o polegar da barra de rolagem
         self._sb_hover = False  # ponteiro sobre a barra (P67)
         self._ctrl = False  # Ctrl apertado: sublinha os hyperlinks (OSC 8)
-        self._hover_link = None  # link sob o ponteiro: sublinha sem Ctrl (P70)
+        self._hover_link = None  # chave do link sob o ponteiro (P70/P76)
         self._hover_cell = (-1, -1)  # última célula visitada (só redesenha ao trocar)
         self._state = 0  # modificadores do último evento
         self.view_off = 0  # 0 = vivo; >0 = linhas de histórico
@@ -534,7 +534,11 @@ class TermView(Gtk.DrawingArea):
                 if off >= self._pin_off:
                     self._pin_off = 0  # chegou na distância: volta ao modo âncora
             elif self.view_off:
-                self.view_off = self.term.anchored_view_off(self._anchor)
+                off = self.term.anchored_view_off(self._anchor)
+                if off <= 1:
+                    self.back_to_live()  # P72: grudou no fim: segue o vivo
+                else:
+                    self.view_off = off
         if self.term.sync_output and self.view_off != v_before:
             _slog(
                 ev="pos",
@@ -893,6 +897,8 @@ class TermView(Gtk.DrawingArea):
             # a seleção também é absoluta (B17): rolar não a desfaz nem a deixa
             # sobre outro texto, ela vai junto com o conteúdo
             self.queue_draw()
+            if off <= 1:
+                self.back_to_live()  # P72: a uma linha do fim é o vivo
         return True
 
     def _draw_links(self, cr, rows, cw, ch, row_lo, row_hi, col_lo, col_hi):
@@ -904,14 +910,16 @@ class TermView(Gtk.DrawingArea):
             row = rows[y]
             x = col_lo
             while x < col_hi:
-                uri = t.link_of(row[x])
-                if not uri:
+                # P76: a corrida é do mesmo link pelo `id=` (o mesmo URI pode
+                # aparecer em linhas diferentes e ainda ser um link só)
+                chave = t.link_key(row[x])
+                if not chave:
                     x += 1
                     continue
                 j = x + 1
-                while j < t.cols and t.link_of(row[j]) == uri:
+                while j < t.cols and t.link_key(row[j]) == chave:
                     j += 1
-                if alvo is None or uri == alvo:
+                if alvo is None or chave == alvo:
                     cr.rectangle(x * cw, y * ch + ch - 2, (j - x) * cw, 1)
                     cr.fill()
                 x = j
@@ -922,6 +930,13 @@ class TermView(Gtk.DrawingArea):
         if not (0 <= row < len(rows)) or not (0 <= col < self.term.cols):
             return None
         return self.term.link_of(rows[row][col])
+
+    def _cell_key(self, row, col):
+        """Chave de agrupamento (`id=`) do link na célula da visão, ou None."""
+        rows = self.term.visible_rows(self.view_off)
+        if not (0 <= row < len(rows)) or not (0 <= col < self.term.cols):
+            return None
+        return self.term.link_key(rows[row][col])
 
     def open_link(self, uri):
         """Ctrl+clique: entrega o URI ao xdg-open, só nos esquemas conhecidos."""
@@ -937,11 +952,11 @@ class TermView(Gtk.DrawingArea):
             return False
         return True
 
-    def _set_hover_link(self, uri):
+    def _set_hover_link(self, chave):
         """Link sob o ponteiro mudou: redesenha só para o sublinhado seguir (P70)."""
-        if uri == self._hover_link:
+        if chave == self._hover_link:
             return
-        self._hover_link = uri
+        self._hover_link = chave
         self.queue_draw()
 
     def _set_ctrl(self, on):
@@ -1629,7 +1644,7 @@ class TermView(Gtk.DrawingArea):
             col, row = self.cell_at(ev.x, ev.y)
             if (row, col) != self._hover_cell:
                 self._hover_cell = (row, col)
-                self._set_hover_link(self._cell_uri(row, col))
+                self._set_hover_link(self._cell_key(row, col))
         if self._sb_drag:
             self.scroll_to_y(ev.y - self.padding)
             return True

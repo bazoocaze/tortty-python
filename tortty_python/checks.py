@@ -723,6 +723,72 @@ def selection_follows_history():
     assert not v.anchor_alive(g)
 
 
+def combining_marks():
+    """P73: marca combinante ocupa a célula anterior e não empurra a linha."""
+    t = Term(10, 2)
+    t.feed("e\u0301x")
+    assert t.grid[0][0][0] == "e\u0301", t.grid[0][0][0]
+    assert t.cx == 2  # duas células, não três
+    assert t.grid[0][1][0] == "x"
+    # o caminho rápido (`_put_run`) tem que dar o mesmo resultado
+    t.feed("\r\n")
+    t.feed("caf\u00e9 e p\u00e3o \u0301")
+    assert t.grid[0][3][0] == "\u00e9"
+    # a linha encheu (10 células): o espaço quebra e a marca cola nele
+    assert t.grid[1][0][0] == " \u0301"
+    assert t.cx == 1
+    # seleção de emoji: VS16 cola na célula do coração
+    t2 = Term(6, 2)
+    t2.feed("\u2764\ufe0fZ")
+    assert t2.grid[0][0][0] == "\u2764\ufe0f"
+    assert (t2.grid[0][1][0], t2.cx) == ("Z", 2)
+    # a coluna cheia + marca não pode avançar a linha
+    t3 = Term(2, 3)
+    t3.feed("ab\u0301")
+    assert t3.grid[0][1][0] == "b\u0301"
+    assert (t3.cy, t3.cx) == (0, 1)
+
+
+def osc8_link_id():
+    """P76: o `id=` agrupa células em um link; sem ele, o URI é a chave."""
+    t = Term(10, 2)
+    E = "\x1b]8;"
+    t.feed(E + "id=A:foo=1;https://a\x1b\\x" + E + ";\x1b\\")
+    t.feed(E + "id=A;https://a/outra\x1b\\y" + E + ";\x1b\\")
+    t.feed(E + ";https://a\x1b\\z" + E + ";\x1b\\")
+    assert t.link_of(t.grid[0][0]) == "https://a"
+    assert t.link_key(t.grid[0][0]) == "A"  # o `id` vira a chave
+    assert t.link_key(t.grid[0][1]) == "A"  # mesmo id, outro URI: mesmo link
+    assert t.link_of(t.grid[0][1]) == "https://a/outra"
+    assert t.link_key(t.grid[0][2]) == "https://a"  # sem id: o URI agrupa
+    t.feed("\x1b[3J")  # a tabela morre junto com o histórico
+    assert (t.links, t.link_keys) == ([], [])
+
+
+def chrome_config():
+    """P75: as cores do chrome vêm da configuração e vão para o CSS."""
+    from . import config, style
+
+    # o padrão é o token do `style.py`: uma fonte só
+    padrao = style.defaults()
+    assert set(padrao) == set(style.CHROME)
+    assert {k: config.FALLBACK[k] for k in padrao} == padrao
+    cfg = config.load(os.path.join(tempfile.mkdtemp(), "nao-existe.conf"))
+    assert cfg.chrome == padrao
+    # override chega no CSS pelos tokens certos (e só neles)
+    css = style.css({"chrome_bg": "#101010"})
+    assert "#sidebar { background-color: #101010; }" in css
+    assert "notebook > header { background-color: #101010;" in css
+    assert style.css({"chrome_accent_bg": "#222222"}).count("#222222") == 2
+    # chave inválida não passa
+    d = tempfile.mkdtemp()
+    p = os.path.join(d, "tortty.conf")
+    with open(p, "w") as f:
+        f.write("chrome_fg vermelho\n")
+    cfg = config.load(p)
+    assert not cfg.ok and cfg.chrome["chrome_fg"] == padrao["chrome_fg"]
+
+
 def hyperlinks():
     """OSC 8: o URI mora na célula, repetido reusa o índice, e o clique tem whitelist."""
     t = Term()
@@ -1577,6 +1643,9 @@ ALL = (
     dropped_path,
     double_and_triple_click,
     hyperlinks,
+    osc8_link_id,
+    combining_marks,
+    chrome_config,
     paste_markers,
     truecolor,
     style_contrast,

@@ -80,9 +80,34 @@ def _tokens():
     }
 
 
-def css():
-    """O CSS com os tokens substituídos."""
-    return CSS % _tokens()
+# P75: chaves de configuração do chrome -> tokens que elas trocam. Quem quer o
+# cromo da sua cor não mexe no código, e o par (texto, fundo) continua medido
+# pelo `style_contrast` nos padrões.
+CHROME = {
+    "chrome_bg": ("SIDEBAR_BG", "TAB_BAR_BG"),
+    "chrome_hover_bg": ("CARD_HOVER_BG",),
+    "chrome_fg": ("CARD_FG",),
+    "chrome_info_fg": ("CARD_INFO_FG",),
+    "chrome_accent_bg": ("CARD_SEL_BG", "TAB_ACTIVE_BG"),
+    "chrome_accent_fg": ("CARD_SEL_FG",),
+    "chrome_accent_info_fg": ("CARD_SEL_INFO_FG",),
+    "chrome_sep": ("TAB_SEP",),
+}
+
+
+def defaults():
+    """Valor padrão de cada chave de chrome, tirado dos tokens daqui."""
+    tokens = _tokens()
+    return {k: tokens[v[0]] for k, v in CHROME.items()}
+
+
+def css(over=None):
+    """O CSS com os tokens substituídos (e o chrome da configuração, P75)."""
+    tokens = _tokens()
+    for chave, valor in (over or {}).items():
+        for token in CHROME.get(chave, ()):
+            tokens[token] = valor
+    return CSS % tokens
 
 
 def _linear(c):

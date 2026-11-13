@@ -6,6 +6,7 @@ abrir janela (e sem display). Quem desenha é `window.TorttyWindow`.
 
 import base64
 import re
+import unicodedata
 from typing import NamedTuple
 from urllib.parse import unquote
 
@@ -97,6 +98,33 @@ LINK_SCHEMES = ("http://", "https://", "file://", "ftp://", "mailto:")
 def link_allowed(uri):
     """Só os esquemas conhecidos vão para o xdg-open."""
     return uri.lower().startswith(LINK_SCHEMES)
+
+
+def _link_ident(params):
+    """O `id=` dos parâmetros do `OSC 8` (P76); vazio = sem agrupamento."""
+    for tok in params.split(":"):
+        if tok.startswith("id="):
+            return tok[3:]
+    return ""
+
+
+# P73: marcas combinantes colam na célula anterior, então um trecho que as tenha
+# não pode ir de uma vez. A resposta é cacheada por string: o mesmo prompt volta
+# sempre e o custo de decidir sai do caminho.
+_MARK_CACHE = {}
+_MARK_MAX = 4096
+
+
+def _has_mark(text):
+    """True se o trecho tem marca combinante (Mn/Me)."""
+    hit = _MARK_CACHE.get(text)
+    if hit is not None:
+        return hit
+    hit = any(unicodedata.category(c) in ("Mn", "Me") for c in text)
+    if len(_MARK_CACHE) > _MARK_MAX:
+        _MARK_CACHE.clear()
+    _MARK_CACHE[text] = hit
+    return hit
 
 
 class CellAnchor(NamedTuple):
@@ -235,6 +263,7 @@ class Term:
         # internado, então a célula carrega só um int no quinto campo.
         self.link = 0
         self.links = []
+        self.link_keys = []  # P76: chave de agrupamento (`id=`) de cada link
         self._link_ids = {}
         self.state = "ground"
         self.csi = ""
@@ -527,15 +556,25 @@ class Term:
             return None
         return self.links[i - 1]
 
-    def _link_id(self, uri):
-        """Índice do URI na tabela: o mesmo link repetido reusa o mesmo int."""
+    def link_key(self, cell):
+        """Chave de agrupamento do link: o `id=` quando existe, senão o URI (P76)."""
+        i = cell[4] if len(cell) > 4 else 0
+        if not i or i > len(self.link_keys):
+            return None
+        return self.link_keys[i - 1]
+
+    def _link_id(self, uri, ident=""):
+        """Índice do link na tabela: mesmo URI e mesmo `id=` reusam o mesmo int."""
         if not uri:
             return 0
-        i = self._link_ids.get(uri)
+        i = self._link_ids.get((uri, ident))
         if i is None:
             self.links.append(uri)
+            # sem `id=` o agrupamento é o próprio URI: duas células do mesmo
+            # URI continuam sendo um link só
+            self.link_keys.append(ident or uri)
             i = len(self.links)
-            self._link_ids[uri] = i
+            self._link_ids[(uri, ident)] = i
         return i
 
     def put(self, ch):
@@ -559,6 +598,16 @@ class Term:
             self.wrap_pending = False
             self.forward_tab(1)
             return
+        if ch >= "\u0300" and unicodedata.category(ch) in ("Mn", "Me"):
+            # P73: marca combinante (acento, VS16) cola na célula anterior em vez
+            # de ocupar outra — a linha andava uma coluna a mais
+            col = self.cols - 1 if self.wrap_pending else self.cx - 1
+            if col >= 0:
+                alvo = self.grid[self.cy][col]
+                if alvo is not None:
+                    alvo[0] += ch
+                    self.dirty.add(self.cy)
+                    return
         if self.wrap_pending:
             # a linha que encheu continua na de baixo (quebra mole): é o que
             # o reflow usa pra juntar de novo ao alargar
@@ -623,6 +672,7 @@ class Term:
                 self.sb_wrapped.clear()
                 self.graphics.clear()
                 self.links.clear()  # os índices das células deixam de valer
+                self.link_keys.clear()
                 self._link_ids.clear()
                 self.link = 0
                 self.abs_gen += 1  # o histórico sumiu: âncora antiga morreu
@@ -1102,6 +1152,12 @@ class Term:
 
     def _put_run(self, run):
         """Trecho imprimível de uma vez, com a mesma quebra mole do put."""
+        if not run.isascii() and _has_mark(run):
+            # P73: com marca combinante o destino é a célula anterior, então o
+            # trecho vai um a um (raro, e o cache evita reler a mesma string)
+            for ch in run:
+                self.put(ch)
+            return
         fg, bg, fl = self.fg, self.bg, self.flags
         self.last_char = run[-1]  # `REP` repete o último impresso (P56)
         i, n = 0, len(run)
@@ -1288,7 +1344,10 @@ class Term:
         elif o.startswith("8;"):
             # OSC 8 ; params ; URI: URI vazio fecha o link corrente
             parts = o.split(";", 2)
-            self.link = self._link_id(parts[2]) if len(parts) > 2 else 0
+            if len(parts) > 2:
+                self.link = self._link_id(parts[2], _link_ident(parts[1]))
+            else:
+                self.link = 0
         elif o[:3] in ("10;", "11;", "12;"):
             # cor de frente/fundo/cursor: define (`;#rgb`) ou consulta (`;?`)
             which = int(o[:2])

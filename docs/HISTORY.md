@@ -512,6 +512,43 @@ window's `Gtk.Menu` with the actions the shortcuts already have: copy, paste, ne
 and close tab, rename, new and close workspace. Verified on Xvfb: the menu opens,
 `Escape` closes it, and the items really act (`tabs` 1 → 2, `workspaces` 1 → 2).
 
+### P72 — Back to live when one line from the end (2026-11-12)
+
+Scrolling back keeps the anchor (P32), but landing **one line** from the end
+made no sense: there is nothing to read there. `scroll_view` and the anchored
+recompute in `on_pty` now call `back_to_live` at `off <= 1`. Verified on Xvfb:
+the wheel never parks at 1, it goes straight to 0.
+
+### P73 — Combining mark glued to the previous cell (2026-11-12)
+
+`put` appends an `Mn`/`Me` code point to the cell before it (cursor does not
+move), so `e` + acute is **one** cell and the line stops shifting right; the
+cell full + mark case and VS16 (emoji presentation) included. `_put_run` sends a
+run with a mark char by char, decided by a per-string cache — the fast path pays
+nothing. Check `combining_marks`.
+
+### P74 — `OSC 9`/`777` also reach the desktop daemon (2026-11-12)
+
+When the window is not active the notice goes to `org.freedesktop.Notifications`
+over D-Bus (`notify_desktop`, silent when there is no daemon — we are not a
+`Gtk.Application`, so the call is direct). Verified with a fake daemon inside
+`dbus-run-session`: it received "Terminal | build terminou".
+
+### P75 — The eight chrome colors in the configuration (2026-11-12)
+
+`style.py` gained `CHROME` (config key -> tokens) and `defaults()`, so the
+sidebar/tab/card colors are keys like `chrome_bg` and `chrome_accent_bg` —
+`config.FALLBACK` reads its defaults from there, no hex copy. The CSS provider is
+now reused and rewritten on reload, so the change applies live. Check
+`chrome_config`; pixels on Xvfb confirm both keys.
+
+### P76 — `OSC 8` `id=` groups cells into one link (2026-11-12)
+
+The link is interned by `(uri, id)` and `link_key` returns the `id` (or the URI
+when there is none); the hover underline compares keys, so a link broken over two
+lines underlines whole. Verified by pixels: hovering the second line lit **both**
+lines of the same `id` and left the unrelated link alone. Check `osc8_link_id`.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

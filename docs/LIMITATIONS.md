@@ -30,11 +30,11 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   `vim` with wide chars) comes out misaligned. Fixing it requires touching the
   cell model, not the drawing.
 - **No cell combining for a complex grapheme**: each cell carries one
-  character and `put` does not glue a combining mark to the cell before it, so
-  `e` + acute accent takes **two** cells and pushes the rest of the line one
-  column right — Pango shapes what is inside the cell, not what is spread over
-  two. Accents typed at the keyboard are fine (they are composed before
-  reaching the parser); the gap is an app that emits the mark separately.
+  character, and a mark emitted separately by an app now glues to the cell
+  before it (`e` + acute is one cell). Marks below a base cell at the start of
+  the line still get a cell of their own, and a grapheme that needs **two base
+  characters** (a Hangul jamo sequence, a ZWJ emoji) is shaped only inside the
+  cell it lands in.
 - **Ligature depends on the installed font**: shaping exists (Pango) and both
   the family (`font_family`) and the ligature mode (`ligatures`: off, standard,
   all) are configurable, but the machine's default Monospace (DejaVu) has
@@ -59,16 +59,18 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 
 ## OSC (what is not served)
 
-- **`OSC 8` ignores the parameters**: the `id=`/`key=value` part is accepted and
-  discarded; the link underlines on hover and on `Ctrl` (which underlines the
-  whole screen).
+- **`OSC 8` ignores most of the parameters**: `id=` groups cells into one link
+  (the underline follows the group); the rest of the `key=value` list is
+  accepted and discarded.
 - **`OSC 7` is a fallback, not the source**: the cwd of a new tab comes from
   `/proc` (last descendant) and only then from the sequence, which needs a
   shell that emits it — the app does not ship shell integration. **No `OSC
   133`** (prompt marks).
-- **Notifications stay inside the window**: `OSC 9` and `777;notify` become a
-  toast/badge plus window urgency; there is no desktop notification daemon, and
-  the `9;4` progress reaches only the tab label (no taskbar entry).
+- **Notifications go to the daemon only when the window is behind**: `OSC 9`
+  and `777;notify` reach `org.freedesktop.Notifications` when the window is not
+  active (and stay silent when there is no daemon); there is no per-app
+  configuration of urgency or category, and the `9;4` progress reaches only the
+  tab label (no taskbar entry).
 
 ## Mouse and selection
 
@@ -109,29 +111,26 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 - **Reflow only in the main buffer**: in alt-screen (`mc`, `vim`) the resize
   crops/pads on purpose — whoever is in full screen redraws itself
   on SIGWINCH, and re-wrapping over what it wrote would get in the way.
-- **Limited scrollback**: the scrollback has a line cap; what leaves does not
-  come back.
-- **Image in the scrollback is pruned** when the line it belongs to leaves the
-  scrollback.
-- **The scrollback does not return to live by itself**: after scrolling, the
-  view stays anchored at the (absolute) line where you stopped reading until an
-  action of yours — scroll to the end, a key, or the app clearing the scrollback
-  (`CSI 3J`). Discarded by decision: return by time (5 s without scrolling
-  measures the wrong thing: reading is silent, and an app that writes every 1 s
-  would tear the user away as soon as the deadline expired) and *sticky bottom*
-  (come back when the view is ≤1 line from the end) — the latter fits in the
-  future without changing the anchor.
+- **The scrollback returns to live only by an action or by being one line from
+  the end**: after scrolling, the view stays anchored at the line where you
+  stopped reading until an action of yours (scroll to the end, a key, the app
+  clearing the scrollback with `CSI 3J`) or until new output while the view sits
+  **one line** from the end (there is nothing to read there). Discarded by
+  decision: return by time (5 s without scrolling measures the wrong thing:
+  reading is silent, and an app that writes every 1 s would tear the user away
+  as soon as the deadline expired).
 
 ## Interface
 
 - **Window position is only remembered on X11**: on Wayland the client does not
   choose where the window sits, so the state file stores only size and
   maximized. It is not a lack of code, it is the protocol.
-- **No configurable chrome or shortcut remapping**: the configuration file
-  (P33/P34) covers font, size, cursor, scrollback, padding, bell, copy and,
-  since P49, the 19 terminal colors (`foreground`, `background`,
-  `cursor_color`, `color0..15`) plus `OSC 4/10-12` at runtime. What remains
-  fixed in the code is the **chrome** color (`style.py`) and the shortcuts.
+- **Shortcuts are not remappable**: the configuration file covers font, size,
+  cursor, scrollback, padding, bell, copy, the 19 terminal colors
+  (`foreground`, `background`, `cursor_color`, `color0..15`, plus `OSC 4/10-12`
+  at runtime) and, since P75, the eight chrome colors (`chrome_bg`,
+  `chrome_fg`, hover, accent and separator). What remains fixed in the code is
+  the shortcut table.
 - **No copy/scrollback mode**: no text editor over the scrollback.
 
 ## Scope (decision, not lack)

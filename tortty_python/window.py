@@ -34,19 +34,28 @@ def _geom():
 TAB_TITLE_CHARS = 20  # aba: largura em chars, não em px (o título trunca)
 BELL_FLASH_MS = 800  # `bell visual`: quanto tempo a aba fica marcada (P34)
 NOTIF_TOAST_S = 8  # `OSC 9`/`777` na aba da frente: quanto tempo fica na tela
+NOTIFY_BUS = "org.freedesktop.Notifications"  # daemon de notificação (P74)
+NOTIFY_PATH = "/org/freedesktop/Notifications"
+NOTIFY_TIMEOUT_MS = 1000
 _styled = False  # o provider é da tela: aplica uma vez por processo
+_provider = None
 
 
-def apply_style():
-    """Registra o CSS de `style.py` na tela (idempotente)."""
-    global _styled
+def apply_style(over=None):
+    """Registra o CSS de `style.py` na tela e o recarrega com o chrome daqui.
+
+    O provider é um só: chamar de novo troca o CSS na hora, que é o que o
+    reload de configuração precisa (P75).
+    """
+    global _styled, _provider
+    if _provider is None:
+        _provider = Gtk.CssProvider()
+    _provider.load_from_data(style.css(over).encode())
     if _styled:
         return
-    provider = Gtk.CssProvider()
-    provider.load_from_data(style.css().encode())
     Gtk.StyleContext.add_provider_for_screen(
         Gdk.Screen.get_default(),
-        provider,
+        _provider,
         Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION,
     )
     _styled = True
@@ -509,7 +518,7 @@ class TorttyWindow(Gtk.Window):
         self._restore = lay
         self._restore_front = (lay["ws"], lay["tab"]) if lay else None
 
-        apply_style()
+        apply_style(self.config.chrome)
         self.sidebar = Gtk.ListBox()
         self.sidebar.set_name("sidebar")  # alvo do CSS (style.py)
         # roda sobre a lateral: anda um cartão por detente (P48)
@@ -839,6 +848,8 @@ class TorttyWindow(Gtk.Window):
         gdkwin = self.get_window()
         if gdkwin is not None:
             gdkwin.set_urgency_hint(True)
+        if not self.is_active():
+            self.notify_desktop(text)  # P74: fora da frente, o daemon avisa
         ws = self.current
         if ws is not None and view is ws.view:
             self.show_toast("Notification", text, segundos=NOTIF_TOAST_S)
@@ -847,6 +858,33 @@ class TorttyWindow(Gtk.Window):
             if view in w.views:
                 w.mark_notif(view)  # badge: fica até a visita
                 break
+
+    def notify_desktop(self, texto):
+        """`OSC 9`/`777` no daemon de notificação (P74); sem ele, silêncio.
+
+        Não somos um `Gtk.Application`, então a chamada é D-Bus direta — e o
+        terminal continua funcionando igual em sessão sem daemon.
+        """
+        try:
+            from gi.repository import Gio
+
+            bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            bus.call_sync(
+                NOTIFY_BUS,
+                NOTIFY_PATH,
+                NOTIFY_BUS,
+                "Notify",
+                GLib.Variant(
+                    "(susssasa{sv}i)",
+                    ("tortty-python", 0, "", "Terminal", texto, [], {}, -1),
+                ),
+                None,
+                Gio.DBusCallFlags.NONE,
+                NOTIFY_TIMEOUT_MS,
+                None,
+            )
+        except Exception:
+            pass  # sem barramento de sessão ou sem daemon: só a janela piscou
 
     def show_toast(self, titulo, detalhe="", erro=False, aviso=False, segundos=None):
         """Aviso flutuante na base da janela, como no Android."""
@@ -937,6 +975,7 @@ class TorttyWindow(Gtk.Window):
         if not getattr(self, "_cmd_fixo", False):
             self.cmd = self.shell  # vale para as próximas abas
         self._apply_options()  # fonte/padding/cursor valem em TODAS as abas
+        apply_style(novo.chrome)  # P75: o chrome também muda a quente
         for ws in self.workspaces:
             for v in ws.views:
                 v.apply_config(novo)
