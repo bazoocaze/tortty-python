@@ -25,6 +25,7 @@ from .palette import (
     DIM,
     FG_DEFAULT,
     HIDDEN,
+    INV,
     ITALIC,
     UL,
     UL_CURLY,
@@ -1131,7 +1132,7 @@ def session_restore():
     """P50: `restore_state` na config e o layout validado no state (puro)."""
     from . import config, state
 
-    # config: padrão é layout, none desliga, `content` (aqui não existe) é erro
+    # config: padrão é layout; none desliga; content (P57) é o layout + a foto
     cfg = config.load(os.path.join(tempfile.mkdtemp(), "nao-existe.conf"))
     assert cfg.restore_state == "layout"
     p = os.path.join(tempfile.mkdtemp(), "c.conf")
@@ -1141,6 +1142,10 @@ def session_restore():
     assert cfg.ok and cfg.restore_state == "none"
     with open(p, "w") as f:
         f.write("restore_state content\n")
+    cfg = config.load(p)
+    assert cfg.ok and cfg.restore_state == "content"
+    with open(p, "w") as f:
+        f.write("restore_state foto\n")  # grau que não existe é erro
     cfg = config.load(p)
     assert not cfg.ok and cfg.restore_state == "layout"
 
@@ -1179,6 +1184,87 @@ def session_restore():
     )
     assert lay["workspaces"][0]["cwds"][0] is None
     assert (lay["ws"], lay["tab"]) == (0, 0)
+
+
+def snapshot_restore():
+    """P57: a foto ANSI volta igual, sem a marca, e re-quebra como o resize."""
+    from . import state
+
+    def texto(t):
+        rows = t.scrollback + t.grid
+        return [_row_text(r).rstrip() for r in rows]
+
+    t = Term(cols=20, rows=6)
+    t.feed("\x1b[1;31mred bold\x1b[0m plain\r\n")
+    t.feed("\x1b[4:3mcurly\x1b[0m \x1b[7minverse\x1b[0m\r\n")
+    t.feed("w\xe9 and \u65e5\u672c wide\r\n")
+    t.feed("\x1b]8;;https://example.com/x\x1b\\link\x1b]8;;\x1b\\\r\n")
+    t.feed("0123456789012345678901234567890123456789")  # quebra mole: 2 linhas
+    foto = t.snapshot()
+    # o branco à direita da linha não viaja (a linha 1 acaba em "plain")
+    assert "\x1b[0;39;49m plain\r\n" in foto
+    # volta igual: alimentar um Term novo e fotografar de novo dá os mesmos bytes
+    c = Term(cols=20, rows=6)
+    c.feed(foto)
+    assert c.snapshot() == foto
+    assert texto(c) == texto(t)
+    # atributos sobrevivem: negrito, cor 1, sublinhado curvo, inverso
+    assert c.grid[0][0][3] & BOLD and c.grid[0][0][1] == 1
+    assert c.grid[1][0][3] & UL and ul_style(c.grid[1][0][3]) == UL_CURLY
+    assert c.grid[1][7][3] & INV
+    # e o link volta com o mesmo URI
+    assert c.links == ["https://example.com/x"]
+    assert c.link_of(c.grid[3][0]) == "https://example.com/x"
+    # quebra mole não vira `\n`: reaberta mais larga, o parágrafo é uma linha
+    largo = Term(cols=40, rows=6)
+    largo.feed(foto)
+    assert _row_text(largo.grid[4]) == "0123456789012345678901234567890123456789"
+    # tela cheia não é o que volta: a foto é do buffer principal
+    a = Term(cols=20, rows=4)
+    a.feed("shell prompt\r\n")
+    a.feed("\x1b[?1049h")
+    a.feed("vim owns this")
+    assert "shell prompt" in a.snapshot() and "vim owns this" not in a.snapshot()
+    # a marca da restauração é decoração: na tela, fora da foto — e segue a
+    # linha pela re-quebra sem virar conteúdo
+    m = Term(cols=30, rows=4)
+    m.feed("before\r\n")
+    m.feed_chrome("\r\n\x1b[2m-- restored --\x1b[0m\r\n")
+    m.feed("after\r\n")
+    assert "before" in m.snapshot() and "after" in m.snapshot()
+    assert "restored" not in m.snapshot()
+    m.feed_chrome("x" * 40)  # marca que enche duas linhas e quebra mole
+    m.resize(20, 4)
+    assert "restored" not in m.snapshot() and "xxxx" not in m.snapshot()
+    # caractere de controle no URI veio do filho: não pode virar escape
+    bad = Term(cols=20, rows=2)
+    bad.links.append("a\x1b[31mb")
+    bad.link_keys.append("a\x1b[31mb")
+    bad.grid[0][0] = ["X", DEF_FG, DEF_BG, 0, 1]
+    ruim = bad.snapshot()
+    assert "X" in ruim and "a[31mb" in ruim and "\x1b[31m" not in ruim
+
+    # um arquivo por (workspace, aba), ao lado do window.json; o que não foi
+    # reescrito é de uma sessão que não existe mais
+    old = os.environ.get("XDG_STATE_HOME")
+    with tempfile.TemporaryDirectory() as tmp:
+        os.environ["XDG_STATE_HOME"] = tmp
+        try:
+            assert state.load_snapshot(0, 0) is None  # ausente não é erro
+            state.save({"x": 1})
+            state.save_snapshots([(0, 0, "uma"), (0, 1, "outra")])
+            assert state.load_snapshot(0, 1) == "outra"
+            assert state.load() == {"x": 1}  # a foto não come o window.json
+            state.save_snapshots([(0, 0, "só uma")])
+            assert state.load_snapshot(0, 0) == "só uma"
+            assert state.load_snapshot(0, 1) is None  # aba fechada não volta
+            state.save_snapshots([])  # chave desligada: apaga o que ficou
+            assert state.load_snapshot(0, 0) is None
+        finally:
+            if old is None:
+                del os.environ["XDG_STATE_HOME"]
+            else:
+                os.environ["XDG_STATE_HOME"] = old
 
 
 def title_stack():
@@ -1652,6 +1738,7 @@ ALL = (
     ligature_config,
     palette_config,
     session_restore,
+    snapshot_restore,
     title_stack,
     lnm_and_soft_reset,
     tab_stops,

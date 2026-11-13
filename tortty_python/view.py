@@ -85,6 +85,10 @@ SB_W = 8  # largura da barra de rolagem, em px (o app testa o mesmo número)
 CLICK_MS = 400  # janela do duplo/triplo clique, em ms
 BLINK_MS = 530  # ritmo do cursor piscando (`cursor_blink`); não é opção
 CELL_BLINK_MS = 500  # ritmo do SGR 5/6 (P66): timer próprio, não o do cursor
+# P57: a marca que separa a foto restaurada da execução nova. Ela come uma
+# linha (pula a linha do cursor restaurado), escreve em cor apagada e deixa o
+# cursor na linha de baixo, onde o prompt do shell novo vai aparecer.
+RESTORE_MARK = "\r\n\x1b[0m\x1b[2m── content restored from the previous run ──\x1b[0m\r\n"
 
 
 def _tick(prof, name, t0):
@@ -157,6 +161,7 @@ class TermView(Gtk.DrawingArea):
         self,
         cmd=None,
         cwd=None,
+        restore=None,
         shell=None,
         font_family="Monospace",
         font_size=12,
@@ -198,6 +203,13 @@ class TermView(Gtk.DrawingArea):
         self.term = Term()
         self.term.set_scrollback(scrollback)
         self.term.theme.apply_colors(colors or {})  # P49: as 19 chaves
+        if restore:
+            # P57: a foto da execução anterior entra ANTES de o shell existir,
+            # então o que ele escrever cai abaixo da marca — acima é fotografia,
+            # abaixo é esta execução. A marca é decoração: não viaja na próxima
+            # foto (senão cada execução salvaria a marca da anterior).
+            self.term.feed(restore)
+            self.term.feed_chrome(RESTORE_MARK)
         # seleção local (quando o app NÃO pediu mouse): âncora e ponta em
         # coordenada ABSOLUTA (`CellAnchor`), senão o realce fica preso na
         # posição de tela quando o conteúdo rola (B17)

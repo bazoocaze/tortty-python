@@ -41,7 +41,7 @@ FALLBACK = {
     "letter_spacing": "0",
     "debug_log": "/tmp/tortty-python.debug.log",  # `off` desliga
     # none = não restaura nada; layout = workspaces, abas e o cwd de cada uma
-    # (P50). `content` (a foto da tela) não existe aqui.
+    # (P50); content = layout + a foto da tela de cada aba (P57).
     "restore_state": "layout",
 }
 # P75: o chrome (lateral, abas, cartões) também vem da configuração; o padrão
@@ -95,7 +95,7 @@ LIGATURE_FEATURES = {
     "all": "liga=1,calt=1,dlig=1",
 }
 BELLS = ("none", "visual", "audible")
-RESTORE_STATES = ("none", "layout")
+RESTORE_STATES = ("none", "layout", "content")
 BOOLS = {
     "on": True,
     "yes": True,
@@ -390,7 +390,7 @@ class Config:
 
     @property
     def restore_state(self):
-        """`none`/`layout` (P50): o que a próxima execução herda desta."""
+        """`none`/`layout`/`content` (P50/P57): o que a próxima execução herda."""
         return self._get("restore_state").lower()
 
     @property

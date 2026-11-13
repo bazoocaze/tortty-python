@@ -283,6 +283,12 @@ when it opens, the window shows a security warning toast with the socket path.
   CR into LF on input and the echo turns both into CRLF. Write `\n` alone, or
   the probe's hover lands on an empty row and the feature looks broken
   (measured with `tools/ybands.py`).
+- `restore_state content` (P57) feeds the photo in `TermView.__init__`, **before**
+  the child exists: moving it to the first `size-allocate` (where the real grid is
+  known) loses the race with the shell's prompt, which arrives through the pty
+  watch first and would be buried under the restored picture. The `Term` starts
+  80x24, so the photo is fed at that size and the resize reflows it — content is
+  preserved (tested), only the marker's row moves.
 - Without a WM (Xvfb) the window can still report `is_active()` true, so a path
   that only runs on a background window (`notify_desktop`, P74) never fires:
   give the focus away (`set_input_focus` on `PointerRoot` via Xlib) before

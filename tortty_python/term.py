@@ -23,6 +23,8 @@ from .palette import (
     ITALIC,
     OVERLINE,
     STRIKE,
+    TC,
+    UL,
     UL_DOUBLE,
     Theme,
     int_rgb,
@@ -30,6 +32,7 @@ from .palette import (
     rgb,
     ul_off,
     ul_on,
+    ul_style,
 )
 
 # Fast path do parser (P20): fim do texto imprimível e cache de escape -> cor.
@@ -67,6 +70,123 @@ def shell_quoted(path):
     if path and all(c in _SHELL_SAFE for c in path):
         return path
     return "'" + path.replace("'", "'\\''") + "'"
+
+
+# -- foto da aba (P57) ------------------------------------------------------
+# `restore_state content`: o que sai no fechamento e volta na abertura seguinte,
+# em ANSI porque o leitor já existe (o parser). Reabrir numa janela estreita
+# re-quebra pelo mesmo código do resize, então quebra mole não vira `\n`.
+# Fora da foto: imagem, clipboard, notificação, título — tudo que FAZ algo.
+
+
+def _sgr(cell):
+    """SGR que reproduz a caneta da célula, sempre partindo do reset (P57)."""
+    fg, bg, fl = cell[1], cell[2], cell[3]
+    out = ["\x1b[0"]
+    for bit, code in (
+        (BOLD, ";1"),
+        (DIM, ";2"),
+        (ITALIC, ";3"),
+        (BLINK, ";5"),
+        (INV, ";7"),
+        (HIDDEN, ";8"),
+        (STRIKE, ";9"),
+        (OVERLINE, ";53"),
+    ):
+        if fl & bit:
+            out.append(code)
+    if fl & UL:
+        estilo = ul_style(fl)
+        # estilo fora da faixa conhecida volta ao simples: um SGR inventado
+        # pintaria a célula errada na volta
+        out.append(";4:%d" % (estilo + 1) if 0 < estilo <= 4 else ";4")
+    out.append(_sgr_color(fg, True))
+    out.append(_sgr_color(bg, False))
+    out.append("m")
+    return "".join(out)
+
+
+def _sgr_color(c, fg):
+    """Cor de célula em SGR: 39/49, 30-37/90-97, 38;5;n ou 38;2;r;g;b."""
+    if c is None or c == DEF_FG or c == DEF_BG:
+        return ";39" if fg else ";49"
+    if c & TC:
+        return ";%d;2;%d;%d;%d" % (38 if fg else 48, (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF)
+    if c < 8:
+        return ";%d" % ((30 if fg else 40) + c)
+    if c < 16:
+        return ";%d" % ((90 if fg else 100) + c - 8)
+    return ";%d;5;%d" % (38 if fg else 48, c)
+
+
+def _padding(cell):
+    """Célula que não desenha nem carrega nada: o branco à direita da linha."""
+    return (
+        cell[0] == " " and cell[1] == DEF_FG and cell[2] == DEF_BG and not cell[3] and len(cell) < 5
+    )
+
+
+def _link_text(uri):
+    """URI sem caractere de controle: o URI veio do filho e fecharia o OSC."""
+    return "".join(c for c in uri if not (ord(c) < 32 or ord(c) == 127))
+
+
+def snapshot(term):
+    """A aba inteira (histórico e tela) em ANSI: alimentar um Term a refaz (P57)."""
+    alt = term.alt_grid is not None
+    if alt:
+        # em tela cheia a foto é do buffer principal guardado, e o cursor dele
+        # não é conhecido enquanto o app segura a tela (sem CUP no fim)
+        rows = term.scrollback + term.alt_grid
+        wrapped = term.sb_wrapped + term.alt_wrapped
+        chrome = term.sb_chrome + term.alt_chrome
+    else:
+        rows = term.scrollback + term.grid
+        wrapped = term.sb_wrapped + term.row_wrapped
+        chrome = term.sb_chrome + term.row_chrome
+    out = []
+    pen = None  # nenhum SGR emitido ainda: a primeira célula sempre emite
+    link = 0
+    prev_wrapped = False
+    first = True
+    for row, wrap, deco in zip(rows, wrapped, chrome):
+        if deco:
+            continue  # a marca da restauração: na tela, fora da foto
+        if not first and not prev_wrapped:
+            out.append("\r\n")
+        first, prev_wrapped = False, wrap
+        # linha de quebra mole está cheia por definição: os brancos do fim são
+        # conteúdo, e cortá-los moveria a quebra
+        end = len(row) if wrap else _end_of_content(row)
+        for cell in row[:end]:
+            i = cell[4] if len(cell) > 4 else 0
+            if i != link:
+                if link:
+                    out.append("\x1b]8;;\x1b\\")
+                link = 0
+                uri = term.links[i - 1] if 0 < i <= len(term.links) else None
+                if uri:
+                    out.append("\x1b]8;;" + _link_text(uri) + "\x1b\\")
+                    link = i
+            if (cell[1], cell[2], cell[3]) != pen:
+                out.append(_sgr(cell))
+                pen = (cell[1], cell[2], cell[3])
+            out.append(cell[0])
+    if link:
+        out.append("\x1b]8;;\x1b\\")
+    if pen is not None:
+        out.append("\x1b[0m")
+    if not alt:
+        out.append("\x1b[%d;%dH" % (term.cy + 1, term.cx + 1))
+    return "".join(out)
+
+
+def _end_of_content(row):
+    """Índice depois da última célula que carrega algo (corta o branco)."""
+    for i in range(len(row) - 1, -1, -1):
+        if not _padding(row[i]):
+            return i + 1
+    return 0
 
 
 def _osc_progress(arg):
@@ -200,6 +320,11 @@ class Term:
         # (quebra mole, não '\n'). É o que permite re-quebrar no resize em vez
         # de recortar. sb_wrapped é o mesmo, paralelo ao scrollback.
         self.row_wrapped = [False] * rows
+        # P57: linha escrita pelo TERMINAL (a marca da restauração), não pelo
+        # filho. Decoração não é conteúdo: ela fica na tela e fora da foto. Os
+        # três são paralelos a grade/histórico, como row_wrapped.
+        self.row_chrome = [False] * rows
+        self.chrome_feed = False
         # paradas de tabulação (P53): `ESC H` põe, `CSI g` tira, `CSI I`/`Z`
         # andam por elas — o Rust também re-semeia a cada 8 no resize
         self.tabstops = [x % 8 == 0 for x in range(cols)]
@@ -210,6 +335,8 @@ class Term:
         self.keypad_app = False
         self.sb_wrapped = []
         self.alt_wrapped = None
+        self.sb_chrome = []
+        self.alt_chrome = None
         self.cx, self.cy = 0, 0
         self.fg, self.bg, self.flags = DEF_FG, DEF_BG, 0
         # LNM (`CSI 20 h`, P58): com ele o LF volta também para a coluna 0
@@ -319,12 +446,15 @@ class Term:
         """
         old_grid, old_cols, old_rows = self.grid, self.cols, self.rows
         old_wrapped, old_cx, old_cy = self.row_wrapped, self.cx, self.cy
+        old_chrome = self.row_chrome
         if self.alt_grid is not None:
             self.grid, self.row_wrapped = self.alt_grid, self.alt_wrapped
+            self.row_chrome = self.alt_chrome
             self.cols, self.rows = old_cols, old_rows
             self.cx, self.cy = self.saved or (0, 0)
             self._reflow(cols, rows)  # re-quebra o principal salvo
             self.alt_grid, self.alt_wrapped = self.grid, self.row_wrapped
+            self.alt_chrome = self.row_chrome
             self.saved = (self.cx, self.cy)
         self.cols, self.rows = cols, rows
         new = []
@@ -338,6 +468,7 @@ class Term:
                 new.append([self._blank_cell_raw() for _ in range(cols)])
         self.grid = new
         self.row_wrapped = old_wrapped[:rows] + [False] * max(0, rows - len(old_wrapped))
+        self.row_chrome = old_chrome[:rows] + [False] * max(0, rows - len(old_chrome))
         self.top, self.bottom = 0, rows - 1
         self.cx = min(old_cx, cols - 1)
         self.cy = min(old_cy, rows - 1)
@@ -358,21 +489,26 @@ class Term:
         cur_abs = len(self.scrollback) + self.cy
         cur_off = None
         lines, row_info = [], []
+        line_chrome = []
         cur = None
         off = 0
         for i in range(total):
             if i < len(self.scrollback):
                 row, wrapped = self.scrollback[i], self.sb_wrapped[i]
+                deco = self.sb_chrome[i]
             else:
-                row, wrapped = (
-                    self.grid[i - len(self.scrollback)],
-                    self.row_wrapped[i - len(self.scrollback)],
-                )
+                j = i - len(self.scrollback)
+                row, wrapped = self.grid[j], self.row_wrapped[j]
+                deco = self.row_chrome[j]
             if cur is None:
                 cur = []
                 lines.append(cur)
+                line_chrome.append(False)
                 off = 0
             row_info.append((len(lines) - 1, off))
+            # decoração viaja com o parágrafo (P57): a marca da restauração não
+            # pode reaparecer como conteúdo depois de uma re-quebra
+            line_chrome[-1] = line_chrome[-1] or deco
             cur.extend(row)
             off += len(row)
             if not wrapped:
@@ -398,7 +534,7 @@ class Term:
                 real = cur_off  # não perde a posição do cursor
             del line[real:]
 
-        new_rows, new_wrap = [], []
+        new_rows, new_wrap, new_chrome = [], [], []
         cur_new = None
         blank = self._blank_cell_raw
         for li, line in enumerate(lines):
@@ -408,6 +544,7 @@ class Term:
                     chunk = chunk + [blank() for _ in range(cols - len(chunk))]
                 new_rows.append(chunk)
                 new_wrap.append(ci < len(chunks) - 1)
+                new_chrome.append(line_chrome[li])
                 # só o primeiro chunk que contém o cursor ganha (sem isso o
                 # último chunk da linha sobrescrevia e o cursor pulava)
                 if (
@@ -429,16 +566,20 @@ class Term:
                     break
                 new_rows.pop()
                 new_wrap.pop()
+                new_chrome.pop()
 
         split = max(0, len(new_rows) - rows)
         self.scrollback = new_rows[:split]
         self.sb_wrapped = new_wrap[:split]
+        self.sb_chrome = new_chrome[:split]
         self._trim_scrollback()
         self.grid = new_rows[split:]
         self.row_wrapped = new_wrap[split:]
+        self.row_chrome = new_chrome[split:]
         while len(self.grid) < rows:
             self.grid.append([blank() for _ in range(cols)])
             self.row_wrapped.append(False)
+            self.row_chrome.append(False)
 
         # As colocações de imagem vivem em LINHAS DE TELA, e o reflow acabou
         # de mudar quantas linhas existem acima da grade: quem ficou fora do
@@ -494,6 +635,7 @@ class Term:
         if len(self.scrollback) > n:
             del self.scrollback[: len(self.scrollback) - n]
             del self.sb_wrapped[: max(0, len(self.sb_wrapped) - n)]
+            del self.sb_chrome[: max(0, len(self.sb_chrome) - n)]
 
     def scroll_up(self):
         self.touch_all()  # a tela desliza: toda linha muda de conteúdo
@@ -509,22 +651,29 @@ class Term:
             self.grid.insert(self.bottom, self._blank_row())
             self.row_wrapped.pop(self.top)
             self.row_wrapped.insert(self.bottom, False)
+            self.row_chrome.pop(self.top)
+            self.row_chrome.insert(self.bottom, False)
         else:
             if self.top == 0 and self.bottom == self.rows - 1:
                 self.scrollback.append(self.grid.pop(0))
                 self.sb_wrapped.append(self.row_wrapped.pop(0))
+                self.sb_chrome.append(self.row_chrome.pop(0))
                 if len(self.scrollback) > self.scrollback_limit:
                     self.scrollback.pop(0)
                     self.sb_wrapped.pop(0)
+                    self.sb_chrome.pop(0)
                     # o que estava preso nessa linha morreu de vez
                     self.graphics.drop_above(-len(self.scrollback))
                 self.grid.append(self._blank_row())
                 self.row_wrapped.append(False)
+                self.row_chrome.append(False)
             else:
                 self.grid.pop(self.top)
                 self.grid.insert(self.bottom, self._blank_row())
                 self.row_wrapped.pop(self.top)
                 self.row_wrapped.insert(self.bottom, False)
+                self.row_chrome.pop(self.top)
+                self.row_chrome.insert(self.bottom, False)
 
     def newline(self):
         if self.cy == self.bottom:
@@ -548,6 +697,8 @@ class Term:
             self.grid.insert(self.top, self._blank_row())
             self.row_wrapped.pop(self.bottom)
             self.row_wrapped.insert(self.top, False)
+            self.row_chrome.pop(self.bottom)
+            self.row_chrome.insert(self.top, False)
 
     def link_of(self, cell):
         """URI do hyperlink da célula (OSC 8), ou None."""
@@ -622,6 +773,8 @@ class Term:
         if self.link:
             cell.append(self.link)  # o campo extra só existe com link
         self.grid[self.cy][self.cx] = cell
+        if self.chrome_feed:
+            self.row_chrome[self.cy] = True
         self.dirty.add(self.cy)
         if self.cx == self.cols - 1:
             self.wrap_pending = self.autowrap
@@ -670,6 +823,7 @@ class Term:
             if n == 3:
                 self.scrollback.clear()
                 self.sb_wrapped.clear()
+                self.sb_chrome.clear()
                 self.graphics.clear()
                 self.links.clear()  # os índices das células deixam de valer
                 self.link_keys.clear()
@@ -707,6 +861,8 @@ class Term:
             self.grid.insert(self.cy, [self.blank_cell() for _ in range(self.cols)])
             self.row_wrapped.pop(self.bottom)
             self.row_wrapped.insert(self.cy, False)
+            self.row_chrome.pop(self.bottom)
+            self.row_chrome.insert(self.cy, False)
 
     def delete_lines(self, n):
         self.touch_all()
@@ -715,6 +871,8 @@ class Term:
             self.grid.insert(self.bottom, [self.blank_cell() for _ in range(self.cols)])
             self.row_wrapped.pop(self.cy)
             self.row_wrapped.insert(self.bottom, False)
+            self.row_chrome.pop(self.cy)
+            self.row_chrome.insert(self.bottom, False)
 
     def sgr(self, params):
         # subparâmetros com ':' (38:2::r:g:b) chegam como tupla: acha a forma
@@ -897,20 +1055,26 @@ class Term:
                     self.abs_gen += 1
                     self.alt_grid = self.grid
                     self.alt_wrapped = self.row_wrapped
+                    self.alt_chrome = self.row_chrome
                     self.grid = [self._blank_row() for _ in range(self.rows)]
                     self.row_wrapped = [False] * self.rows
+                    self.row_chrome = [False] * self.rows
                     self.saved = (self.cx, self.cy)
                     self.cursor_to(0, 0)
                     if p == 1049:
                         self.scrollback.clear()
                         self.sb_wrapped.clear()
+                        self.sb_chrome.clear()
                 elif not on and self.alt_grid is not None:
                     self.abs_gen += 1
                     self.grid = self.alt_grid
                     self.alt_grid = None
                     if len(self.alt_wrapped) == self.rows:
                         self.row_wrapped = self.alt_wrapped
+                    if len(self.alt_chrome) == self.rows:
+                        self.row_chrome = self.alt_chrome
                     self.alt_wrapped = None
+                    self.alt_chrome = None
                     if self.grid and len(self.grid[0]) != self.cols:
                         # tamanho mudou com a tela cheia ligada: re-quebra
                         # em vez de deixar linha curta na grade
@@ -1171,6 +1335,8 @@ class Term:
             avail = self.cols - cx
             k = n - i
             row = self.grid[self.cy]
+            if self.chrome_feed:  # P57: decoração, não conteúdo
+                self.row_chrome[self.cy] = True
             self.dirty.add(self.cy)
             if k >= avail:  # enche até a última coluna: quebra mole
                 row[cx:] = self._cells(run[i : i + avail], fg, bg, fl)
@@ -1535,6 +1701,22 @@ class Term:
         if line < self.scrolled + len(self.grid):
             return self.grid[line - self.scrolled]
         return None
+
+    def feed_chrome(self, text):
+        """Alimenta uma DECORAÇÃO: as linhas que escreve ficam fora da foto (P57).
+
+        É para a marca que separa a foto restaurada da execução que começa —
+        conteúdo que o terminal escreveu, não o filho.
+        """
+        self.chrome_feed = True
+        try:
+            self.feed(text)
+        finally:
+            self.chrome_feed = False
+
+    def snapshot(self):
+        """A aba inteira em ANSI: alimentar um `Term` novo refaz a imagem (P57)."""
+        return snapshot(self)
 
     def abs_wrapped(self, line):
         """A linha absoluta encheu a largura (a de baixo é continuação dela)."""

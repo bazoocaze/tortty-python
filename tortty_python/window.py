@@ -162,11 +162,12 @@ class Workspace:
             return self.views[i]
         return self.views[0] if self.views else None
 
-    def new_tab(self, cmd=None, cwd=None):
+    def new_tab(self, cmd=None, cwd=None, restore=None):
         """Aba nova, herdando o cwd da corrente (ou o dado pela restauração, P50)."""
         v = TermView(
             cmd=cmd if cmd is not None else self.win.cmd,
             cwd=cwd if cwd is not None else self.win.current_cwd(self),
+            restore=restore,  # P57: foto da execução anterior, se houver
             shell=self.win.shell,
             font_family=self.win.font_family,
             font_size=self.win.font_size,
@@ -514,7 +515,12 @@ class TorttyWindow(Gtk.Window):
         # P50: layout da sessão anterior (workspaces, abas e o cwd de cada
         # uma); consumido por new_workspace no startup. `restore_state none`
         # (ou PYTERM_GEOM, que já zera o _saved) não tem o que restaurar.
-        lay = state.layout(self._saved) if self.config.restore_state == "layout" else None
+        # `content` (P57) restaura o layout E a foto de cada aba.
+        lay = (
+            state.layout(self._saved)
+            if self.config.restore_state in ("layout", "content")
+            else None
+        )
         self._restore = lay
         self._restore_front = (lay["ws"], lay["tab"]) if lay else None
 
@@ -1020,6 +1026,11 @@ class TorttyWindow(Gtk.Window):
         ws = Workspace(self)
         if mem:
             ws.name = mem["name"]
+        # P57: com `content`, cada aba volta com a foto da execução anterior. O
+        # índice é o da posição no layout (é o mesmo que nomeia o arquivo), e só
+        # vale quando o layout também está sendo restaurado.
+        iws = len(self.workspaces)
+        foto = mem is not None and self.config.restore_state == "content"
         self.workspaces.append(ws)
         self.stack.add_named(ws.notebook, self._stack_name(ws))
         self.sidebar.add(ws.row)
@@ -1027,9 +1038,8 @@ class TorttyWindow(Gtk.Window):
         ws.row.show_all()
         self.select_workspace(ws)
         cwds = mem["cwds"] if mem else [None]
-        ws.new_tab(cwd=cwds[0])
-        for cwd in cwds[1:]:
-            ws.new_tab(cwd=cwd)
+        for k, cwd in enumerate(cwds):
+            ws.new_tab(cwd=cwd, restore=state.load_snapshot(iws, k) if foto else None)
         self.sidebar.set_visible(len(self.workspaces) > 1)
         return ws
 
@@ -1368,7 +1378,7 @@ class TorttyWindow(Gtk.Window):
             return
         s = dict(self._saved)
         s["max"] = self._max
-        if self.config.restore_state == "layout":
+        if self.config.restore_state in ("layout", "content"):
             lay = self._layout_memory()
             if lay:
                 s["layout"] = lay
@@ -1380,11 +1390,25 @@ class TorttyWindow(Gtk.Window):
         self._saved = s
         state.save(s)
 
+    def _save_snapshots(self):
+        """P57: a foto de cada aba, gravada na saída (aba fechada não volta)."""
+        if not self._remember:
+            return  # PYTERM_GEOM/--cols: a bancada não escreve estado
+        if self.config.restore_state != "content":
+            state.save_snapshots([])  # a chave desligada apaga o que ficou
+            return
+        snaps = []
+        for j, ws in enumerate(self.workspaces):
+            for k, v in enumerate(ws.views):
+                snaps.append((j, k, v.term.snapshot()))
+        state.save_snapshots(snaps)
+
     def on_destroy(self, *_):
         if getattr(self, "_debugsock", None) is not None:
             self._debugsock.stop()  # fecha o socket e apaga o arquivo
             self._debugsock = None
         self._save_geometry()
+        self._save_snapshots()  # antes do shutdown: o Term ainda está inteiro
         self._closing = True
         for ws in list(self.workspaces):
             for v in list(ws.views):

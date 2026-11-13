@@ -11,6 +11,8 @@ import json
 import os
 
 MIN_W, MIN_H = 320, 200  # abaixo disto é lixo de WM/restauração, não geometria
+SNAP_PREFIX = "session-"  # foto de aba (P57), ao lado do window.json
+SNAP_EXT = ".ans"
 
 
 def state_path():
@@ -41,6 +43,52 @@ def save(data):
         os.replace(tmp, path)
     except OSError:
         pass  # não poder salvar não pode derrubar o fechamento
+
+
+def snapshot_name(ws, tab):
+    """Nome do arquivo da foto de uma aba: um por (workspace, aba) (P57)."""
+    return "%s%d-%d%s" % (SNAP_PREFIX, ws, tab, SNAP_EXT)
+
+
+def snapshots_dir():
+    """Diretório das fotos: o mesmo do window.json."""
+    return os.path.dirname(state_path())
+
+
+def save_snapshots(snaps):
+    """Grava a foto de cada aba; o que não foi reescrito (aba fechada) some (P57).
+
+    `snaps` é [(ws, aba, texto ANSI)]. Falhar aqui não pode derrubar o
+    fechamento: a aba volta limpa na próxima execução, como antes do P57.
+    """
+    d = snapshots_dir()
+    try:
+        os.makedirs(d, exist_ok=True)
+        for nome in os.listdir(d):
+            if nome.startswith(SNAP_PREFIX) and nome.endswith(SNAP_EXT):
+                os.remove(os.path.join(d, nome))
+        for ws, tab, texto in snaps:
+            _write_atomic(os.path.join(d, snapshot_name(ws, tab)), texto.encode("utf-8"))
+    except OSError:
+        pass
+
+
+def load_snapshot(ws, tab):
+    """Texto da foto daquela aba, ou None se não houver/vazia (P57)."""
+    try:
+        with open(os.path.join(snapshots_dir(), snapshot_name(ws, tab)), "rb") as f:
+            dados = f.read()
+    except OSError:
+        return None
+    return dados.decode("utf-8", "replace") or None
+
+
+def _write_atomic(path, data):
+    """tmp + rename: leitor nunca vê arquivo pela metade."""
+    tmp = path + ".tmp"
+    with open(tmp, "wb") as f:
+        f.write(data)
+    os.replace(tmp, path)
 
 
 def layout(data):

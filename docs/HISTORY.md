@@ -549,6 +549,15 @@ when there is none); the hover underline compares keys, so a link broken over tw
 lines underlines whole. Verified by pixels: hovering the second line lit **both**
 lines of the same `id` and left the unrelated link alone. Check `osc8_link_id`.
 
+### P57 — `restore_state content`: the photograph of each tab (2026-11-13)
+
+The snapshot is ANSI (`term.snapshot`), so the reader is the parser already
+there: SGR, `OSC 8` and soft wraps go as bytes, and a photo taken wide reopens
+narrow reflowed by the resize code. One file per (workspace, tab) next to
+`window.json`, rewritten on the way out (a closed tab does not come back) and fed
+to the fresh `Term` **before** the shell exists. The marker the terminal writes is
+decoration (`row_chrome`), out of the next photo. Check `snapshot_restore`.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

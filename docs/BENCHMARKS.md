@@ -432,6 +432,19 @@ grep prof: /tmp/tortty-python.log
   light is true for footprint and false for throughput. Decision in
   [LIMITATIONS.md](LIMITATIONS.md).
 
+## Cold paths: the snapshot of a tab (2026-11-13)
+
+- `restore_state content` (P57) touches neither the frame nor the parse loop:
+  it runs on the way out and on the way in, once per tab.
+- Grid 96x25 with the history full (1000 rows of colored text, 92 KB of ANSI):
+  `term.snapshot()` 12 ms and feeding it back 30 ms, per tab. Ten of those add
+  ~0.12 s to the close and ~0.3 s to the startup — both cold, neither visible
+  while the app runs.
+- The risk is not the average but the shape of the emitter: one SGR per cell
+  instead of one per run, or not cutting the trailing blank cells, multiplies
+  the bytes (and the restore parse) by the width. Measure with the rule above:
+  total time divided by tabs.
+
 ## Protocol (to compare two terminals)
 
 1. One at a time: two terminals drawing at the same time dispute CPU and both

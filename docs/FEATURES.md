@@ -186,8 +186,11 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   their names, the tabs in order and the cwd of each shell come back on the next
   run, with the workspace and the tab that were in front. `restore_state none`
   starts clean; each tab is a fresh shell — the screen and the scrollback do not
-  come back. The state stays in `XDG_STATE_HOME`, and `PYTERM_GEOM` disables
-  this restore too.
+  come back. `restore_state content` brings them back too: the screen of each tab
+  (history included, colors and links, reflowed to the new width) is redrawn
+  above a marker line and the new shell starts below it — a photograph, not a
+  process. The state stays in `XDG_STATE_HOME`, and `PYTERM_GEOM` disables this
+  restore too.
 - **Dark chrome** (`tortty_python/style.py`): the interface colors (workspace sidebar,
   cards) come from a token table and the CSS is generated from it — with no loose
   hex in the code. The sidebar is black, the active workspace sits in a dark

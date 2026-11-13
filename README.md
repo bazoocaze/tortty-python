@@ -137,7 +137,8 @@ window_padding_width 0     # margin around the grid, in px
 bell none                  # none, visual (marks the tab) or audible
 copy_on_select off         # mouse selection already goes to the clipboard
 debug_log /tmp/tortty-python.debug.log  # debug JSONL log; off turns it off
-restore_state layout        # none = start clean; layout = workspaces/tabs/cwd back
+restore_state layout        # none = start clean; layout = workspaces/tabs/cwd
+                            # back; content = layout + the screen of each tab
 chrome_bg #000000         # chrome colors (sidebar, tabs, cards): background, hover,
 chrome_fg #e0e0e0         # text, info line, accent background/text/info, separator
 foreground #d6d6d6        # the 19 terminal colors (#RGB/#RRGGBB): foreground,
