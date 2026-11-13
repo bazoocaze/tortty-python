@@ -44,11 +44,10 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 
 ## VT parser (what is not interpreted)
 
-- **Partial SGR**: implements 0, 1, 2 (faint), 3, 4 (with `4:n`), 7, 8
-  (hidden), 9/29 (strikethrough), 21, 22, 23, 24, 27, 30–37, 39, 40–47, 49,
-  53/55 (overline), 90–97, 100–107, 38/48 (256 and truecolor). **Does not**
-  implement 5 and 6 (blink — needs a redraw timer) and 58/59 (underline color,
-  which the Rust draws).
+- **Partial SGR**: implements 0, 1, 2 (faint), 3, 4 (with `4:n`), 5/6 (blink),
+  7, 8 (hidden), 9/29 (strikethrough), 21, 22, 23, 24, 25, 27, 30–37, 39, 40–47,
+  49, 53/55 (overline), 90–97, 100–107, 38/48 (256 and truecolor). **Does not**
+  implement 58/59 (underline color, which the Rust draws).
 - **No origin/special margins**: `DECSTBM` (scroll region) works, but
   `? 6` (origin mode), `? 3` (80/132), `DECDHL`/`DECDWL` (double line) do not.
 - **Tab stops are re-seeded on resize**: `HTS`, `TBC`, `CHT` and `CBT` are

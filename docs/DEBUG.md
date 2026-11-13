@@ -50,11 +50,11 @@ In `tools/`, with the system python3 (`python3-xlib` 0.33 and gi installed).
   `--find rrggbb` (first point with the color) and `--diff A B --max N
   [--region x,y,w,h]` (pixel count that differs; exits 1 above the maximum).
 - `tools/render-check.sh` — the render gate: isolated Xvfb, fixed colors, draws
-  known content, captures and compares (5 checks). `--keep` keeps the captures
+  known content, captures and compares. `--keep` keeps the captures
   in `/tmp/tortty-render`, `--display :77` picks the display. It is not part of
   `./run-tests.sh`: it needs a display. To prove the gate still bites, break the
-  drawing on purpose (e.g. `y * ch * 2` in the line painter) and watch checks 3
-  and 5 fail.
+  drawing on purpose (e.g. `y * ch * 2` in the line painter) and watch the
+  cell-text and line-band checks fail.
 - xdotool (`1:3.20160805`): `search --pid`, `type`, `key`,
   `mousemove --window`, `click --repeat 2`, `mouseup`. Same coordinates as
   xtest.
@@ -100,7 +100,7 @@ A test script ends with `{"cmd": "quit"}` instead of `sleep` +
   `_NET_WM_PID`.
 - For "does it still draw?" the answer is not a picture to look at:
   `./tools/render-check.sh` opens its own Xvfb with fixed colors and says
-  PASSED/FAILED (5 checks, ~8 s). Run it after touching the drawing code — a
+  PASSED/FAILED. Run it after touching the drawing code — a
   silent regression there only shows up to the eye otherwise.
 - A hidden `Gtk.Notebook` page is not reallocated: it keeps the old
   `size-allocate` (sidebar open narrows 75 to 62 columns only in the visible

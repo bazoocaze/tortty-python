@@ -70,7 +70,7 @@ The tortty_python/ package installs the `tortty-python` command and also runs as
 - tools/benchrun.py — one rung of the ladder: locks the grid through the
   socket, types the load and prints the result
 - tools/render-check.sh — render gate: draws known content on an isolated Xvfb,
-  captures and compares pixels (5 checks, needs a display)
+  captures and compares pixels (needs a display)
 - tortty_python/__main__.py — python -m tortty_python (calls cli.run)
 - tortty_python/__init__.py — facade with lazy import (tortty_python.Term does not pull Gtk)
 - tortty_python/palette.py — cell [char, fg, bg, flags], xterm-256 palette (int and
@@ -218,7 +218,7 @@ running. Only which one to use fits here.
 - tools/bench.sh — doom-fire ladder; locks the grid through the socket, measures
   on the current display and on its own Xvfb and does not store a number.
 - tools/render-check.sh — render gate: PASSED/FAILED, `--keep` for the captures,
-  `--display` for another display. Proves what no headless test does (6 checks):
+  `--display` for another display. Proves what no headless test does:
   the window paints, the color lands right, the text lands in the cell, a still
   screen does not repaint differently, grid line `r` is painted in band `r` and
   the strikethrough cuts the cell at half height.

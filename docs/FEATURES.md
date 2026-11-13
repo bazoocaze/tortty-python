@@ -29,6 +29,9 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
 - **Faint and hidden** (`2`/`8`, and `22` clears both intensities): faint draws
   halfway to the background, hidden drops the glyph — background and
   decoration stay.
+- **Blink** (`5`/`6`, and `25` stops it): the cell alternates visible/hidden
+  with a timer of its own that runs only while a visible cell blinks — `6`
+  shares the rhythm of `5`, as xterm does.
 - **Title stack** (`CSI 22 t` pushes, `23 t` gives back, cap of 16): `vim`,
   `less` and `screen` push the title on entry and pop on exit, so the tab label
   comes back to where it was instead of staying on the app's title.

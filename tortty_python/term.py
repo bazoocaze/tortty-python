@@ -11,6 +11,7 @@ from urllib.parse import unquote
 
 from .graphics import Graphics
 from .palette import (
+    BLINK,
     BOLD,
     DEC_SPECIAL,
     DEF_BG,
@@ -687,6 +688,9 @@ class Term:
                 self.flags |= ITALIC
             elif p == 4:
                 self.flags = ul_on(self.flags)
+            elif p in (5, 6):
+                # 6 (rápido) compartilha o bit e o ritmo do 5, como o xterm
+                self.flags |= BLINK
             elif p == 7:
                 self.flags |= INV
             elif p == 8:
@@ -709,6 +713,8 @@ class Term:
                 self.flags &= ~ITALIC
             elif p == 24:
                 self.flags = ul_off(self.flags)
+            elif p == 25:
+                self.flags &= ~BLINK  # SGR 25: volta a não piscar
             elif p == 27:
                 self.flags &= ~INV
             elif 30 <= p <= 37:

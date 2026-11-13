@@ -18,6 +18,7 @@ import zlib
 
 from . import kitty_kbd, mouse, shortcut, state, style, term
 from .palette import (
+    BLINK,
     BOLD,
     DEF_BG,
     DEF_FG,
@@ -528,6 +529,20 @@ def sgr_faint_and_hidden():
     t.feed("\x1b[2mx\x1b[8my")
     assert t.grid[0][0][3] & DIM
     assert t.grid[0][1][3] & HIDDEN
+
+
+def sgr_blink():
+    """P66: SGR 5/6 ligam o piscar; 25, 0 e o soft reset voltam a não piscar."""
+    t = Term()
+    t.feed("\x1b[5ma\x1b[6mb")
+    assert t.grid[0][0][3] & BLINK  # 5 e 6 compartilham o bit (xterm)
+    assert t.grid[0][1][3] & BLINK
+    t.feed("\x1b[25mc")
+    assert not t.grid[0][2][3] & BLINK  # SGR 25: volta a não piscar
+    t.feed("\x1b[5m\x1b[0md")
+    assert not t.grid[0][3][3] & BLINK  # 0 limpa a caneta
+    t.feed("\x1b[5m\x1b[!pe")
+    assert not t.grid[0][4][3] & BLINK  # soft reset (P59) limpa a caneta
 
 
 def osc52_clipboard():
@@ -1502,6 +1517,7 @@ ALL = (
     wrap_and_control,
     deccawm,
     sgr_faint_and_hidden,
+    sgr_blink,
     osc52_clipboard,
     reflow,
     history,

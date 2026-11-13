@@ -24,6 +24,7 @@ from .config import tab_command
 from .gui import Gdk, GLib, Gtk, Pango, PangoCairo, cairo
 from .keys import encode_key, is_modifier
 from .palette import (
+    BLINK,
     BOLD,
     DEF_BG,
     DEF_FG,
@@ -83,6 +84,7 @@ DRAG_SLOP = 3  # px de folga: abaixo disso o mouse não "arrastou"
 SB_W = 8  # largura da barra de rolagem, em px (o app testa o mesmo número)
 CLICK_MS = 400  # janela do duplo/triplo clique, em ms
 BLINK_MS = 530  # ritmo do cursor piscando (`cursor_blink`); não é opção
+CELL_BLINK_MS = 500  # ritmo do SGR 5/6 (P66): timer próprio, não o do cursor
 
 
 def _tick(prof, name, t0):
@@ -248,6 +250,8 @@ class TermView(Gtk.DrawingArea):
         self.letter_spacing = letter_spacing  # px extra na célula (P64)
         self._blink_on = True  # fase do pisca: True = cursor aparece nela
         self._blink_timer = 0
+        self._cell_on = True  # fase do SGR 5/6: True = a célula aparece nela
+        self._cell_timer = 0
         self._metrics = None
         self._font_desc = None  # Pango.FontDescription (P9)
         self._attrs = [None] * 4  # Pango.AttrList por (negrito, itálico)
@@ -618,6 +622,9 @@ class TermView(Gtk.DrawingArea):
         if self._blink_timer:
             GLib.source_remove(self._blink_timer)
             self._blink_timer = 0
+        if self._cell_timer:
+            GLib.source_remove(self._cell_timer)
+            self._cell_timer = 0
         if self.pty_watch:
             GLib.source_remove(self.pty_watch)
             self.pty_watch = 0
@@ -1051,6 +1058,10 @@ class TermView(Gtk.DrawingArea):
         if self._blink_timer:
             GLib.source_remove(self._blink_timer)
             self._blink_timer = 0
+        if self._cell_timer:
+            GLib.source_remove(self._cell_timer)
+            self._cell_timer = 0
+        self._cell_on = True  # ao voltar, a primeira fase é visível
 
     def _blink_tick(self):
         if not self.get_mapped():  # rede: o _on_unmap normalmente já parou
@@ -1063,6 +1074,25 @@ class TermView(Gtk.DrawingArea):
         self._blink_on = not self._blink_on
         self._invalidate_cursor()
         return True
+
+    def _cell_tick(self):
+        if not self.get_mapped() or not self._cell_blink_present():
+            self._cell_timer = 0
+            self._cell_on = True  # sem piscar, volta visível para religar assim
+            return False
+        self._cell_on = not self._cell_on
+        # fase não suja a grade: sem dano total o _queue_damage repinta só o cursor (P66)
+        self.term.dirty_all = True
+        self.request_draw()
+        return True
+
+    def _cell_blink_present(self):
+        """Prova de ausência para o timer: alguma célula visível com SGR 5/6."""
+        for row in self.visible_rows():
+            for cell in row:
+                if cell[3] & BLINK:
+                    return True
+        return False
 
     def _invalidate_cursor(self):
         """Repinta só a célula do cursor (a cada 530 ms, sem draw inteiro)."""
@@ -1179,6 +1209,7 @@ class TermView(Gtk.DrawingArea):
         og_h = max(0, self.get_allocated_height() - 2 * self.padding)
         last_y = len(rows) - 1
         dimmed = None  # memo por draw do SGR 2 (P64): (fg, bg) -> fg ao meio
+        blink_seen = False  # presença do BLINK só na área do dano: prova barata (P66)
         # limites do dano já em linha/coluna: comparar inteiro em vez de
         # multiplicar por célula em todo run (P37)
         row_lo = max(0, int(clip_y0 // ch))
@@ -1204,6 +1235,8 @@ class TermView(Gtk.DrawingArea):
                 # quinto campo do OSC 8, e o desenho não pode tropeçar nele
                 cell = row[x]
                 cch, fg, bg, fl = cell[0], cell[1], cell[2], cell[3]
+                if fl & BLINK:
+                    blink_seen = True
                 s0 = sel_on and in_sel(y, x, sel)
                 j = x + 1
                 while j < t.cols:
@@ -1244,12 +1277,14 @@ class TermView(Gtk.DrawingArea):
                             bool(fl & BOLD),
                             fl & DECO_BITS,
                             bool(fl & ITALIC),
-                            bool(fl & HIDDEN),
+                            bool(fl & HIDDEN) or (bool(fl & BLINK) and not self._cell_on),
                         )
                     )
                 x = j
             if runs:
                 quadro.append((row, y * ch, max(ch, og_h - y * ch) if y == last_y else ch, runs))
+        if blink_seen and not self._cell_timer and self.get_mapped():
+            self._cell_timer = GLib.timeout_add(CELL_BLINK_MS, self._cell_tick)
         for row, ypx, rh, runs in quadro:
             for x, j, _cch, _fgc, bgc, _bold, _deco, _italic, _hidden in runs:
                 if bgc is not cur_bg:

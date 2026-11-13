@@ -15,7 +15,8 @@
 #   4. tela parada não repinta diferente (duas capturas seguidas = 0);
 #   5. cada linha da grade cai na própria banda de pixels (a regressão do
 #      espaçamento duplo: a linha `r` saía em `2r`);
-#   6. o riscado (SGR 9) atravessa a célula a meia altura — e só com ele.
+#   6. o riscado (SGR 9) atravessa a célula a meia altura — e só com ele;
+#   7. o piscar (SGR 5/6) alterna entre duas imagens: timer próprio e lazy.
 #
 # Precisa de display (o Xvfb sobe sozinho) e do ImageMagick (`import`); é
 # manual, como o resto de tools/ — o teste continua sendo ./run-tests.sh.
@@ -87,9 +88,11 @@ CONF
 # PYTERM_GEOM trava o tamanho da janela e desliga o restore/save (o gate não
 # pode herdar a sessão de quem roda). O child pinta as duas células de cor e
 # dorme: sem shell, o que entra depois é o eco do pty — byte previsível.
+# `stty -echoctl` desliga a anotação de controle do eco: sem ela o ESC vira
+# `^[` e a check 7 (SGR 5/6 pelo socket) não aplicaria o SGR.
 PYTERM_GEOM=1000x700 DISPLAY=$DISPLAY_XVFB "$ROOT/run.sh" \
     -c "$TMP/tortty.conf" --debug-socket "$SOCK" \
-    --cmd 'printf "\033[41m  \033[0m\033[42m  \033[0m\r\n\033[9mXXXXXXXX\033[0m\r\nAAAAAAAA\r\n"; sleep 600' \
+    --cmd 'stty -echoctl; printf "\033[41m  \033[0m\033[42m  \033[0m\r\n\033[9mXXXXXXXX\033[0m\r\nAAAAAAAA\r\n"; sleep 600' \
     >"$TMP/app.log" 2>&1 &
 APP_PID=$!
 
@@ -405,6 +408,44 @@ then
     ok "SGR 9 desenha o riscado a meia altura (e só com ele)"
 else
     fail "riscado ausente ou indistinguível do texto normal"
+fi
+
+# 7. blink (SGR 5/6, P66): o timer próprio só armeia quando um draw enxerga a
+# célula, e a fase alterna visível/oculta. Entre duas capturas com menos de
+# 500 ms cabe no máximo UMA virada de fase: com 6 capturas alguma dupla
+# consecutiva TEM que diferir — se todas iguais, o timer não religou ou a fase
+# off não some o glifo. O ESC vem do eco com `stty -echoctl` (o ECHOCTL
+# imprimiria `^[`).
+q '{"cmd":"write","data":"\u001b[5mBLINKED\u001b[0m\r"}' >/dev/null
+sleep 0.5
+ROWS7=$(q '{"cmd":"state"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["rows"])')
+ROW=$(q "{\"cmd\":\"text\",\"where\":\"view\",\"count\":$ROWS7}" | python3 -c '
+import json, sys
+ls = json.load(sys.stdin)["lines"]
+print(next(i for i, l in enumerate(ls) if "BLINKED" in l))') ||
+    fail "BLINKED não apareceu na grade"
+if [ -n "${ROW:-}" ]; then
+    BAND=$(python3 -c "print('0,%d,9999,%d' % (int($Y0 + int('$ROW') * $CHL), int($CHL)))")
+    take "$OUT_DIR/h1.png" || fail "captura 7a"
+    diferiu=0
+    prev=1
+    i=2
+    while [ "$i" -le 6 ]; do
+        sleep 0.3
+        take "$OUT_DIR/h$i.png" || fail "captura 7$i"
+        if ! python3 "$PIXEL" --diff "$OUT_DIR/h$prev.png" "$OUT_DIR/h$i.png" \
+            --max 0 --region "$BAND" >/dev/null 2>&1; then
+            diferiu=1
+            break
+        fi
+        prev=$i
+        i=$((i + 1))
+    done
+    if [ "$diferiu" -eq 1 ]; then
+        ok "SGR 5/6 alterna a fase (timer próprio e lazy)"
+    else
+        fail "blink não alternou em 6 capturas (timer parado ou fase off não some)"
+    fi
 fi
 
 echo

@@ -471,6 +471,14 @@ selection (query answers empty). Config: `bold_as_bright`, `letter_spacing`. Che
 `! · ` error, `… · ` no pct) — no color, no toast. Same card, realigned to Rust
 `card_lines`: name `""`, no tab count, rename can clear. Checks 50/6.
 
+### P66 — SGR 5/6 blink (cell blink) (2026-11-12)
+
+`BLINK` (2048) on the pen: `5` and `6` share bit and rhythm (as in xterm), `25`
+returns to not blinking, `0`/soft reset clear it. The view owns a lazy timer
+(`CELL_BLINK_MS` 500): armed only when a draw sees a visible cell in the damage
+area, disarmed by a full scan on the tick; off phase = SGR 8. Bug of the day:
+without `dirty_all` the tick repainted only the cursor. Checks: `sgr_blink` (51), gate 7/7.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth
