@@ -479,6 +479,39 @@ returns to not blinking, `0`/soft reset clear it. The view owns a lazy timer
 area, disarmed by a full scan on the tick; off phase = SGR 8. Bug of the day:
 without `dirty_all` the tick repainted only the cursor. Checks: `sgr_blink` (51), gate 7/7.
 
+### P67 — Scrollbar hover (2026-11-12)
+
+The strip answers the pointer: `_sb_hover_at` tests the same `scrollbar_rect` the
+click uses, `_sb_hover_set` repaints only that strip (`queue_draw_area`), track
+0.10 → 0.18 and thumb 0.55 → 0.75. `leave-notify-event` (a new event mask) clears
+it — motion does not happen after the pointer leaves. Verified by pixels on Xvfb.
+
+### P68 — Origin mode (`?6`) (2026-11-12)
+
+DEC: with `origin` on, `CUP`/`HVP`/`VPA` are relative to the scroll region
+(`row_abs`) and every address is clamped inside it (`cursor_to`); `?6 h`/`?6 l`
+send the cursor home, `DECRQM` answers and `DECSTR` clears. Check `origin_mode`.
+
+### P69 — Mouse `?1015` and `?1005` (2026-11-12)
+
+Two encodings beside SGR/legacy: urxvt (`CSI b;x;yM`, the X10 button code in
+decimal) and UTF-8 (`CSI M` + the code + x/y as code points, past the 223 limit).
+Formats checked against kitty's `mouse.c`; SGR wins when both are on.
+Check `mouse_urxvt_and_utf8`.
+
+### P70 — `OSC 8` hover without `Ctrl` (2026-11-12)
+
+The link under the pointer underlines on its own: `on_motion` resolves the URI
+only when the cell changes, `_draw_links` filters to that URI unless `Ctrl` is
+held (then all of them, as before). The `id=`/parameters stay discarded. Pixels.
+
+### P71 — Context menu (2026-11-12)
+
+Right click outside the app's mouse mode (terminal, tab, sidebar card) pops the
+window's `Gtk.Menu` with the actions the shortcuts already have: copy, paste, new
+and close tab, rename, new and close workspace. Verified on Xvfb: the menu opens,
+`Escape` closes it, and the items really act (`tabs` 1 → 2, `workspaces` 1 → 2).
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

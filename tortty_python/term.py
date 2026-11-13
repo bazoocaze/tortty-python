@@ -189,6 +189,7 @@ class Term:
         self.top, self.bottom = 0, rows - 1  # scroll region
         self.wrap_pending = False
         self.autowrap = True  # DECAWM (?7): desligado para na última coluna
+        self.origin = False  # DECOM (?6): cursor relativo à região e preso a ela
         self.cursor_visible = True
         self.app_cursor = False  # DECCKM (?1): setas em modo aplicação
         # DECSCUSR (CSI 6 q): (forma, pisca) pedido pelo app; None = config
@@ -209,6 +210,8 @@ class Term:
         self.cwd = None  # `OSC 7`: diretório do shell (fallback do /proc)
         self.mouse_mode = 0  # ?1000=1 ?1002=2 ?1003=3 (0 = off)
         self.mouse_sgr = False  # ?1006: coordenadas SGR
+        self.mouse_utf8 = False  # ?1005: coordenadas em UTF-8 (P69)
+        self.mouse_urxvt = False  # ?1015: CSI b;x;yM em decimal (P69)
         self.mouse_px = False  # ?1016: SGR com coordenadas em pixels
         self.focus_report = False  # ?1004: avisar foco in/out
         self.bracketed_paste = False  # ?2004: colar com marcadores
@@ -598,9 +601,17 @@ class Term:
         self.wrap_pending = False
 
     def cursor_to(self, r, c):
-        self.cy = max(0, min(self.rows - 1, r))
+        if self.origin and self.top <= self.bottom:
+            # DECOM (P68): a linha absoluta fica presa à região de rolagem
+            self.cy = max(self.top, min(self.bottom, r))
+        else:
+            self.cy = max(0, min(self.rows - 1, r))
         self.cx = max(0, min(self.cols - 1, c))
         self.wrap_pending = False
+
+    def row_abs(self, r):
+        """Linha de endereçamento relativo (DECOM) convertida em absoluta."""
+        return r + self.top if self.origin else r
 
     def erase_display(self, n):
         self.touch_all()
@@ -795,7 +806,7 @@ class Term:
         """DECSTR (P59): volta atributos e modos ao padrão, sem limpar a tela.
 
         A lista é a do Rust (`soft_reset`): o que não existe aqui (cor de
-        sublinhado, origin) não tem o que resetar, e o LNM e o
+        sublinhado) não tem o que resetar, e o LNM e o
         cursor pedido por `CSI 6 q` ficam de fora — o Rust também os deixa.
         """
         self.fg, self.bg, self.flags = DEF_FG, DEF_BG, 0
@@ -803,6 +814,7 @@ class Term:
         self.app_cursor = False
         self.keypad_app = False
         self.autowrap = True
+        self.origin = False
         self.top, self.bottom = 0, self.rows - 1
         self.wrap_pending = False
 
@@ -817,6 +829,11 @@ class Term:
                 # (é o que o terminfo de xterm chama de "aplicação"; mc,
                 # vim e less ligam isso ao entrar em tela cheia)
                 self.app_cursor = on
+            elif private and p == 6:
+                # DECOM (P68): endereçamento relativo à região; ligar ou
+                # desligar manda o cursor para casa (o topo da região)
+                self.origin = on
+                self.cursor_to(0, 0)
             elif private and p == 7:
                 # DECAWM (P64): desligado o cursor para na última coluna — o
                 # caractere seguinte sobrescreve, sem quebra mole
@@ -870,9 +887,11 @@ class Term:
             elif private and p == 1004:
                 self.focus_report = on  # CSI I / CSI O no foco
             elif private and p in (1005, 1015):
-                # UTF-8 / urxvt: o SGR (1006) cobre; não vale implementar
-                # três codificações de coordenada que ninguém usa
-                pass
+                # UTF-8 (1005) e urxvt (1015): P69
+                if p == 1005:
+                    self.mouse_utf8 = on
+                else:
+                    self.mouse_urxvt = on
             elif private and p == 2004:
                 # bracketed paste: o app pede pra saber que o texto colado não
                 # foi digitado. Sem isso, colar 3 linhas no shell executa 3.
@@ -888,6 +907,8 @@ class Term:
         if private:
             if p == 1:
                 return 1 if self.app_cursor else 2
+            if p == 6:
+                return 1 if self.origin else 2
             if p == 7:
                 return 1 if self.autowrap else 2
             if p == 25:
@@ -898,6 +919,10 @@ class Term:
                 return 1 if self.mouse_mode == {1000: 1, 1002: 2, 1003: 3}[p] else 2
             if p == 1006:
                 return 1 if self.mouse_sgr else 2
+            if p == 1005:
+                return 1 if self.mouse_utf8 else 2
+            if p == 1015:
+                return 1 if self.mouse_urxvt else 2
             if p == 1016:
                 return 1 if self.mouse_px else 2
             if p == 1004:
@@ -934,9 +959,9 @@ class Term:
             elif final == "G":
                 self.cursor_to(self.cy, k - 1)
         elif final in "Hf":
-            self.cursor_to(get(0, 1) - 1, get(1, 1) - 1)
+            self.cursor_to(self.row_abs(get(0, 1) - 1), get(1, 1) - 1)
         elif final == "d":
-            self.cursor_to(get(0, 1) - 1, self.cx)
+            self.cursor_to(self.row_abs(get(0, 1) - 1), self.cx)
         elif final == "J":
             self.erase_display(get(0, 0))
         elif final == "K":

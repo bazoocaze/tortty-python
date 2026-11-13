@@ -62,7 +62,8 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   how you copy an old excerpt. An `↑N` in the corner shows how far back you went;
   the app's cursor is not drawn in the scrollback. A **scrollbar** of 8 px
   sits over the last column while there is scrollback (proportional thumb,
-  translucent): clicking on the track jumps, dragging walks the history. It does
+  translucent, brighter while the pointer is over it): clicking on the track
+  jumps, dragging walks the history. It does
   not exist in alt-screen (there is nothing to scroll) and it answers before the
   mouse report, so it works inside `mc` and `vim`.
 - **Keyboard**: letters (including UTF-8), arrows, Home/End, PgUp/PgDn,
@@ -211,9 +212,19 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   `?2004`. Nothing else happens — no new tab, no `cd`: the terminal does not
   know what is running.
 - **Hyperlinks** (`OSC 8`): the link travels in the cell (interned URI, an extra
-  field only on linked cells). With `Ctrl` held, every link on screen is
-  underlined; `Ctrl+click` hands the URI to `xdg-open` — only `http`, `https`,
+  field only on linked cells). The link **under the pointer** is underlined (and
+  with `Ctrl` held, every link on screen); `Ctrl+click` hands the URI to
+  `xdg-open` — only `http`, `https`,
   `file`, `ftp` and `mailto`, since the URI comes from the child.
+- **Mouse, the other encodings**: `?1015` (urxvt, `CSI b;x;yM` with the X10
+  button code in decimal) and `?1005` (coordinates as UTF-8, past the 223 of the
+  legacy form) beside SGR, which wins when both are on.
+- **Origin mode (`?6`)**: cursor addressing relative to the scroll region and
+  clamped to it (`CUP`/`VPA` relative, movement stuck inside), answered by
+  `DECRQM` and cleared by the soft reset.
+- **Context menu**: right click outside the app's mouse mode (terminal, tab or
+  sidebar card) opens the actions the shortcuts already do — copy, paste, new
+  and close tab, rename, new and close workspace.
 
 Tested with `ls --color`, `mc` (panels, frames, key bar, colors,
 arrows and resize 68x22 → 110x36 → 70x21 with no leftovers) and `vim`/`less`

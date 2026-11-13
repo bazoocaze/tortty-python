@@ -173,6 +173,7 @@ class Workspace:
             on_exit=self.on_view_exit,
             on_title=self.on_view_title,
             on_progress=self.on_view_progress,
+            on_context=self.on_view_context,
             on_bell=self.win.on_view_bell,
             on_notify=self.win.on_view_notify,
             shortcuts=self.win.handle_shortcut,
@@ -235,6 +236,8 @@ class Workspace:
         return False
 
     def on_tab_click(self, widget, ev, view):
+        if ev.button == 3:  # P71: menu na aba
+            return self.win.context_menu(ev, view=view)
         if ev.button == 2:  # clique do meio fecha a aba
             self.close_tab(view)
             return True
@@ -305,6 +308,10 @@ class Workspace:
         label = getattr(view, "tab_label", None)
         if label is not None:
             label.set_text(self.label_text(view, progress=True))
+
+    def on_view_context(self, view, ev):
+        """Botão direito na sessão: o menu da janela (P71)."""
+        return self.win.context_menu(ev, view=view)
 
     def on_view_exit(self, view):
         """O shell da aba morreu: fecha a aba (P8, agora por aba)."""
@@ -400,6 +407,8 @@ class Workspace:
         self.card.set_tooltip_text(tip)
 
     def on_card_click(self, widget, ev):
+        if ev.button == 3:  # P71: menu no cartão da sidebar
+            return self.win.context_menu(ev, ws=self)
         if ev.type == Gdk.EventType._2BUTTON_PRESS and ev.button == 1:
             self.start_rename()
             return True
@@ -1034,6 +1043,36 @@ class TorttyWindow(Gtk.Window):
         ws = self.current
         i = self.workspaces.index(ws) if ws in self.workspaces else 0
         self.select_workspace_index((i - n) % len(self.workspaces))
+        return True
+
+    def context_menu(self, ev, ws=None, view=None):
+        """Botão direito: as mesmas ações dos atalhos, sem lógica nova (P71)."""
+        ws = ws or self.current
+        if ws is None:
+            return False
+        view = view or ws.view
+        m = Gtk.Menu()
+        itens = (
+            ("Copiar", lambda: view.copy() if view else None),
+            ("Colar", lambda: view.paste() if view else None),
+            ("", None),
+            ("Nova aba", ws.new_tab),
+            ("Fechar aba", lambda: ws.close_tab(view)),
+            ("", None),
+            ("Renomear espaço de trabalho", ws.start_rename),
+            ("Novo espaço de trabalho", self.new_workspace),
+            ("Fechar espaço de trabalho", lambda: self.close_workspace(ws)),
+        )
+        for rotulo, acao in itens:
+            if acao is None:
+                m.append(Gtk.SeparatorMenuItem())
+                continue
+            item = Gtk.MenuItem(label=rotulo)
+            item.connect("activate", lambda _w, f=acao: f())
+            m.append(item)
+        m.show_all()
+        self._menu = m  # o menu precisa viver enquanto está aberto
+        m.popup_at_pointer(ev)
         return True
 
     def close_workspace(self, ws):

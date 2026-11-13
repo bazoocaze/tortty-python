@@ -48,8 +48,8 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   7, 8 (hidden), 9/29 (strikethrough), 21, 22, 23, 24, 25, 27, 30–37, 39, 40–47,
   49, 53/55 (overline), 90–97, 100–107, 38/48 (256 and truecolor). **Does not**
   implement 58/59 (underline color, which the Rust draws).
-- **No origin/special margins**: `DECSTBM` (scroll region) works, but
-  `? 6` (origin mode), `? 3` (80/132), `DECDHL`/`DECDWL` (double line) do not.
+- **No special margins**: `DECSTBM` (scroll region) and `? 6` (origin mode)
+  work, but `? 3` (80/132) and `DECDHL`/`DECDWL` (double line) do not.
 - **Tab stops are re-seeded on resize**: `HTS`, `TBC`, `CHT` and `CBT` are
   real, but a resize puts the stops back every 8 instead of preserving what the
   app set — the Rust choice too.
@@ -60,8 +60,8 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 ## OSC (what is not served)
 
 - **`OSC 8` ignores the parameters**: the `id=`/`key=value` part is accepted and
-  discarded, and there is no hover without `Ctrl` (the underline only appears
-  with the modifier held, so the screen matches what a plain capture shows).
+  discarded; the link underlines on hover and on `Ctrl` (which underlines the
+  whole screen).
 - **`OSC 7` is a fallback, not the source**: the cwd of a new tab comes from
   `/proc` (last descendant) and only then from the sequence, which needs a
   shell that emits it — the app does not ship shell integration. **No `OSC
@@ -75,11 +75,7 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 - **A block does not survive a resize by its columns**: the corners are
   carried like a linear selection, so a reflow moves the rectangle with the
   characters instead of re-deriving the column range.
-- **The scrollbar has no hover**: click and drag only, no "jump to mark".
 - **No search in the scrollback**.
-- **No urxvt extended mouse mode** (`? 1015`) and no UTF-8 coordinates
-  (`? 1005`) beyond the SGR/legacy already supported: `? 1016` (the SGR shape
-  with pixels) exists, those two do not.
 - **Selection does not survive a resize nor a reflow**: anchor and tip are
   grid coordinates.
 
@@ -137,7 +133,6 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   `cursor_color`, `color0..15`) plus `OSC 4/10-12` at runtime. What remains
   fixed in the code is the **chrome** color (`style.py`) and the shortcuts.
 - **No copy/scrollback mode**: no text editor over the scrollback.
-- **No context menu**: no menu in the sidebar, in the tab or on the scrollbar.
 
 ## Scope (decision, not lack)
 

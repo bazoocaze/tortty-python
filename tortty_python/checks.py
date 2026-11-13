@@ -828,6 +828,51 @@ def mouse_modes_and_sgr():
     assert mouse.encode(mouse.LEFT, 0, 0, True) == ("\x1b[M" + chr(32) + chr(33) + chr(33))
 
 
+def origin_mode():
+    """P68: ?6 prende o cursor à região de rolagem e torna CUP relativo a ela."""
+    t = Term()
+    t.feed("\x1b[5;10r")  # região nas linhas 5..10 (0-based)
+    t.feed("\x1b[?6h")
+    assert t.origin and t.mode_state(6, True) == 1
+    assert (t.cy, t.cx) == (4, 0)  # ligar manda o cursor para casa (o topo)
+    t.feed("\x1b[2;3H")  # CUP relativo: linha 2 da região = linha 6 da tela
+    assert (t.cy, t.cx) == (5, 2)
+    t.feed("\x1b[99;1H")  # endereço além do fim: preso ao fundo da região
+    assert t.cy == 9
+    t.feed("\x1b[1;1H\x1b[5d")  # VPA também é relativo
+    assert t.cy == 8
+    t.feed("\x1b[?6l")  # desligado: volta ao endereçamento absoluto
+    assert not t.origin and (t.cy, t.cx) == (0, 0)
+    t.feed("\x1b[2;3H")
+    assert (t.cy, t.cx) == (1, 2)
+    t.feed("\x1b[?6h\x1b[!p")  # o soft reset (P59) volta a origin desligado
+    assert not t.origin
+
+
+# -- mouse: as formas de coordenada (P46/P69) -------------------------
+
+
+def mouse_urxvt_and_utf8():
+    """P69: ?1015 (decimal, botão+32) e ?1005 (coordenadas em UTF-8)."""
+    t = Term()
+    t.feed("\x1b[?1015h")
+    assert t.mouse_urxvt and t.mode_state(1015, True) == 1
+    # botão 0 + 32 = 32, coordenadas 1-based
+    assert mouse.encode(mouse.LEFT, 3, 4, True, urxvt=True) == "\x1b[32;4;5M"
+    assert mouse.encode(mouse.LEFT, 3, 4, False, urxvt=True) == "\x1b[35;4;5M"
+    # passa do 223 do protocolo antigo (é a razão de existir)
+    assert mouse.encode(mouse.LEFT, 499, 249, True, urxvt=True) == "\x1b[32;500;250M"
+    t.feed("\x1b[?1015l\x1b[?1005h")
+    assert not t.mouse_urxvt and t.mouse_utf8 and t.mode_state(1005, True) == 1
+    # coluna 100: 101 + 32 = 133 -> dois bytes UTF-8 (C2 85)
+    esperado = "\x1b[M" + chr(32) + b"\xc2\x85".decode("latin-1") + chr(4 + 1 + 32)
+    assert mouse.encode(mouse.LEFT, 100, 4, True, utf8=True) == esperado
+    # abaixo de 95 o UTF-8 é idêntico ao protocolo antigo
+    assert mouse.encode(mouse.LEFT, 3, 4, True, utf8=True) == (
+        "\x1b[M" + chr(32) + chr(36) + chr(37)
+    )
+
+
 def pixel_mouse():
     """P46: `?1016` é a forma SGR com as coordenadas em pixels, sem ?1006."""
     t = Term()
@@ -1518,6 +1563,7 @@ ALL = (
     deccawm,
     sgr_faint_and_hidden,
     sgr_blink,
+    origin_mode,
     osc52_clipboard,
     reflow,
     history,
@@ -1546,6 +1592,7 @@ ALL = (
     notifications,
     osc9_progress,
     pixel_mouse,
+    mouse_urxvt_and_utf8,
     wheel_notches,
     osc7_cwd,
     desktop_shortcut,

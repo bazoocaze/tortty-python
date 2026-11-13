@@ -174,6 +174,7 @@ class TermView(Gtk.DrawingArea):
         on_bell=None,
         on_notify=None,
         on_progress=None,
+        on_context=None,
         shortcuts=None,
     ):
         super().__init__()
@@ -182,6 +183,7 @@ class TermView(Gtk.DrawingArea):
         self.on_bell = on_bell  # chamada quando o app manda BEL (P34)
         self.on_notify = on_notify  # chamada no `OSC 9`/`777` (P44)
         self.on_progress = on_progress  # chamada no `OSC 9;4` (P65)
+        self.on_context = on_context  # botão direito: menu do window (P71)
         self.shortcuts = shortcuts  # atalhos da janela (prioridade)
         self.font_features = font_features  # liga/calt do Pango (P45)
         self._notifs = 0  # `OSC 9`/`777` já entregues ao host (P44)
@@ -211,7 +213,10 @@ class TermView(Gtk.DrawingArea):
         self._press_time, self._press_xy = 0, (-1.0, -1.0)  # press já tratado
         self._wheel_v = mouse.Notches()  # fração do touchpad no eixo vertical (P48)
         self._sb_drag = False  # arrastando o polegar da barra de rolagem
+        self._sb_hover = False  # ponteiro sobre a barra (P67)
         self._ctrl = False  # Ctrl apertado: sublinha os hyperlinks (OSC 8)
+        self._hover_link = None  # link sob o ponteiro: sublinha sem Ctrl (P70)
+        self._hover_cell = (-1, -1)  # última célula visitada (só redesenha ao trocar)
         self._state = 0  # modificadores do último evento
         self.view_off = 0  # 0 = vivo; >0 = linhas de histórico
         self._anchor = 0  # linha absoluta no topo da visão quando no histórico
@@ -224,12 +229,14 @@ class TermView(Gtk.DrawingArea):
             Gdk.EventMask.BUTTON_PRESS_MASK
             | Gdk.EventMask.BUTTON_RELEASE_MASK
             | Gdk.EventMask.POINTER_MOTION_MASK
+            | Gdk.EventMask.LEAVE_NOTIFY_MASK
             | Gdk.EventMask.SCROLL_MASK
         )
         self.connect("draw", self.on_draw)
         self.connect("button-press-event", self.on_button_press)
         self.connect("button-release-event", self.on_button_release)
         self.connect("motion-notify-event", self.on_motion)
+        self.connect("leave-notify-event", self._on_leave)
         self.connect("scroll-event", self.on_scroll)
         self.connect("key-press-event", self.on_key)
         self.connect("key-release-event", self.on_key_release)
@@ -889,21 +896,24 @@ class TermView(Gtk.DrawingArea):
         return True
 
     def _draw_links(self, cr, rows, cw, ch, row_lo, row_hi, col_lo, col_hi):
-        """Sublinha a corrida de células com hyperlink; só no draw com Ctrl."""
+        """Sublinha a corrida com hyperlink: todas com Ctrl, só a do ponteiro sem ele."""
         t = self.term
+        alvo = None if self._ctrl else self._hover_link  # P70
         cr.set_source_rgb(*t.theme.rgb_f(DEF_FG))
         for y in range(row_lo, min(row_hi, len(rows) - 1) + 1):
             row = rows[y]
             x = col_lo
             while x < col_hi:
-                if not t.link_of(row[x]):
+                uri = t.link_of(row[x])
+                if not uri:
                     x += 1
                     continue
                 j = x + 1
-                while j < t.cols and t.link_of(row[j]):
+                while j < t.cols and t.link_of(row[j]) == uri:
                     j += 1
-                cr.rectangle(x * cw, y * ch + ch - 2, (j - x) * cw, 1)
-                cr.fill()
+                if alvo is None or uri == alvo:
+                    cr.rectangle(x * cw, y * ch + ch - 2, (j - x) * cw, 1)
+                    cr.fill()
                 x = j
 
     def _cell_uri(self, row, col):
@@ -927,6 +937,13 @@ class TermView(Gtk.DrawingArea):
             return False
         return True
 
+    def _set_hover_link(self, uri):
+        """Link sob o ponteiro mudou: redesenha só para o sublinhado seguir (P70)."""
+        if uri == self._hover_link:
+            return
+        self._hover_link = uri
+        self.queue_draw()
+
     def _set_ctrl(self, on):
         """Ctrl entrou/saiu: redesenha só para sublinhar (ou não) os links."""
         if on != self._ctrl:
@@ -949,13 +966,36 @@ class TermView(Gtk.DrawingArea):
         strip = min(SB_W, int(cw))
         return t.cols * int(cw) - strip, strip, 0, t.rows * int(ch), hist
 
+    def _sb_hover_at(self, x, y):
+        """O ponteiro está sobre a barra? Coordenadas do widget (P67)."""
+        r = self.scrollbar_rect()
+        if not r:
+            return False
+        gx, gy = x - self.padding, y - self.padding
+        return r[0] <= gx < r[0] + r[1] and 0 <= gy < r[2] + r[3]
+
+    def _sb_hover_set(self, hover):
+        if hover == self._sb_hover:
+            return
+        self._sb_hover = hover
+        r = self.scrollbar_rect()
+        if r:
+            # repinta só a faixa (mesma área do desenho da barra)
+            self.queue_draw_area(r[0] + self.padding, r[2] + self.padding, r[1], r[3])
+
+    def _on_leave(self, *_a):
+        """Ponteiro saiu do widget: sem motion depois disso, apaga hover e link."""
+        self._sb_hover_set(False)
+        self._hover_cell = (-1, -1)
+        self._set_hover_link(None)
+
     def _thumb(self, h, hist):
         """Altura do polegar: a fatia do buffer que a visão mostra."""
         rows = self.term.rows
         return max(12.0, min(float(h), h * rows / (rows + hist)))
 
     def _draw_scrollbar(self, cr, t):
-        """Trilho a 10% e polegar a 55%: fora do caminho do texto que ele cobre."""
+        """Trilho a 10% (18% no hover) e polegar a 55% (75%): fora do texto."""
         r = self.scrollbar_rect()
         if not r:
             return
@@ -964,10 +1004,11 @@ class TermView(Gtk.DrawingArea):
         off = min(self.view_off, hist) / hist
         y = top + (h - thumb) * (1.0 - off)  # vivo = polegar no fim
         fg = t.theme.rgb_f(DEF_FG)
-        cr.set_source_rgba(*fg, 0.10)
+        trh, thb = (0.18, 0.75) if self._sb_hover else (0.10, 0.55)
+        cr.set_source_rgba(*fg, trh)
         cr.rectangle(x0, top, w, h)
         cr.fill()
-        cr.set_source_rgba(*fg, 0.55)
+        cr.set_source_rgba(*fg, thb)
         cr.rectangle(x0, y, w, thumb)
         cr.fill()
 
@@ -1343,7 +1384,7 @@ class TermView(Gtk.DrawingArea):
                 if deco:
                     self._deco(cr, x * cw, ypx, (j - x) * cw, ch, deco)
         # Ctrl apertado: sublinha todo hyperlink da tela (é o convite ao clique)
-        if self._ctrl:
+        if self._ctrl or self._hover_link:
             self._draw_links(cr, rows, cw, ch, row_lo, row_hi, col_lo, col_hi)
         # imagens do protocolo de gráficos (P6), por cima do texto e abaixo
         # do cursor — é onde o kitty põe
@@ -1470,6 +1511,8 @@ class TermView(Gtk.DrawingArea):
                 mods=mods,
                 motion=motion,
                 pixels=pixels,
+                urxvt=self.term.mouse_urxvt,
+                utf8=self.term.mouse_utf8,
             )
         )
 
@@ -1503,6 +1546,9 @@ class TermView(Gtk.DrawingArea):
             self._held = btn
             self.report_mouse(btn, col, row, True, px=ev.x, py=ev.y)
             return True
+        if ev.button == 3 and self.on_context:
+            # botão direito fora do modo mouse: o menu do window (P71)
+            return self.on_context(self, ev)
         if ev.button == 1:
             # duplo clique = palavra, triplo = linha lógica (inclusive a que
             # quebrou mole): o clique conta por tempo e mesma célula, como no
@@ -1577,6 +1623,13 @@ class TermView(Gtk.DrawingArea):
     def on_motion(self, widget, ev):
         t = self.term
         self._state = ev.state
+        self._sb_hover_set(self._sb_hover_at(ev.x, ev.y))
+        if not self._sb_drag and not self.dragging:
+            # P70: só resolve o link quando a célula muda (motion é frequente)
+            col, row = self.cell_at(ev.x, ev.y)
+            if (row, col) != self._hover_cell:
+                self._hover_cell = (row, col)
+                self._set_hover_link(self._cell_uri(row, col))
         if self._sb_drag:
             self.scroll_to_y(ev.y - self.padding)
             return True

@@ -13,8 +13,15 @@ Protocolo xterm:
           1-based em decimal — sem o limite de 223 do protocolo antigo
     1016  a mesma forma do 1006, com as coordenadas em PIXELS a partir da
           origem da grade (quem passa col/row preenche com pixels)
+    1015  urxvt: `CSI b ; x ; y M`, o botão em decimal com o +32 do X10 e as
+          coordenadas 1-based; release continua sendo o botão 3
+    1005  UTF-8: `CSI M` + (b+32) e x+32/y+32 como code points UTF-8 — sem
+          o limite de 223 do protocolo antigo
     normal (sem 1006): `CSI M` + 3 bytes (b+32, x+32, y+32); release é
           sempre "botão 3" e coordenada acima de 223 não cabe no byte.
+
+    Com mais de uma forma ligada o SGR vence (P69): é a que não tem limite de
+    coordenada, e a 1015 é a que o próprio xterm desaconselha.
 """
 
 # botões no protocolo (não é o número do botão do Gdk)
@@ -67,7 +74,23 @@ def mods_from_state(shift, alt, ctrl):
     return (MOD_SHIFT if shift else 0) | (MOD_ALT if alt else 0) | (MOD_CTRL if ctrl else 0)
 
 
-def encode(button, col, row, pressed=True, sgr=False, mods=0, motion=False, pixels=False):
+def _utf8(cp):
+    """Code point -> bytes UTF-8 (a coordenada estendida do ?1005)."""
+    return chr(cp).encode("utf-8").decode("latin-1")
+
+
+def encode(
+    button,
+    col,
+    row,
+    pressed=True,
+    sgr=False,
+    mods=0,
+    motion=False,
+    pixels=False,
+    urxvt=False,
+    utf8=False,
+):
     """Codifica um evento. `col`/`row` são 0-based (viram 1-based aqui).
 
     `pixels` (?1016): `col`/`row` chegam em pixels e a forma é a SGR — não
@@ -92,6 +115,12 @@ def encode(button, col, row, pressed=True, sgr=False, mods=0, motion=False, pixe
     # press anterior) e cada coordenada é um byte 32..255
     if not pressed:
         b = RELEASE | mods
+    if urxvt:
+        # P69: mesmo código de botão do X10, só que em decimal
+        return "\x1b[%d;%d;%dM" % (b + 32, col + 1, row + 1)
+    if utf8:
+        # P69: coordenadas como code points UTF-8 (sem o teto de 223)
+        return "\x1b[M" + chr(32 + b) + _utf8(col + 1 + 32) + _utf8(row + 1 + 32)
     x = min(col, 222) + 33
     y = min(row, 222) + 33
     return "\x1b[M" + chr(32 + b) + chr(x) + chr(y)
