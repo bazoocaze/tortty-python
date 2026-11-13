@@ -96,8 +96,10 @@ The tortty_python/ package installs the `tortty-python` command and also runs as
 - tortty_python/data/ — tortty-python.svg (icon) and tortty-python.conf (embedded
   default options)
 - tests/ — pytest runner for tortty_python/checks.py
-- tools/xtest.py, tools/pixel.py — manual test, requires X11 (pixel.py is also
-  the comparator of the render gate)
+- tools/xtest.py, tools/pixel.py, tools/ybands.py, tools/notifyd.py — manual
+  test, requires X11 (pixel.py is also the comparator of the render gate;
+  ybands.py says *where* two captures differ; notifyd.py is a fake desktop
+  notification daemon over D-Bus)
 - tools/doomfire.py — measurement load, not a test
 - tools/uploadbench.py — drawing microbench: N cairo operations against 1
   upload/composition per frame

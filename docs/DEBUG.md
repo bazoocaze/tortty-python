@@ -58,6 +58,15 @@ In `tools/`, with the system python3 (`python3-xlib` 0.33 and gi installed).
 - xdotool (`1:3.20160805`): `search --pid`, `type`, `key`,
   `mousemove --window`, `click --repeat 2`, `mouseup`. Same coordinates as
   xtest.
+- `tools/ybands.py A.png B.png [--min N]` — *where* two captures differ: prints
+  the `y` ranges (and each one's `x` range and pixel count). Use it instead of
+  computing `row * cell height` by hand: a probe hover that lands on the wrong
+  row looks like a broken feature. `--min` ignores a band whose lines have fewer
+  than N differing pixels (anti-aliasing noise).
+- `tools/notifyd.py FILE` — fake `org.freedesktop.Notifications` on a private
+  session bus (`dbus-run-session -- ...`); writes `<summary> | <body>` per
+  `Notify`. The app only calls it when the window is **not** active, so give the
+  focus away first (see the pitfalls).
 
 - A coordinate is relative to the window and the grid does not start at (0,0):
   sidebar (170 px, `SIDEBAR_W`) + tab (~28 px) put the session at `y≈58`. `y=8`
@@ -267,7 +276,17 @@ when it opens, the window shows a security warning toast with the socket path.
 - The pty **echo** prints ESC as `^[` (the driver has `ECHOCTL` on), so writing
   `ESC[9m` through the socket does not apply a style on screen — only text the
   CHILD prints goes through the parser. That is why the render gate's strike
-  check rides in the `--cmd` instead of a `write`.
+  check rides in the `--cmd` instead of a `write`. The fix for `write` probes
+  is `stty -echoctl` in the `--cmd` (P67-P76 probes): the same trap also eats
+  `OSC 8`/`OSC 9`, which then look "not implemented".
+- Writing `\r\n` through the socket advances **two** lines: `ICRNL` turns the
+  CR into LF on input and the echo turns both into CRLF. Write `\n` alone, or
+  the probe's hover lands on an empty row and the feature looks broken
+  (measured with `tools/ybands.py`).
+- Without a WM (Xvfb) the window can still report `is_active()` true, so a path
+  that only runs on a background window (`notify_desktop`, P74) never fires:
+  give the focus away (`set_input_focus` on `PointerRoot` via Xlib) before
+  testing it.
 - Tab stops live in `term.tabstops` and the resize re-seeds them every 8 (the
   Rust choice). Seeding them anywhere but in `resize` leaves the main buffer
   with the old list — `len(tabstops) != cols`, and `HT` starts reading past the
