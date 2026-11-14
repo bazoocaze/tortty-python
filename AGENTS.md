@@ -167,10 +167,7 @@ copied here. What the code needs to know:
   bump, not every commit. A docs, test or one-off adjustment commit does not
   bump. It is the single source: `pyproject.toml` reads from there (hatch) and
   `--version` shows it.
-- Test is concise. **Docs** (this file, docs/, README, --help, messages of the
-  toasts) and commit messages **in English**; **docstrings and comments in the
-  code in Portuguese** (818 lines against 1 today: translating them is a
-  decision of its own, not a side effect of another change).
+- Texts, descriptions and comments concise and in English.
 - Filenames and symbols in the code (functions, variables, classes, constants)
   in English.
 - Docstrings and comments in the code: at most one line.
