@@ -5,22 +5,23 @@ goes to [HISTORY.md](HISTORY.md); what is not an item — a limit accepted by
 decision, a tool and its pitfalls — belongs to [LIMITATIONS.md](LIMITATIONS.md)
 and [DEBUG.md](DEBUG.md).
 
-P78 — Double click on a tab bar leaves the keyboard dead. **Bug.** Reported
-from the real session (2026-11-14): a double click on the tab label stops the
-keys from reaching the terminal, and they only come back after switching tabs
-(`Ctrl+Shift+Page_Up`, another tab, or a new one). Nothing is echoed, the
-shortcuts do not work either, so the window is not just "reading the wrong
-widget". Hypothesis: the click moves the keyboard focus to the notebook or to
-the tab `EventBox` (the page itself is already current, so no switch-page fires
-and the `_focus_idle` that gives the focus back to the `TermView` never runs);
-switching tabs fires it and the terminal is alive again. Where to look:
-`Workspace.on_tab_click` (window.py) — it returns `False` for button 1, so the
-press is left to GTK — and `on_switch_page`/`_focus_idle`, which is today the
-only place that restores the focus. Fix candidate: take the button-1 press on
-the tab box and hand the focus back to the view (the label is not a text
-target). Reproduce by hand: double click a tab, type; then switch tabs and type
-again. What is NOT known: whether a single click also does it (the report is
-about the double), and whether the middle-click/right-click paths matter.
+P78 — Clicking a tab bar leaves the keyboard dead. **Bug.** Reported from the
+real session (2026-11-14): a click on the tab label (single click as well, not
+only the double) stops the keys from reaching the terminal; nothing is echoed
+and the shortcuts do not work either. The focus is not lost, it is elsewhere:
+**pressing Tab brings the keyboard back** without changing tabs, which is exactly
+what a focus chain hands back — the press grabs the focus to the `GtkNotebook`
+(that is how GTK makes the arrow keys walk the tabs), and Tab walks it into the
+`TermView` again. Switching tabs also cured it because `on_switch_page` runs
+`_focus_idle`. Where to look: `Workspace.on_tab_click` (window.py) returns
+`False` for button 1, so the press reaches the notebook's default handler — which
+runs *after* ours, so grabbing the focus inside the handler is not enough; the
+fix has to be deferred (`GLib.idle_add`, like `_focus_idle`, whose guard against
+stealing the focus from the rename `Gtk.Entry` already exists). Check the same
+path on `on_card_click` (clicking the card of the workspace already selected
+fires no `switch-page`, so it likely has the same hole) and on the middle-click
+(close tab) and right-click (menu) branches. Reproduce: click the tab label,
+type (dead), press Tab, type again (alive).
 
 P26 — Drawing: `cr.show_glyphs` with precomputed glyphs. **Experiment, not a
 commitment.** It is the only path that really attacks the emission cost:
