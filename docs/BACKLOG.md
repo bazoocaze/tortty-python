@@ -5,24 +5,6 @@ goes to [HISTORY.md](HISTORY.md); what is not an item — a limit accepted by
 decision, a tool and its pitfalls — belongs to [LIMITATIONS.md](LIMITATIONS.md)
 and [DEBUG.md](DEBUG.md).
 
-P78 — Clicking a tab bar leaves the keyboard dead. **Bug.** Reported from the
-real session (2026-11-14): a click on the tab label (single click as well, not
-only the double) stops the keys from reaching the terminal; nothing is echoed
-and the shortcuts do not work either. The focus is not lost, it is elsewhere:
-**pressing Tab brings the keyboard back** without changing tabs, which is exactly
-what a focus chain hands back — the press grabs the focus to the `GtkNotebook`
-(that is how GTK makes the arrow keys walk the tabs), and Tab walks it into the
-`TermView` again. Switching tabs also cured it because `on_switch_page` runs
-`_focus_idle`. Where to look: `Workspace.on_tab_click` (window.py) returns
-`False` for button 1, so the press reaches the notebook's default handler — which
-runs *after* ours, so grabbing the focus inside the handler is not enough; the
-fix has to be deferred (`GLib.idle_add`, like `_focus_idle`, whose guard against
-stealing the focus from the rename `Gtk.Entry` already exists). Check the same
-path on `on_card_click` (clicking the card of the workspace already selected
-fires no `switch-page`, so it likely has the same hole) and on the middle-click
-(close tab) and right-click (menu) branches. Reproduce: click the tab label,
-type (dead), press Tab, type again (alive).
-
 P26 — Drawing: `cr.show_glyphs` with precomputed glyphs. **Experiment, not a
 commitment.** It is the only path that really attacks the emission cost:
 2.43 → 0.76 µs (-69%, ~24% of the drawing). The price is leaving Pango: no font

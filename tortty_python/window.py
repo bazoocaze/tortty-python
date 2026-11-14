@@ -99,6 +99,13 @@ def _card_info(text):
     return "<small>" + GLib.markup_escape_text(text) + "</small>"
 
 
+def _widget_name(w):
+    """Nome curto do widget para o `state`: classe do GTK e, se tiver, o nome."""
+    nome = w.get_name() if hasattr(w, "get_name") else None
+    cls = type(w).__name__
+    return f"{cls}#{nome}" if nome else cls
+
+
 def _progress_prefix(p):
     """Prefixo textual do `OSC 9;4` no rótulo da aba (P65), sem cor."""
     if p is None:
@@ -251,6 +258,13 @@ class Workspace:
         if ev.button == 2:  # clique do meio fecha a aba
             self.close_tab(view)
             return True
+        if ev.button == 1:
+            # devolver False deixa o press chegar no handler padrão do
+            # GtkNotebook (é ele que permite arrastar a aba), e esse handler
+            # leva o foco de teclado para o notebook: a digitação morria ali até
+            # algo devolvê-la (P78). O padrão roda DEPOIS deste, então agarrar o
+            # foco aqui não pega — o idle pega, e ele respeita o Entry de renomear.
+            GLib.idle_add(self._focus_idle, view)
         return False
 
     def on_tab_scroll(self, widget, ev, view):
@@ -688,8 +702,20 @@ class TorttyWindow(Gtk.Window):
             "workspaces": len(self.workspaces),
             "config": str(self.config.path),
             "errors": list(self.config.errors),
+            "focus": self._focus_name(),
             **(v.debug_metrics() if v is not None else {}),
         }
+
+    def _focus_name(self):
+        """Quem tem o foco de teclado: classe do widget e se é a view da frente.
+
+        O teclado só chega no terminal com o foco na view; sem isso o `state`
+        dizia que estava tudo bem enquanto a digitação ia para o notebook (P78).
+        """
+        w = self.get_focus()
+        if w is None:
+            return None
+        return _widget_name(w)
 
     def _xid(self):
         """XID da janela: quem vai capturar pixel pergunta ao app, não ao X."""

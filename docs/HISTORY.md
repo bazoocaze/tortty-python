@@ -692,6 +692,15 @@ recording.
     (space, default bg, no flags, no link). Checks `dch_beyond_row_width` and
     `reflow_keeps_styled_blank`.
 
+25. **A click on a tab label left the keyboard dead.** The label's `EventBox`
+    returned `False` on button 1, so the press reached the notebook's default
+    handler — which drags the keyboard focus to the `GtkNotebook`, where the tab
+    navigation eats every key. The terminal answered nothing until a Tab key (or a
+    tab switch, through `_focus_idle`) handed the focus back. Fix:
+    `GLib.idle_add(self._focus_idle, view)` on button 1; the grab cannot happen
+    inside the handler, the default one runs after it. Verified on Xvfb with
+    injected clicks and the new `state.focus` field.
+
 ## Documentation note: number in only one place
 
 Until 2026-10-27 the throughput numbers lived repeated in README, LIMITATIONS,

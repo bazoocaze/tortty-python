@@ -190,7 +190,8 @@ when it opens, the window shows a security warning toast with the socket path.
   (`OSC 9`/`777` in the tab in front) and `notif_pending` (badges waiting for a
   visit), `view_off`,
   `pin`, `sync`, `scrolled`, `scrollback`, tabs, workspaces, configuration,
-  errors, and the grid metrics (`advance`, `cell`, `dpi`, `padding`, `font`,
+  errors, `focus` (class and name of the widget holding the keyboard focus — the
+  terminal only receives keys with the focus on the view), and the grid metrics (`advance`, `cell`, `dpi`, `padding`, `font`,
   `font_size`). Note that `title` is the app's `OSC 0/2`, not the window title
   (that one is the label, `WM_NAME`).
 - `{"cmd": "text", "where": "view", "start": 0, "count": 40}` — `view` is what
@@ -227,6 +228,15 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- A click on a tab label takes the keyboard focus away from the terminal: the
+  `EventBox` of the label returns `False` on button 1 so the press reaches the
+  notebook's default handler (which is what lets a tab be dragged), and that
+  handler grabs the focus to the `GtkNotebook` — where every key is eaten by the
+  tab navigation. A single click is enough, and the symptom is a terminal that
+  answers nothing until a Tab key walks the focus back (or a tab switch, through
+  `_focus_idle`). The fix cannot grab the focus inside the handler, because the
+  default one runs after it: `GLib.idle_add(self._focus_idle, view)`. To see it,
+  ask the socket for `state.focus` before and after the click (P78).
 - The drawing is in two passes (backgrounds, then text) on purpose:
   alternating `fill` and `show_layout_line` per run costs ~2x the whole frame.
   Do not "simplify" it back into a single loop. And the second pass must read
