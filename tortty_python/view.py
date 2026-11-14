@@ -42,7 +42,16 @@ from .palette import (
     UL_MASK,
     ul_style,
 )
-from .term import DEFAULT_TITLE, CellAnchor, Term, link_allowed, shell_quoted
+from .term import (
+    _FG_MASK,
+    DEFAULT_TITLE,
+    CellAnchor,
+    Term,
+    link_allowed,
+    row_link,
+    row_text,
+    shell_quoted,
+)
 
 _PROF = bool(os.environ.get("PYTERM_PROF"))  # mede o custo de draw e de pty
 _NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem desenho
@@ -712,7 +721,7 @@ class TermView(Gtk.DrawingArea):
         if t.scrollback:
             lines.append(f"=== scrollback ({len(t.scrollback)}) ===")
             for row in t.scrollback[-40:]:
-                lines.append("".join(c[0] for c in row).rstrip())
+                lines.append(row_text(row).rstrip())
         # o off vai no cabeçalho: sem ele o dump não conta se a visão está no
         # histórico (as linhas abaixo são a grade VIVA, não a visão rolada)
         off = f" (scrollback +{self.view_off})" if self.view_off else ""
@@ -924,12 +933,12 @@ class TermView(Gtk.DrawingArea):
             while x < col_hi:
                 # P76: a corrida é do mesmo link pelo `id=` (o mesmo URI pode
                 # aparecer em linhas diferentes e ainda ser um link só)
-                chave = t.link_key(row[x])
+                chave = t.link_key(row_link(row, x))
                 if not chave:
                     x += 1
                     continue
                 j = x + 1
-                while j < t.cols and t.link_key(row[j]) == chave:
+                while j < t.cols and t.link_key(row_link(row, j)) == chave:
                     j += 1
                 if alvo is None or chave == alvo:
                     cr.rectangle(x * cw, y * ch + ch - 2, (j - x) * cw, 1)
@@ -941,14 +950,14 @@ class TermView(Gtk.DrawingArea):
         rows = self.term.visible_rows(self.view_off)
         if not (0 <= row < len(rows)) or not (0 <= col < self.term.cols):
             return None
-        return self.term.link_of(rows[row][col])
+        return self.term.link_of(row_link(rows[row], col))
 
     def _cell_key(self, row, col):
         """Chave de agrupamento (`id=`) do link na célula da visão, ou None."""
         rows = self.term.visible_rows(self.view_off)
         if not (0 <= row < len(rows)) or not (0 <= col < self.term.cols):
             return None
-        return self.term.link_key(rows[row][col])
+        return self.term.link_key(row_link(rows[row], col))
 
     def open_link(self, uri):
         """Ctrl+clique: entrega o URI ao xdg-open, só nos esquemas conhecidos."""
@@ -1157,9 +1166,8 @@ class TermView(Gtk.DrawingArea):
     def _cell_blink_present(self):
         """Prova de ausência para o timer: alguma célula visível com SGR 5/6."""
         for row in self.visible_rows():
-            for cell in row:
-                if cell[3] & BLINK:
-                    return True
+            if any((v >> 50) & BLINK for v in row.pk):
+                return True
         return False
 
     def _invalidate_cursor(self):
@@ -1298,23 +1306,22 @@ class TermView(Gtk.DrawingArea):
             # alternando contra 2,6 ms de só fundo e 2,9 ms de só texto.
             runs = []
             x = 0
+            chs, pks = row.ch, row.pk
+            congelada = type(chs) is str  # histórico: str fatiada é o texto do run
             while x < t.cols:
-                # índices (e não unpack de 4): a célula com hyperlink tem o
-                # quinto campo do OSC 8, e o desenho não pode tropeçar nele
-                cell = row[x]
-                cch, fg, bg, fl = cell[0], cell[1], cell[2], cell[3]
+                # um int por célula: agrupar o run custa uma comparação (layout C)
+                # e o desempacotamento é inline porque um run pode ser de uma
+                # célula só (doom-fire): chamada por run custava 4% do quadro
+                v = pks[x]
+                fg = v & _FG_MASK
+                bg = (v >> 25) & _FG_MASK
+                fl = v >> 50
                 if fl & BLINK:
                     blink_seen = True
                 s0 = sel_on and in_sel(y, x, sel)
                 j = x + 1
                 while j < t.cols:
-                    c2 = row[j]
-                    if (
-                        c2[1] != fg
-                        or c2[2] != bg
-                        or c2[3] != fl
-                        or (sel_on and in_sel(y, j, sel)) != s0
-                    ):
+                    if pks[j] != v or (sel_on and in_sel(y, j, sel)) != s0:
                         break
                     j += 1
                 if j > col_lo and x < col_hi:
@@ -1339,7 +1346,7 @@ class TermView(Gtk.DrawingArea):
                         (
                             x,
                             j,
-                            cch,
+                            chs[x],
                             fgc,
                             bgc,
                             bool(fl & BOLD),
@@ -1363,6 +1370,8 @@ class TermView(Gtk.DrawingArea):
                     cr.rectangle(x * cw, ypx, rw, rh)
                     cr.fill()
         for row, ypx, _rh, runs in quadro:
+            chs = row.ch
+            congelada = type(chs) is str  # histórico: str fatiada é o texto do run
             for x, j, cch, fgc, _bgc, bold, deco, italic, hidden in runs:
                 if fgc is not cur_fg:
                     cr.set_source_rgb(*fgc)
@@ -1375,7 +1384,12 @@ class TermView(Gtk.DrawingArea):
                     continue
                 # run de uma célula é o caso comum (fundo por célula): pega
                 # o char do unpack em vez de montar slice + join (P37)
-                txt = cch if j == x + 1 else "".join([c[0] for c in row[x:j]])
+                if j == x + 1:
+                    txt = cch
+                elif congelada:
+                    txt = chs[x:j]
+                else:
+                    txt = "".join(chs[x:j])
                 # Pango (P9): layout de verdade, com shaping e fallback de
                 # fonte; `cr.move_to` na quina da célula e o layout desenha a
                 # partir dali (a linha de base sai do ascent do próprio layout)
@@ -1455,7 +1469,7 @@ class TermView(Gtk.DrawingArea):
             cr.set_source_rgb(*t.theme.cursor_f())
             cr.rectangle(t.cx * cw, t.cy * ch, cw, ch)
             cr.fill()
-            cell = t.grid[t.cy][t.cx]
+            cell = t.cell(t.cy, t.cx)
             cr.set_source_rgb(*t.theme.rgb_f(cell[2]))
             layout.set_attributes(self.text_attrs(False))
             layout.set_text(cell[0], -1)

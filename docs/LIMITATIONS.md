@@ -27,8 +27,9 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 
 - **No `wcwidth`**: a wide character (CJK, emoji) takes **one** cell. The glyph
   is drawn at the cell width: an app that counts double columns (CJK table,
-  `vim` with wide chars) comes out misaligned. Fixing it requires touching the
-  cell model, not the drawing.
+  `vim` with wide chars) comes out misaligned. Fixing it means a continuation
+  flag per cell (the packed value keeps two spare bits for it) and a cell that
+  spans two columns in the parser, the reflow and the drawing.
 - **No cell combining for a complex grapheme**: each cell carries one
   character, and a mark emitted separately by an app now glues to the cell
   before it (`e` + acute is one cell). Marks below a base cell at the start of

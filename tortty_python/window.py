@@ -16,7 +16,7 @@ import sys
 from . import config as config_mod
 from . import debugsock, mouse, state, style
 from .gui import Gdk, GdkX11, GLib, Gtk, Pango
-from .term import DEFAULT_TITLE
+from .term import DEFAULT_TITLE, row_text
 from .view import TermView, set_debug_log, set_prof
 
 SIDEBAR_W = 170  # largura fixa (arrastável fica pra depois)
@@ -764,11 +764,11 @@ class TorttyWindow(Gtk.Window):
         start, count = max(0, int(start)), max(1, min(int(count), 2000))
         if where == "history":
             linhas = t.scrollback[start : start + count]
-            return ["".join(c[0] for c in row).rstrip() for row in linhas]
+            return [row_text(row).rstrip() for row in linhas]
         if where == "screen":
             return [t.row_text(y).rstrip() for y in range(start, min(t.rows, start + count))]
         linhas = t.visible_rows(v.view_off)[start : start + count]
-        return ["".join(c[0] for c in row).rstrip() for row in linhas]
+        return [row_text(row).rstrip() for row in linhas]
 
     def debug_sel(self):
         """Seleção atual: o texto e se é bloco (o verbo `sel` do Rust)."""

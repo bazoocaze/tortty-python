@@ -558,6 +558,14 @@ narrow reflowed by the resize code. One file per (workspace, tab) next to
 to the fresh `Term` **before** the shell exists. The marker the terminal writes is
 decoration (`row_chrome`), out of the next photo. Check `snapshot_restore`.
 
+### P77 — Cell layout: packed rows and the frozen history (2026-11-14)
+
+A row became `ch` plus one `array('Q')` packing fg/bg/flags (link array built on
+demand), and a row that leaves the screen freezes `ch` into a `str`. Anonymous
+memory of a 10000-row history: 78.7 MB to 10.2 MB in ASCII and 128 MB to 15.1 MB
+in CJK, while `feed` paid 10% and drawing got faster. Two shapes, so cold paths
+read through `row_text`/`cell`/`cell_abs`; numbers in [BENCHMARKS.md](BENCHMARKS.md).
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth
@@ -673,6 +681,16 @@ recording.
     rewritten: on `3J` it fell to live and, when the pin expired, the anchor
     escalated to the clamp (the top). Fix: inside the region `view_off` is not
     written (the pin resolves at the close, full buffer). Generator: closes with the same `v`.
+
+23. **`DCH`/`ICH` past the row width grew the row.** `CSI k P` deleted
+    `k` cells from the slice but extended by `k` anyway, so the row could end up
+    longer than `cols` — and the reflow assumes `len(row) == cols`. Fix: clamp `k`
+    to `cols - cx` (which also stops `CSI 999999999 @` from allocating the lot).
+24. **The reflow trim ate styled blanks.** The trailing-blank cut looked only at
+    the character and the bg, so an underlined space or a space carrying a
+    hyperlink was dropped on resize. Fix: cut only a cell that is empty for real
+    (space, default bg, no flags, no link). Checks `dch_beyond_row_width` and
+    `reflow_keeps_styled_blank`.
 
 ## Documentation note: number in only one place
 

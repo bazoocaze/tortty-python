@@ -73,7 +73,7 @@ The tortty_python/ package installs the `tortty-python` command and also runs as
   captures and compares pixels (needs a display)
 - tortty_python/__main__.py — python -m tortty_python (calls cli.run)
 - tortty_python/__init__.py — facade with lazy import (tortty_python.Term does not pull Gtk)
-- tortty_python/palette.py — cell [char, fg, bg, flags], xterm-256 palette (int and
+- tortty_python/palette.py — cell colors/flags, xterm-256 palette (int and
   float), the per-tab Theme (P49: config colors + OSC 4/10-12), DEC charset
 - tortty_python/term.py — grid, cursor, VT parser; does not know GTK
 - tortty_python/keys.py — X11 keyval -> child bytes (dead keys, DECCKM)
@@ -119,12 +119,20 @@ host); view.py has spawn/on_pty (io_add_watch on the master), on_resize
 mouse/selection and view_off; window.py has Workspace (Gtk.Notebook + sidebar
 card) and TorttyWindow (Gtk.Stack + global shortcuts + dump/quit-after/SIGUSR1).
 
-A cell is a list [char, fg, bg, flags]: fg/bg as an xterm index (0-255,
-256=default fg, 257=default bg), flags bitmask (bold/underline/inverse). The
-drawing groups neighboring cells of equal attributes into a single run and each
-run becomes a Pango.Layout cached by (text, bold): grouping brought the uniform
-frame of 1920 cells to ~2 ms, and Pango charged ~20% on a frame of 1360 cells
-with 37 colors (numbers in docs/HISTORY.md, P9).
+A row is a `Row`: `ch` (list of str) with the characters, `pk` (array('Q'))
+packing fg in 25 bits, bg in 25 and the flags in 12, and `lk` (array('i'), built
+on demand) with the link index. fg/bg keep their meaning (xterm index 0-255,
+256=default fg, 257=default bg, `TC` for truecolor) and so does the flag
+bitmask (bold/underline/inverse/...). A row that leaves the screen is frozen:
+`ch` becomes a single `str` (1 byte per ASCII character, 2 per CJK) instead of
+an object per cell — the rule
+is `len(text) == len(ch)`, so index, slice and `len` still address columns, and
+a row with a multi-codepoint cell (combining mark) simply does not freeze. Two
+shapes, so readers go through `row_text`/`cell`/`cell_abs` rather than
+`row.ch[x]`. The drawing groups neighboring cells of equal `pk` (one integer
+comparison per cell) and a str slice is the run text in the frozen rows; against
+a cell object per row that is less memory and less time on both ends (numbers in
+docs/BENCHMARKS.md).
 
 Not a goal: cloning kitty/gtkterm or deriving from their C core — nothing here
 comes from them. The experiment showed that a whole terminal can be done in

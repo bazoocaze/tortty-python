@@ -227,9 +227,13 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
-- `_on_draw`'s drawing is in two passes (backgrounds, then text) on purpose:
+- The drawing is in two passes (backgrounds, then text) on purpose:
   alternating `fill` and `show_layout_line` per run costs ~2x the whole frame.
-  Do not "simplify" it back into a single loop.
+  Do not "simplify" it back into a single loop. And the second pass must read
+  the **row it is drawing**: the run-building pass leaves `chs`/`congelada`
+  holding the last row it built, so reusing them in the text pass draws another
+  line's characters — bg right, text wrong, invisible to every headless check
+  and caught only by the render gate.
 - Drawing damage: `Term.take_damage()` is the only source of what the view
   repaints. A new path that writes a cell without `touch(y)` (or without
   `touch_all()`, if it moves lines) does not show up on screen until something
@@ -361,10 +365,15 @@ when it opens, the window shows a security warning toast with the socket path.
 - Pending wrap: the emulator must not count the `\n` after a full line as a
   second break — text up to the last column + `\r\n` is the TUI pattern that
   draws up to the edge.
-- A blank cell is shared (P21): `_blank_row()` is `[_BLANK_CELL] * cols`.
-  Writing replaces the cell (`row[x] = [ch, fg, bg, fl]`), never
-  `row[x][2] = ...`: in-place mutation paints the whole screen. `blank_cell()`
-  (current bg, for `erase_*`) allocates a new one on purpose.
+- A blank row is `[" "] * cols` plus one repeated packed value
+  (`array("Q", [_BLANK_V]) * cols`), so it is cheap to make and cheap to fill:
+  `row.ch[x] = ch` and `row.pk[x] = _pack(...)` always, never a mutation of a
+  shared object (a mark glued onto a shared blank cell corrupted the whole grid
+  once). `_bce_row()`/`_blank_cell_raw()` carry the current bg on purpose.
+- `row.ch` is a **list** in the live grid and a **str** in the frozen history
+  (scrollback): index, slice and `len` behave the same, but `type(row.ch)` is
+  how the hot paths decide, and `frozen()` refuses a row with a multichar cell.
+  New code that walks rows goes through `row_text`/`cell`/`cell_abs`.
 - `lista[-0:]` is the whole list: slicing by a configurable ceiling
   (`[-limit:]`) stops cutting at limit 0. Use `del lista[:len(lista) - n]`.
 - `chr(kv)` only exists for `0x20–0x7e`, `0xa0–0xff` and `0x01000000+U`; the

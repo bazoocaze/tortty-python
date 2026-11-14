@@ -27,19 +27,25 @@ from .palette import (
     HIDDEN,
     INV,
     ITALIC,
+    OVERLINE,
+    STRIKE,
+    TC,
     UL,
     UL_CURLY,
     UL_DOUBLE,
     UL_SINGLE,
     cell_rgb,
     rgb,
+    ul_on,
     ul_style,
 )
-from .term import _BLANK_CELL, TITLE_STACK_MAX, Term, link_allowed
+from .term import _BLANK_V, TITLE_STACK_MAX, Term, _pack, _unpack, link_allowed
 
 
 def _row_text(row):
-    return "".join(c[0] for c in row)
+    from .term import row_text
+
+    return row_text(row)
 
 
 def _screen_text(t):
@@ -55,15 +61,15 @@ def parser_text_and_cursor():
     assert (t.cx, t.cy) == (2, 0)
     t = Term()
     t.feed("\x1b[2;5H*\x1b[1;1H#")
-    assert t.grid[1][4][0] == "*"
-    assert t.grid[0][0][0] == "#"
+    assert t.cell(1, 4)[0] == "*"
+    assert t.cell(0, 0)[0] == "#"
 
 
 def sgr_and_erasing():
     """SGR de cor, EL 2 e ED 2."""
     t = Term()
     t.feed("\x1b[31mX\x1b[0mY")
-    assert (t.grid[0][0][1], t.grid[0][1][1]) == (1, DEF_FG)
+    assert (t.cell(0, 0)[1], t.cell(0, 1)[1]) == (1, DEF_FG)
     t = Term()
     t.feed("abc\x1b[2K")
     assert t.row_text(0)[:3] == "   "
@@ -95,8 +101,8 @@ def sgr_italic_and_underline_styles():
     # a célula carrega o estilo (é o que o desenho lê)
     t = Term()
     t.feed("\x1b[3;4:4mX")
-    assert t.grid[0][0][3] & ITALIC
-    assert ul_style(t.grid[0][0][3]) == 3  # pontilhado
+    assert t.cell(0, 0)[3] & ITALIC
+    assert ul_style(t.cell(0, 0)[3]) == 3  # pontilhado
 
 
 def alt_screen_and_scroll():
@@ -485,12 +491,12 @@ def wrap_and_control():
     # a quebra pendente continua valendo quando vem texto, não controle
     t.feed("0123456789X")
     assert (t.cx, t.cy) == (1, 2), (t.cx, t.cy)
-    # P21: célula em branco é compartilhada entre linhas — escrever substitui
-    # a célula, nunca muta in-place (mutação pintaria a tela inteira)
+    # layout B: cada linha é uma lista plana própria — escrever numa não
+    # pode aparecer na outra
     t = Term(cols=4, rows=2)
-    assert t.grid[0][0] is t.grid[1][1]
+    assert t.grid[0] is not t.grid[1]
     t.feed("x")
-    assert t.grid[0][0][0] == "x" and t.grid[1][1][0] == " "
+    assert t.cell(0, 0)[0] == "x" and t.cell(1, 1)[0] == " "
 
 
 def deccawm():
@@ -528,22 +534,22 @@ def sgr_faint_and_hidden():
     assert t.flags == 0
     # a flag entra na célula (é o run do desenho que lê, não o estado atual)
     t.feed("\x1b[2mx\x1b[8my")
-    assert t.grid[0][0][3] & DIM
-    assert t.grid[0][1][3] & HIDDEN
+    assert t.cell(0, 0)[3] & DIM
+    assert t.cell(0, 1)[3] & HIDDEN
 
 
 def sgr_blink():
     """P66: SGR 5/6 ligam o piscar; 25, 0 e o soft reset voltam a não piscar."""
     t = Term()
     t.feed("\x1b[5ma\x1b[6mb")
-    assert t.grid[0][0][3] & BLINK  # 5 e 6 compartilham o bit (xterm)
-    assert t.grid[0][1][3] & BLINK
+    assert t.cell(0, 0)[3] & BLINK  # 5 e 6 compartilham o bit (xterm)
+    assert t.cell(0, 1)[3] & BLINK
     t.feed("\x1b[25mc")
-    assert not t.grid[0][2][3] & BLINK  # SGR 25: volta a não piscar
+    assert not t.cell(0, 2)[3] & BLINK  # SGR 25: volta a não piscar
     t.feed("\x1b[5m\x1b[0md")
-    assert not t.grid[0][3][3] & BLINK  # 0 limpa a caneta
+    assert not t.cell(0, 3)[3] & BLINK  # 0 limpa a caneta
     t.feed("\x1b[5m\x1b[!pe")
-    assert not t.grid[0][4][3] & BLINK  # soft reset (P59) limpa a caneta
+    assert not t.cell(0, 4)[3] & BLINK  # soft reset (P59) limpa a caneta
 
 
 def osc52_clipboard():
@@ -584,10 +590,10 @@ def dch_beyond_row_width():
     t = Term(cols=10, rows=2)
     t.feed("abcdefghij")
     t.feed("\x1b[1;5H\x1b[99P")  # apaga 99 a partir da coluna 5: só 6 existem
-    assert len(t.grid[0]) == 10
+    assert len(t.grid[0].ch) == 10
     assert _row_text(t.grid[0]) == "abcd      "
     t.feed("\x1b[1;3H\x1b[99@")  # insere 99 na coluna 3: entra o que cabe
-    assert len(t.grid[0]) == 10
+    assert len(t.grid[0].ch) == 10
     assert _row_text(t.grid[0]) == "ab        "
 
 
@@ -598,12 +604,15 @@ def reflow_keeps_styled_blank():
     t.resize(10, 4)
     linha = t.grid[0]
     assert _row_text(linha).rstrip() == "ab"
-    assert [bool(c[3] & UL) for c in linha[:8]] == [True, True] + [True] * 4 + [False] * 2
+    assert [bool(_unpack(v)[2] & UL) for v in linha.pk[:8]] == [True, True] + [True] * 4 + [
+        False
+    ] * 2
     # célula de espaço com hyperlink também é conteúdo, não é branco
     t = Term(cols=20, rows=4)
-    t.feed("\x1b]8;;http://x/\x1b\\ab  \x1b]8;;\x1b\\")
+    t.feed("\x1b]8;;http://x/\x1b\\ab  \x1b]8;;\x1b\\\r\nx")
     t.resize(10, 4)
-    assert t.link_key(t.grid[0][3]) == "http://x/"
+    lk = t.grid[0].lk
+    assert lk is not None and t.link_key(lk[3]) == "http://x/"
 
 
 def history():
@@ -755,44 +764,129 @@ def combining_marks():
     """P73: marca combinante ocupa a célula anterior e não empurra a linha."""
     t = Term(10, 2)
     t.feed("e\u0301x")
-    assert t.grid[0][0][0] == "e\u0301", t.grid[0][0][0]
+    assert t.cell(0, 0)[0] == "e\u0301", t.cell(0, 0)[0]
     assert t.cx == 2  # duas células, não três
-    assert t.grid[0][1][0] == "x"
+    assert t.cell(0, 1)[0] == "x"
     # o caminho rápido (`_put_run`) tem que dar o mesmo resultado
     t.feed("\r\n")
     t.feed("caf\u00e9 e p\u00e3o \u0301")
-    assert t.grid[0][3][0] == "\u00e9"
+    assert t.cell(0, 3)[0] == "\u00e9"
     # a linha encheu (10 células): o espaço quebra e a marca cola nele
-    assert t.grid[1][0][0] == " \u0301"
+    assert t.cell(1, 0)[0] == " \u0301"
     assert t.cx == 1
     # seleção de emoji: VS16 cola na célula do coração
     t2 = Term(6, 2)
     t2.feed("\u2764\ufe0fZ")
-    assert t2.grid[0][0][0] == "\u2764\ufe0f"
-    assert (t2.grid[0][1][0], t2.cx) == ("Z", 2)
+    assert t2.cell(0, 0)[0] == "\u2764\ufe0f"
+    assert (t2.cell(0, 1)[0], t2.cx) == ("Z", 2)
     # a coluna cheia + marca não pode avançar a linha
     t3 = Term(2, 3)
     t3.feed("ab\u0301")
-    assert t3.grid[0][1][0] == "b\u0301"
+    assert t3.cell(0, 1)[0] == "b\u0301"
     assert (t3.cy, t3.cx) == (0, 1)
 
 
-def mark_on_shared_blank_cell():
-    """P73: marca sobre a célula em branco compartilhada não corrompe a grade."""
+def mark_on_blank_row():
+    """P73: marca sobre linha nunca escrita não corrompe as outras linhas."""
     t = Term(cols=10, rows=3)
     t.feed("\x1b[3;5H")  # cursor na coluna 5 de uma linha nunca escrita
     t.feed("\u0301")
-    # a marca copiou a célula em branco em vez de mutá-la
-    assert _BLANK_CELL == [" ", DEF_FG, DEF_BG, 0], _BLANK_CELL
-    assert t.grid[2][3] is not _BLANK_CELL
-    assert t.grid[2][3][0] == " \u0301"
+    # a marca entrou na célula da própria linha, na caneta de quem escreveu
+    assert t.cell(2, 3) == (" \u0301", DEF_FG, DEF_BG, 0, 0), t.cell(2, 3)
+    # as outras linhas seguem no molde branco, cada uma na própria linha
+    assert t.grid[0].ch == [" "] * 10 and list(t.grid[0].pk) == [_BLANK_V] * 10
+    assert t.grid[1].ch == [" "] * 10 and t.grid[1].lk is None
     # as linhas que não receberam a marca seguem em branco
     assert _row_text(t.grid[0]) == " " * 10
     assert _row_text(t.grid[1]) == " " * 10
     # e a base real continua recebendo a marca (P73)
     t.feed("\x1b[1;1He\u0301")
-    assert t.grid[0][0][0] == "e\u0301"
+    assert t.cell(0, 0)[0] == "e\u0301"
     assert _row_text(t.grid[1]) == " " * 10
+
+
+def frozen_scrollback():
+    """Histórico congelado: `ch` vira `str` e o texto sobrevive a reflow e foto."""
+    from .term import _unpack, row_text
+
+    def linhas(rows):
+        return [row_text(r).rstrip() for r in rows if row_text(r).strip()]
+
+    # 1. o que sai da tela vira str do tamanho de `cols`, e o texto é o mesmo
+    t = Term(cols=12, rows=4)
+    t.set_scrollback(50)
+    for i in range(10):
+        t.feed("linha%02d abc\r\n" % i)
+    assert t.scrollback, "nada foi para o histórico"
+    assert all(type(r.ch) is str for r in t.scrollback), "histórico devia estar congelado"
+    assert all(len(r.ch) == 12 for r in t.scrollback), "str congelada tem de ter `cols`"
+    assert all(row_text(r) == r.ch for r in t.scrollback), "row_text na str é a própria str"
+    assert "linha00" in row_text(t.scrollback[0]), "primeira linha do histórico se perdeu"
+    viva = "".join(t.row_text(y) for y in range(t.rows))
+    assert "linha09" in viva, "a linha viva continua na grade"
+
+    # 2. atributo sobrevive ao congelamento (a célula vem pelo caminho frio)
+    t2 = Term(cols=12, rows=4)
+    t2.feed("\x1b[31mvermelho\x1b[0m\r\n")
+    for _ in range(4):
+        t2.feed("enche\r\n")
+    alvo = [r for r in t2.scrollback if "vermelho" in row_text(r)]
+    assert alvo and type(alvo[0].ch) is str, "linha colorida devia congelar"
+    fg, bg, fl = _unpack(alvo[0].pk[0])
+    assert (fg, bg, fl) == (1, DEF_BG, 0), (fg, bg, fl)
+
+    # 3. marca combinante tem mais de um code point por célula: fica lista
+    t3 = Term(cols=8, rows=3)
+    t3.feed("e\u0301abc\r\n")
+    for _ in range(3):
+        t3.feed("\r\n")
+    com_marca = [r for r in t3.scrollback if "e\u0301" in row_text(r)]
+    assert com_marca, "a linha com marca devia estar no histórico"
+    assert type(com_marca[0].ch) is list, "linha com marca não pode congelar"
+
+    # 4. reflow: a linha congelada re-quebra sem perder conteúdo
+    t4 = Term(cols=20, rows=3)
+    t4.set_scrollback(20)
+    for i in range(6):
+        t4.feed("linha %02d com texto\r\n" % i)
+    # estreitar re-quebra cada linha em duas, então compara o texto lógico
+    antes = "".join(linhas(t4.scrollback))
+    t4.resize(10, 3)
+    depois = "".join(linhas(t4.scrollback + t4.grid))
+    assert depois.startswith(antes), (antes, depois)
+
+    # 5. a foto do P57 atravessa a str congelada
+    t5 = Term(cols=10, rows=3)
+    for i in range(5):
+        t5.feed("foto%02d\r\n" % i)
+    volta = Term(cols=10, rows=3)
+    volta.feed(t5.snapshot())
+    assert "foto00" in "".join(linhas(volta.scrollback)), "a foto perdeu linha congelada"
+
+
+def cell_packed_roundtrip():
+    """Layout C: `_pack`/`_unpack` aguentam paleta, sentinelas, truecolor e flags."""
+    # paleta (0-257, com os sentinelas do default) nos dois campos
+    for fg, bg, fl in ((0, 0, 0), (1, 4, 0), (196, 16, 0), (DEF_FG, DEF_BG, 0)):
+        assert _unpack(_pack(fg, bg, fl)) == (fg, bg, fl)
+    # truecolor no extremo: branco é o maior valor que cabe em 25 bits
+    branco = TC | 0xFFFFFF
+    assert branco == (1 << 25) - 1
+    assert _unpack(_pack(branco, branco, 0)) == (branco, branco, 0)
+    # todas as flags juntas, com o estilo do sublinhado
+    fl = ul_on(BOLD | INV | ITALIC | STRIKE | OVERLINE | DIM | HIDDEN | BLINK, UL_CURLY)
+    assert _unpack(_pack(branco, 3, fl)) == (branco, 3, fl)
+    assert ul_style(_unpack(_pack(0, 0, fl))[2]) == UL_CURLY
+    # ida e volta pela grade: a célula que entra é a que sai
+    t = Term(4, 2)
+    t.feed("\x1b[1;4;7;9;53m\x1b[38;2;255;255;255m\x1b[48;5;196mX")
+    assert t.cell(0, 0) == ("X", branco, 196, BOLD | UL | INV | STRIKE | OVERLINE, 0)
+    t.feed("\x1b[0m")
+    assert t.cell(0, 1) == (" ", DEF_FG, DEF_BG, 0, 0)
+    # toda linha em branco compartilha o mesmo valor empacotado
+    limpo = Term(4, 2)
+    assert {v for row in limpo.grid for v in row.pk} == {_BLANK_V}
+    assert _BLANK_V == _pack(DEF_FG, DEF_BG, 0)
 
 
 def osc8_link_id():
@@ -802,11 +896,11 @@ def osc8_link_id():
     t.feed(E + "id=A:foo=1;https://a\x1b\\x" + E + ";\x1b\\")
     t.feed(E + "id=A;https://a/outra\x1b\\y" + E + ";\x1b\\")
     t.feed(E + ";https://a\x1b\\z" + E + ";\x1b\\")
-    assert t.link_of(t.grid[0][0]) == "https://a"
-    assert t.link_key(t.grid[0][0]) == "A"  # o `id` vira a chave
-    assert t.link_key(t.grid[0][1]) == "A"  # mesmo id, outro URI: mesmo link
-    assert t.link_of(t.grid[0][1]) == "https://a/outra"
-    assert t.link_key(t.grid[0][2]) == "https://a"  # sem id: o URI agrupa
+    assert t.link_of(t.cell(0, 0)[4]) == "https://a"
+    assert t.link_key(t.cell(0, 0)[4]) == "A"  # o `id` vira a chave
+    assert t.link_key(t.cell(0, 1)[4]) == "A"  # mesmo id, outro URI: mesmo link
+    assert t.link_of(t.cell(0, 1)[4]) == "https://a/outra"
+    assert t.link_key(t.cell(0, 2)[4]) == "https://a"  # sem id: o URI agrupa
     t.feed("\x1b[3J")  # a tabela morre junto com o histórico
     assert (t.links, t.link_keys) == ([], [])
 
@@ -839,11 +933,11 @@ def hyperlinks():
     """OSC 8: o URI mora na célula, repetido reusa o índice, e o clique tem whitelist."""
     t = Term()
     t.feed("\x1b]8;;https://example.com\x1b\\A\x1b]8;;\x1b\\B")
-    assert t.link_of(t.grid[0][0]) == "https://example.com"
-    assert t.link_of(t.grid[0][1]) is None  # URI vazio fecha o link
+    assert t.link_of(t.cell(0, 0)[4]) == "https://example.com"
+    assert t.link_of(t.cell(0, 1)[4]) is None  # URI vazio fecha o link
     t.feed("\x1b]8;;https://example.com\x1b\\C")
     assert t.links == ["https://example.com"]  # internado, não duplicado
-    assert t.link_of(t.grid[0][2]) == "https://example.com"
+    assert t.link_of(t.cell(0, 2)[4]) == "https://example.com"
     assert link_allowed("https://x/y") and link_allowed("MAILTO:a@b")
     assert not link_allowed("javascript:alert(1)")
     assert not link_allowed("data:text/html,<script>")
@@ -1082,20 +1176,20 @@ def truecolor():
     """RGB mora na célula (bit 24), nas formas ';' e ':', sobrevivendo ao resize."""
     t = Term()
     t.feed("\x1b[38;2;18;52;86mA\x1b[48;2;250;128;114mB")
-    assert t.grid[0][0][1] == rgb(18, 52, 86)
-    assert t.grid[0][1][2] == rgb(250, 128, 114)
-    assert cell_rgb(t.grid[0][0][1], FG_DEFAULT) == (18, 52, 86)
+    assert t.cell(0, 0)[1] == rgb(18, 52, 86)
+    assert t.cell(0, 1)[2] == rgb(250, 128, 114)
+    assert cell_rgb(t.cell(0, 0)[1], FG_DEFAULT) == (18, 52, 86)
     t.feed("\x1b[38:2::7:8:9mC")
-    assert cell_rgb(t.grid[0][2][1], FG_DEFAULT) == (7, 8, 9)
+    assert cell_rgb(t.cell(0, 2)[1], FG_DEFAULT) == (7, 8, 9)
     t = Term()
     t.feed("\x1b[38;5;196mA\x1b[0mB")
-    assert t.grid[0][0][1] == 196
-    assert t.grid[0][1][1] == DEF_FG
-    assert t.grid[0][1][2] == DEF_BG
+    assert t.cell(0, 0)[1] == 196
+    assert t.cell(0, 1)[1] == DEF_FG
+    assert t.cell(0, 1)[2] == DEF_BG
     t = Term(cols=4, rows=2)
     t.feed("\x1b[38;2;1;2;3mXYZW")
     t.resize(8, 2)
-    assert t.grid[0][0][1] == rgb(1, 2, 3)
+    assert t.cell(0, 0)[1] == rgb(1, 2, 3)
 
 
 def ligature_config():
@@ -1254,12 +1348,12 @@ def snapshot_restore():
     assert c.snapshot() == foto
     assert texto(c) == texto(t)
     # atributos sobrevivem: negrito, cor 1, sublinhado curvo, inverso
-    assert c.grid[0][0][3] & BOLD and c.grid[0][0][1] == 1
-    assert c.grid[1][0][3] & UL and ul_style(c.grid[1][0][3]) == UL_CURLY
-    assert c.grid[1][7][3] & INV
+    assert c.cell(0, 0)[3] & BOLD and c.cell(0, 0)[1] == 1
+    assert c.cell(1, 0)[3] & UL and ul_style(c.cell(1, 0)[3]) == UL_CURLY
+    assert c.cell(1, 7)[3] & INV
     # e o link volta com o mesmo URI
     assert c.links == ["https://example.com/x"]
-    assert c.link_of(c.grid[3][0]) == "https://example.com/x"
+    assert c.link_of(c.cell(3, 0)[4]) == "https://example.com/x"
     # quebra mole não vira `\n`: reaberta mais larga, o parágrafo é uma linha
     largo = Term(cols=40, rows=6)
     largo.feed(foto)
@@ -1285,7 +1379,9 @@ def snapshot_restore():
     bad = Term(cols=20, rows=2)
     bad.links.append("a\x1b[31mb")
     bad.link_keys.append("a\x1b[31mb")
-    bad.grid[0][0] = ["X", DEF_FG, DEF_BG, 0, 1]
+    bad.link = 1
+    bad.feed("X")  # célula com o link 1, cujo URI tem caractere de controle
+    assert bad.cell(0, 0) == ("X", DEF_FG, DEF_BG, 0, 1)
     ruim = bad.snapshot()
     assert "X" in ruim and "a[31mb" in ruim and "\x1b[31m" not in ruim
 
@@ -1381,7 +1477,7 @@ def tab_stops():
     # tabulação com espaço e texto continua alinhando na célula
     t = Term(cols=40, rows=3)
     t.feed("a\tb")
-    assert t.grid[0][0][0] == "a" and t.grid[0][8][0] == "b"
+    assert t.cell(0, 0)[0] == "a" and t.cell(0, 8)[0] == "b"
 
 
 def strike_and_overline():
@@ -1390,17 +1486,17 @@ def strike_and_overline():
 
     t = Term(cols=10, rows=3)
     t.feed("\x1b[9mx\x1b[29my")
-    assert t.grid[0][0][3] & STRIKE
-    assert not t.grid[0][1][3] & STRIKE
+    assert t.cell(0, 0)[3] & STRIKE
+    assert not t.cell(0, 1)[3] & STRIKE
     t.feed("\x1b[53m\x1b[9mz")
-    fl = t.grid[0][2][3]
+    fl = t.cell(0, 2)[3]
     assert fl & STRIKE and fl & OVERLINE
     t.feed("\x1b[55m\x1b[0mw")
-    assert not t.grid[0][3][3] & (STRIKE | OVERLINE)
+    assert not t.cell(0, 3)[3] & (STRIKE | OVERLINE)
     # SGR 0 limpa as duas
     t.feed("\x1b[9;53ma\x1b[mb")
-    assert t.grid[0][4][3] & (STRIKE | OVERLINE)
-    assert not t.grid[0][5][3] & (STRIKE | OVERLINE)
+    assert t.cell(0, 4)[3] & (STRIKE | OVERLINE)
+    assert not t.cell(0, 5)[3] & (STRIKE | OVERLINE)
 
 
 def screen_scroll():
@@ -1778,7 +1874,9 @@ ALL = (
     hyperlinks,
     osc8_link_id,
     combining_marks,
-    mark_on_shared_blank_cell,
+    mark_on_blank_row,
+    cell_packed_roundtrip,
+    frozen_scrollback,
     chrome_config,
     paste_markers,
     truecolor,

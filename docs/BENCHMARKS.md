@@ -432,6 +432,54 @@ grep prof: /tmp/tortty-python.log
   light is true for footprint and false for throughput. Decision in
   [LIMITATIONS.md](LIMITATIONS.md).
 
+## Cell layout and the frozen history (2026-11-14)
+
+- Question: what a cell costs, and what a row of text plus packed attributes
+  buys over one object per cell. Load: `dmesg --color=always` (129875 bytes,
+  1365 lines, 5344 ESC, five SGR forms) parsed by the real `Term` at 96x25 and
+  repeated until the history holds 10000 rows (962400 cells).
+- Governor `schedutil`, 16 CPUs, one process at a time; the app under Xvfb with
+  `--debug-socket`, the history filled through the socket and `RssAnon` read
+  from `/proc/<pid>/status` before and after the fill.
+- Layouts compared: A = one 4-item list per cell (main until 0.0.23), B = flat
+  5-slot list per row, C = row of `ch` list plus `packed` `array('Q')`, D = C
+  with the history frozen (`ch` as a `str`).
+
+Memory, anonymous RSS added by 10000 rows (74 columns of text per row):
+
+| history | A | B | C | D |
+|---|---|---|---|---|
+| ASCII | 78.7 MB | 40.4 MB | 18.6 MB | 10.2 MB |
+| CJK (74 ideograms per row) | 128.0 MB | — | 67.8 MB | 15.1 MB |
+
+- Per line: A 7.9 MB / 13.1 MB per 1000 rows (ASCII / CJK), C 1.9 / 6.8,
+  D 1.0 / 1.5.
+- C wins by packing the attributes and by not having an object per cell; D wins
+  again on CJK because a `str` stores 2 bytes per syllable where a cell object
+  costs ~76 bytes per character.
+
+Time, in-process over the same 962400 cells (`timeit`, best of 3):
+
+| | `feed` | `snapshot` | drawing (grouping + run text) |
+|---|---|---|---|
+| A | 507 ms | 125 ms | 141 ms |
+| C | 441 ms | 101 ms | 62 ms |
+| D | 484 ms | 99 ms | 55 ms |
+
+- D pays ~10% on `feed` for one `join` per row that leaves the screen, and earns
+  it back on drawing (a `str` slice is the run text, no join per run) and on
+  `snapshot` (both C and D use the emitter that appends per segment instead of
+  per cell; that change alone was ~5%).
+- Doom-fire, the case of one cell per run, is unchanged: the live grid is the
+  same and the frozen path is cold. `tools/bench.sh` full frame: C 161.8 and
+  146.6 fps, D 144.9 and 149.5 fps, `draw` 3.96/4.00 ms against 4.03/3.85 ms —
+  inside the noise of the ladder.
+- Reading: the grid stopped being the biggest object in the process. A full
+  history of 10000 rows cost more than the whole app PSS of the footprint
+  section; now it costs a fraction of it.
+- Method note: `sys.getsizeof` over every cell is not a usable measure here (it
+  double counts shared blank cells and the payload itself); the RSS delta is.
+
 ## Cold paths: the snapshot of a tab (2026-11-13)
 
 - `restore_state content` (P57) touches neither the frame nor the parse loop:

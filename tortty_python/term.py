@@ -7,6 +7,7 @@ abrir janela (e sem display). Quem desenha é `window.TorttyWindow`.
 import base64
 import re
 import unicodedata
+from array import array
 from typing import NamedTuple
 from urllib.parse import unquote
 
@@ -40,10 +41,107 @@ _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 _ESC_CACHE = {}
 _ESC_MAX = 1024
 
-# Célula em branco compartilhada (P21): escrever SEMPRE substitui a célula na
-# linha (`row[x] = [...]`), nunca muta in-place — é o que permite uma única
-# lista servir de linha em branco inteira.
-_BLANK_CELL = [" ", DEF_FG, DEF_BG, 0]
+# Layout C: a linha é `ch` (um str por célula), `pk` (array('Q') com fg, bg e
+# flags empacotados) e `lk` (array('i') de links, só quando a linha tem link).
+
+
+class Row:
+    """Uma linha: caracteres, atributos empacotados e links.
+
+    `ch` é lista na grade viva e `str` no histórico congelado (ver `frozen`).
+    """
+
+    __slots__ = ("ch", "pk", "lk")
+
+    def __init__(self, ch, pk, lk=None):
+        self.ch, self.pk, self.lk = ch, pk, lk
+
+
+def frozen(row):
+    """Congela a linha que vai para o histórico: chars numa `str` em vez de lista.
+
+    O histórico é imutável (só é lido, no reflow e na foto), então a lista de
+    ponteiros (8 B por célula) não precisa existir: uma `str` guarda ASCII num
+    byte por célula e CJK em 2-3, em vez de um objeto `str` por célula. Célula
+    com marca combinante tem mais de um code point e deixaria de casar com a
+    coluna, então essa linha fica como lista.
+    """
+    ch = row.ch
+    if type(ch) is str:
+        return row
+    texto = "".join(ch)
+    if len(texto) != len(ch):
+        return row
+    return Row(texto, row.pk, row.lk)
+
+
+def row_text(row, a=0, b=None):
+    """Texto de um trecho da linha (congelada ou viva)."""
+    ch = row.ch
+    if type(ch) is str:
+        return ch[a:b]
+    return "".join(ch[a:b])
+
+
+# 25 bits de fg, 25 de bg, 12 de flags: branco truecolor (0x1FFFFFF) cabe exato.
+_FG_MASK = (1 << 25) - 1
+
+
+def _pack(fg, bg, fl):
+    """Célula empacotada: fg nos bits 0-24, bg em 25-49, flags em 50-61."""
+    return (fl << 50) | (bg << 25) | fg
+
+
+def _unpack(v):
+    return (v & _FG_MASK, (v >> 25) & _FG_MASK, v >> 50)
+
+
+_BLANK_V = _pack(DEF_FG, DEF_BG, 0)
+
+# Repetir um valor numa fatia de array pede uma origem do mesmo typecode: o
+# cache guarda o array pronto porque o valor é constante no run.
+_REP = {}
+
+
+def _rep(tipo, v, n):
+    """`array(tipo, [v]) * n`, cacheado (teto pequeno: poucos valores por run)."""
+    chave = (tipo, v, n)
+    a = _REP.get(chave)
+    if a is None:
+        if len(_REP) > 512:
+            _REP.clear()
+        a = _REP[chave] = array(tipo, [v]) * n
+    return a
+
+
+def row_link(row, x):
+    """Índice do hyperlink na célula `x` (0 = nenhum)."""
+    return row.lk[x] if row.lk is not None else 0
+
+
+def _erase(row, x0, x1, v):
+    """Células de `x0` a `x1` em branco com o valor `v` (bce: sem link)."""
+    n = x1 - x0
+    if n <= 0:
+        return
+    row.ch[x0:x1] = [" "] * n
+    row.pk[x0:x1] = _rep("Q", v, n)
+    if row.lk is not None:
+        row.lk[x0:x1] = _rep("i", 0, n)
+
+
+def _crop_row(row, cols):
+    """Linha recortada (ou completada com branco) em `cols` células."""
+    lk = None if row.lk is None else row.lk[:cols]
+    ch, pk = row.ch[:cols], row.pk[:cols]
+    falta = cols - len(ch)
+    if falta > 0:
+        ch.extend([" "] * falta)
+        pk.extend(_rep("Q", _BLANK_V, falta))
+        if lk is not None:
+            lk.extend(_rep("i", 0, falta))
+    return Row(ch, pk, lk)
+
 
 # Cache de parâmetros de CSI (P22): (corpo do CSI, final) -> (nums, prefixo).
 # Independente do estado do terminal — só o parse dos números é cacheado.
@@ -79,9 +177,8 @@ def shell_quoted(path):
 # Fora da foto: imagem, clipboard, notificação, título — tudo que FAZ algo.
 
 
-def _sgr(cell):
-    """SGR que reproduz a caneta da célula, sempre partindo do reset (P57)."""
-    fg, bg, fl = cell[1], cell[2], cell[3]
+def _sgr(fg, bg, fl):
+    """SGR que reproduz a caneta de uma célula, partindo do reset (P57)."""
     out = ["\x1b[0"]
     for bit, code in (
         (BOLD, ";1"),
@@ -119,11 +216,9 @@ def _sgr_color(c, fg):
     return ";%d;5;%d" % (38 if fg else 48, c)
 
 
-def _padding(cell):
-    """Célula que não desenha nem carrega nada: o branco à direita da linha."""
-    return (
-        cell[0] == " " and cell[1] == DEF_FG and cell[2] == DEF_BG and not cell[3] and len(cell) < 5
-    )
+def _padding(row, x):
+    """Célula em `x` que não desenha nem carrega nada: o branco à direita."""
+    return row.ch[x] == " " and row.pk[x] == _BLANK_V and not row_link(row, x)
 
 
 def _link_text(uri):
@@ -157,9 +252,19 @@ def snapshot(term):
         first, prev_wrapped = False, wrap
         # linha de quebra mole está cheia por definição: os brancos do fim são
         # conteúdo, e cortá-los moveria a quebra
-        end = len(row) if wrap else _end_of_content(row)
-        for cell in row[:end]:
-            i = cell[4] if len(cell) > 4 else 0
+        end = len(row.ch) if wrap else _end_of_content(row)
+        pks, lks = row.pk, row.lk
+        # o texto sai por trecho (não por célula): a linha congelada é `str`,
+        # então o trecho é uma fatia, e a linha viva junta de uma vez
+        pend = 0
+        for x in range(end):
+            i = lks[x] if lks is not None else 0
+            v = pks[x]
+            if i == link and v == pen:
+                continue
+            if x > pend:
+                out.append(row_text(row, pend, x))
+                pend = x
             if i != link:
                 if link:
                     out.append("\x1b]8;;\x1b\\")
@@ -168,10 +273,12 @@ def snapshot(term):
                 if uri:
                     out.append("\x1b]8;;" + _link_text(uri) + "\x1b\\")
                     link = i
-            if (cell[1], cell[2], cell[3]) != pen:
-                out.append(_sgr(cell))
-                pen = (cell[1], cell[2], cell[3])
-            out.append(cell[0])
+            if v != pen:
+                fg, bg, fl = _unpack(v)
+                out.append(_sgr(fg, bg, fl))
+                pen = v
+        if end > pend:
+            out.append(row_text(row, pend, end))
     if link:
         out.append("\x1b]8;;\x1b\\")
     if pen is not None:
@@ -182,10 +289,10 @@ def snapshot(term):
 
 
 def _end_of_content(row):
-    """Índice depois da última célula que carrega algo (corta o branco)."""
-    for i in range(len(row) - 1, -1, -1):
-        if not _padding(row[i]):
-            return i + 1
+    """Índice (em células) depois da última que carrega algo (corta o branco)."""
+    for x in range(len(row.ch) - 1, -1, -1):
+        if not _padding(row, x):
+            return x + 1
     return 0
 
 
@@ -247,9 +354,15 @@ def _has_mark(text):
     return hit
 
 
-def _vazia(cell):
+def _vazia(row, i):
     """Célula sem nada pintado: espaço, fundo default, sem atributo e sem link."""
-    return cell[0] == " " and cell[2] == DEF_BG and not cell[3] and (len(cell) < 5 or not cell[4])
+    v = row.pk[i]
+    return (
+        row.ch[i] == " "
+        and (v >> 25) & _FG_MASK == DEF_BG
+        and not v >> 50
+        and (row.lk is None or not row.lk[i])
+    )
 
 
 class CellAnchor(NamedTuple):
@@ -406,11 +519,39 @@ class Term:
 
     # -- grade ------------------------------------------------------
     def _blank_row(self):
-        return [_BLANK_CELL] * self.cols
+        """Linha em branco: `cols` espaços e o valor empacotado do branco."""
+        return Row([" "] * self.cols, array("Q", [_BLANK_V]) * self.cols)
+
+    def _blank_v(self):
+        """Valor empacotado da área apagada (bce: herda o bg corrente)."""
+        return _pack(DEF_FG, self.bg, 0)
+
+    def _bce_row(self):
+        """Linha em branco com o bg corrente (área apagada, bce)."""
+        return Row([" "] * self.cols, array("Q", [self._blank_v()]) * self.cols)
 
     def blank_cell(self):
-        # áreas apagadas herdam o bg corrente (bce, como terminal real)
-        return [" ", DEF_FG, self.bg, 0]
+        """Célula em branco com o bg corrente, como tupla de 5 (caminho frio)."""
+        return (" ", DEF_FG, self.bg, 0, 0)
+
+    def cell(self, y, x):
+        """Célula da grade como tupla de 5 (caminho frio: aloca)."""
+        row = self.grid[y]
+        fg, bg, fl = _unpack(row.pk[x])
+        return (row.ch[x], fg, bg, fl, row_link(row, x))
+
+    def sb_cell(self, i, x):
+        """Célula do histórico como tupla de 5 (caminho frio: aloca)."""
+        row = self.scrollback[i]
+        fg, bg, fl = _unpack(row.pk[x])
+        return (row.ch[x], fg, bg, fl, row_link(row, x))
+
+    def cell_abs(self, i, x):
+        """Célula de `scrollback + grid` como tupla de 5 (caminho frio: aloca)."""
+        sb = len(self.scrollback)
+        row = self.scrollback[i] if i < sb else self.grid[i - sb]
+        fg, bg, fl = _unpack(row.pk[x])
+        return (row.ch[x], fg, bg, fl, row_link(row, x))
 
     def reset(self):
         """RIS (ESC c): limpa tudo, mantém o tamanho e o teto do histórico."""
@@ -465,12 +606,9 @@ class Term:
         new = []
         for y in range(rows):
             if y < old_rows:
-                row = old_grid[y][:cols]
-                if len(row) < cols:
-                    row = row + [self._blank_cell_raw() for _ in range(cols - len(row))]
-                new.append(row)
+                new.append(_crop_row(old_grid[y], cols))
             else:
-                new.append([self._blank_cell_raw() for _ in range(cols)])
+                new.append(self._blank_row())
         self.grid = new
         self.row_wrapped = old_wrapped[:rows] + [False] * max(0, rows - len(old_wrapped))
         self.row_chrome = old_chrome[:rows] + [False] * max(0, rows - len(old_chrome))
@@ -506,7 +644,7 @@ class Term:
                 row, wrapped = self.grid[j], self.row_wrapped[j]
                 deco = self.row_chrome[j]
             if cur is None:
-                cur = []
+                cur = Row([], array("Q"), None)
                 lines.append(cur)
                 line_chrome.append(False)
                 off = 0
@@ -514,11 +652,17 @@ class Term:
             # decoração viaja com o parágrafo (P57): a marca da restauração não
             # pode reaparecer como conteúdo depois de uma re-quebra
             line_chrome[-1] = line_chrome[-1] or deco
-            cur.extend(row)
-            off += len(row)
+            n0 = len(cur.ch)
+            cur.ch.extend(row.ch)
+            cur.pk.extend(row.pk)
+            if row.lk is not None or cur.lk is not None:
+                if cur.lk is None:
+                    cur.lk = array("i", _rep("i", 0, n0))
+                cur.lk.extend(row.lk if row.lk is not None else _rep("i", 0, len(row.ch)))
+            off += len(row.ch)
             if not wrapped:
                 cur = None
-        if cur is not None and not cur:
+        if cur is not None and not cur.ch:
             lines.pop()
         if cur_abs < len(row_info):
             line_idx, off0 = row_info[cur_abs]
@@ -533,23 +677,33 @@ class Term:
         # (espaço, bg default, sem atributo e sem link) — fundo colorido de
         # barra/status, espaço sublinhado e espaço de hyperlink ficam.
         for li, line in enumerate(lines):
-            real = len(line)
-            while real and _vazia(line[real - 1]):
+            real = len(line.ch)
+            while real and _vazia(line, real - 1):
                 real -= 1
             if li == line_idx and cur_off is not None and cur_off > real:
                 real = cur_off  # não perde a posição do cursor
-            del line[real:]
+            del line.ch[real:]
+            del line.pk[real:]
+            if line.lk is not None:
+                del line.lk[real:]
 
         new_rows, new_wrap, new_chrome = [], [], []
         cur_new = None
-        blank = self._blank_cell_raw
         for li, line in enumerate(lines):
-            chunks = [line[k : k + cols] for k in range(0, len(line), cols)] if line else [[]]
-            for ci, chunk in enumerate(chunks):
-                if len(chunk) < cols:
-                    chunk = chunk + [blank() for _ in range(cols - len(chunk))]
-                new_rows.append(chunk)
-                new_wrap.append(ci < len(chunks) - 1)
+            nch = max(1, (len(line.ch) + cols - 1) // cols)
+            for ci in range(nch):
+                k = ci * cols
+                ch = line.ch[k : k + cols]
+                pk = line.pk[k : k + cols]
+                lk = None if line.lk is None else line.lk[k : k + cols]
+                falta = cols - len(ch)
+                if falta:
+                    ch.extend([" "] * falta)
+                    pk.extend(_rep("Q", _BLANK_V, falta))
+                    if lk is not None:
+                        lk.extend(_rep("i", 0, falta))
+                new_rows.append(Row(ch, pk, lk))
+                new_wrap.append(ci < nch - 1)
                 new_chrome.append(line_chrome[li])
                 # só o primeiro chunk que contém o cursor ganha (sem isso o
                 # último chunk da linha sobrescrevia e o cursor pulava)
@@ -557,7 +711,7 @@ class Term:
                     li == line_idx
                     and cur_off is not None
                     and cur_new is None
-                    and (cur_off < (ci + 1) * cols or ci == len(chunks) - 1)
+                    and (cur_off < (ci + 1) * cols or ci == nch - 1)
                 ):
                     cur_new = (
                         len(new_rows) - 1,
@@ -568,14 +722,14 @@ class Term:
         if cur_new is not None:
             while len(new_rows) - 1 > cur_new[0]:
                 last = new_rows[-1]
-                if any(not _vazia(c) for c in last):
+                if any(not _vazia(last, i) for i in range(len(last.ch))):
                     break
                 new_rows.pop()
                 new_wrap.pop()
                 new_chrome.pop()
 
         split = max(0, len(new_rows) - rows)
-        self.scrollback = new_rows[:split]
+        self.scrollback = [frozen(r) for r in new_rows[:split]]
         self.sb_wrapped = new_wrap[:split]
         self.sb_chrome = new_chrome[:split]
         self._trim_scrollback()
@@ -583,7 +737,7 @@ class Term:
         self.row_wrapped = new_wrap[split:]
         self.row_chrome = new_chrome[split:]
         while len(self.grid) < rows:
-            self.grid.append([blank() for _ in range(cols)])
+            self.grid.append(Row([" "] * cols, array("Q", [_BLANK_V]) * cols))
             self.row_wrapped.append(False)
             self.row_chrome.append(False)
 
@@ -604,9 +758,6 @@ class Term:
         else:
             self.cx = min(self.cx, cols - 1)
             self.cy = min(self.cy, rows - 1)
-
-    def _blank_cell_raw(self):
-        return _BLANK_CELL
 
     def set_scrollback(self, n):
         """Novo teto do histórico (P34): corta o excedente na hora."""
@@ -661,7 +812,7 @@ class Term:
             self.row_chrome.insert(self.bottom, False)
         else:
             if self.top == 0 and self.bottom == self.rows - 1:
-                self.scrollback.append(self.grid.pop(0))
+                self.scrollback.append(frozen(self.grid.pop(0)))
                 self.sb_wrapped.append(self.row_wrapped.pop(0))
                 self.sb_chrome.append(self.row_chrome.pop(0))
                 if len(self.scrollback) > self.scrollback_limit:
@@ -706,16 +857,14 @@ class Term:
             self.row_chrome.pop(self.bottom)
             self.row_chrome.insert(self.top, False)
 
-    def link_of(self, cell):
-        """URI do hyperlink da célula (OSC 8), ou None."""
-        i = cell[4] if len(cell) > 4 else 0
+    def link_of(self, i):
+        """URI do hyperlink pelo índice do slot da célula (5º campo), ou None."""
         if not i or i > len(self.links):
             return None
         return self.links[i - 1]
 
-    def link_key(self, cell):
-        """Chave de agrupamento do link: o `id=` quando existe, senão o URI (P76)."""
-        i = cell[4] if len(cell) > 4 else 0
+    def link_key(self, i):
+        """Chave de agrupamento do link pelo índice (5º campo): `id=` ou URI (P76)."""
         if not i or i > len(self.link_keys):
             return None
         return self.link_keys[i - 1]
@@ -760,13 +909,10 @@ class Term:
             # de ocupar outra — a linha andava uma coluna a mais
             col = self.cols - 1 if self.wrap_pending else self.cx - 1
             if col >= 0:
-                alvo = self.grid[self.cy][col]
-                if alvo is not None:
-                    novo = list(alvo)  # a célula em branco é compartilhada
-                    novo[0] += ch
-                    self.grid[self.cy][col] = novo
-                    self.dirty.add(self.cy)
-                    return
+                row = self.grid[self.cy]
+                row.ch[col] = row.ch[col] + ch
+                self.dirty.add(self.cy)
+                return
         if self.wrap_pending:
             # a linha que encheu continua na de baixo (quebra mole): é o que
             # o reflow usa pra juntar de novo ao alargar
@@ -777,10 +923,14 @@ class Term:
         if self.charset_dec:
             ch = DEC_SPECIAL.get(ch, ch)
         self.last_char = ch  # `REP` repete o último impresso (P56)
-        cell = [ch, self.fg, self.bg, self.flags]
-        if self.link:
-            cell.append(self.link)  # o campo extra só existe com link
-        self.grid[self.cy][self.cx] = cell
+        x = self.cx
+        row = self.grid[self.cy]
+        row.ch[x] = ch
+        row.pk[x] = _pack(self.fg, self.bg, self.flags)
+        if self.link or row.lk is not None:
+            if row.lk is None:
+                row.lk = array("i", _rep("i", 0, self.cols))
+            row.lk[x] = self.link
         if self.chrome_feed:
             self.row_chrome[self.cy] = True
         self.dirty.add(self.cy)
@@ -825,9 +975,10 @@ class Term:
 
     def erase_display(self, n):
         self.touch_all()
+        v = self._blank_v()
         if n == 2 or n == 3:
             for y in range(self.rows):
-                self.grid[y] = [self.blank_cell() for _ in range(self.cols)]
+                self.grid[y] = self._bce_row()
             if n == 3:
                 self.scrollback.clear()
                 self.sb_wrapped.clear()
@@ -841,32 +992,29 @@ class Term:
                 self.hist_gen += 1
             self.cursor_to(0, 0)
         elif n == 1:
-            for x in range(self.cx + 1):
-                self.grid[self.cy][x] = self.blank_cell()
+            _erase(self.grid[self.cy], 0, self.cx + 1, v)
             for y in range(self.cy):
-                self.grid[y] = [self.blank_cell() for _ in range(self.cols)]
+                self.grid[y] = self._bce_row()
         else:  # 0
-            for x in range(self.cx, self.cols):
-                self.grid[self.cy][x] = self.blank_cell()
+            _erase(self.grid[self.cy], self.cx, self.cols, v)
             for y in range(self.cy + 1, self.rows):
-                self.grid[y] = [self.blank_cell() for _ in range(self.cols)]
+                self.grid[y] = self._bce_row()
 
     def erase_line(self, n):
         self.dirty.add(self.cy)
+        row = self.grid[self.cy]
         if n == 2:
-            self.grid[self.cy] = [self.blank_cell() for _ in range(self.cols)]
+            self.grid[self.cy] = self._bce_row()
         elif n == 1:
-            for x in range(self.cx + 1):
-                self.grid[self.cy][x] = self.blank_cell()
+            _erase(row, 0, self.cx + 1, self._blank_v())
         else:
-            for x in range(self.cx, self.cols):
-                self.grid[self.cy][x] = self.blank_cell()
+            _erase(row, self.cx, self.cols, self._blank_v())
 
     def insert_lines(self, n):
         self.touch_all()
         for _ in range(n):
             self.grid.pop(self.bottom)
-            self.grid.insert(self.cy, [self.blank_cell() for _ in range(self.cols)])
+            self.grid.insert(self.cy, self._bce_row())
             self.row_wrapped.pop(self.bottom)
             self.row_wrapped.insert(self.cy, False)
             self.row_chrome.pop(self.bottom)
@@ -876,7 +1024,7 @@ class Term:
         self.touch_all()
         for _ in range(n):
             self.grid.pop(self.cy)
-            self.grid.insert(self.bottom, [self.blank_cell() for _ in range(self.cols)])
+            self.grid.insert(self.bottom, self._bce_row())
             self.row_wrapped.pop(self.cy)
             self.row_wrapped.insert(self.bottom, False)
             self.row_chrome.pop(self.cy)
@@ -1083,7 +1231,7 @@ class Term:
                         self.row_chrome = self.alt_chrome
                     self.alt_wrapped = None
                     self.alt_chrome = None
-                    if self.grid and len(self.grid[0]) != self.cols:
+                    if self.grid and len(self.grid[0].ch) != self.cols:
                         # tamanho mudou com a tela cheia ligada: re-quebra
                         # em vez de deixar linha curta na grade
                         self._reflow(self.cols, self.rows)
@@ -1196,8 +1344,14 @@ class Term:
             k = min(get(0, 1) or 1, self.cols - self.cx)  # além da borda não entra
             self.dirty.add(self.cy)
             row = self.grid[self.cy]
-            row[self.cx : self.cx] = [self.blank_cell()] * k
-            del row[self.cols :]
+            row.ch[self.cx : self.cx] = [" "] * k
+            row.pk[self.cx : self.cx] = _rep("Q", self._blank_v(), k)
+            if row.lk is not None:
+                row.lk[self.cx : self.cx] = _rep("i", 0, k)
+            del row.ch[self.cols :]
+            del row.pk[self.cols :]
+            if row.lk is not None:
+                del row.lk[self.cols :]
         elif final == "P":
             # sem o limite, del apagava menos do que k e o extend devolvia k
             # células: a linha crescia além de self.cols e o histórico ficava
@@ -1205,13 +1359,18 @@ class Term:
             k = min(get(0, 1) or 1, self.cols - self.cx)
             self.dirty.add(self.cy)
             row = self.grid[self.cy]
-            del row[self.cx : self.cx + k]
-            row.extend([self.blank_cell()] * k)
+            del row.ch[self.cx : self.cx + k]
+            del row.pk[self.cx : self.cx + k]
+            if row.lk is not None:
+                del row.lk[self.cx : self.cx + k]
+            row.ch.extend([" "] * k)
+            row.pk.extend(_rep("Q", self._blank_v(), k))
+            if row.lk is not None:
+                row.lk.extend(_rep("i", 0, k))
         elif final == "X":
-            k = get(0, 1) or 1
+            hi = min(self.cols, self.cx + (get(0, 1) or 1))
             self.dirty.add(self.cy)
-            for x in range(self.cx, min(self.cols, self.cx + k)):
-                self.grid[self.cy][x] = self.blank_cell()
+            _erase(self.grid[self.cy], self.cx, hi, self._blank_v())
         elif final == "r":
             t, b = get(0, 1) - 1, get(1, self.rows) - 1
             if 0 <= t < b < self.rows:
@@ -1318,12 +1477,21 @@ class Term:
             self.bg = color
         return end + 1
 
-    def _cells(self, text, fg, bg, fl):
-        """Células de um trecho; o índice do link só entra quando existe (OSC 8)."""
-        if self.link:
-            link = self.link
-            return [[c, fg, bg, fl, link] for c in text]
-        return [[c, fg, bg, fl] for c in text]
+    def _put_cells(self, row, x, text):
+        """Escreve um trecho na linha a partir da coluna `x` com a caneta corrente.
+
+        O atributo é constante no trecho: uma fatia de array comprado pronto
+        (`_rep`) sai no nível do C em vez de célula a célula em Python.
+        """
+        n = len(text)
+        fim = x + n
+        row.ch[x:fim] = text
+        row.pk[x:fim] = _rep("Q", _pack(self.fg, self.bg, self.flags), n)
+        # o `or` importa: com link velho na linha, a escrita tem de zerar a célula
+        if self.link or row.lk is not None:
+            if row.lk is None:
+                row.lk = array("i", _rep("i", 0, self.cols))
+            row.lk[x:fim] = _rep("i", self.link, n)
 
     def _put_run(self, run):
         """Trecho imprimível de uma vez, com a mesma quebra mole do put."""
@@ -1333,7 +1501,6 @@ class Term:
             for ch in run:
                 self.put(ch)
             return
-        fg, bg, fl = self.fg, self.bg, self.flags
         self.last_char = run[-1]  # `REP` repete o último impresso (P56)
         i, n = 0, len(run)
         while i < n:
@@ -1350,12 +1517,12 @@ class Term:
                 self.row_chrome[self.cy] = True
             self.dirty.add(self.cy)
             if k >= avail:  # enche até a última coluna: quebra mole
-                row[cx:] = self._cells(run[i : i + avail], fg, bg, fl)
+                self._put_cells(row, cx, run[i : i + avail])
                 self.cx = self.cols - 1
                 self.wrap_pending = self.autowrap
                 i += avail
             else:
-                row[cx : cx + k] = self._cells(run[i:], fg, bg, fl)
+                self._put_cells(row, cx, run[i:])
                 self.cx = cx + k
                 i = n
 
@@ -1662,7 +1829,7 @@ class Term:
                 self.kbd_flags &= ~flags
 
     def row_text(self, y):
-        return "".join(c[0] for c in self.grid[y])
+        return row_text(self.grid[y])
 
     def visible_rows(self, off=0):
         """As `rows` linhas que estão na tela, com `off` linhas de histórico.
@@ -1757,7 +1924,7 @@ class Term:
         row = self.abs_row(line)
         if row is None:
             return col, col
-        text = "".join(c[0] for c in row).rstrip()  # o espaço da direita não é palavra
+        text = row_text(row).rstrip()  # o espaço da direita não é palavra
         if not text:
             return 0, 0
         col = max(0, min(len(text) - 1, col))
@@ -1774,7 +1941,7 @@ class Term:
         """Âncoras (início, fim) da linha lógica, já sem o espaço da direita."""
         first, last = self.line_span(line)
         row = self.abs_row(last)
-        text = "".join(c[0] for c in row).rstrip() if row is not None else ""
+        text = row_text(row).rstrip() if row is not None else ""
         return (first, 0), (last, max(0, len(text) - 1))
 
     # -- âncoras de célula (B17) ---------------------------------------
@@ -1820,7 +1987,7 @@ class Term:
             row = self.abs_row(line)
             if row is None:
                 return ""
-            out.append("".join(c[0] for c in row[lo:hi]).rstrip())
+            out.append(row_text(row, lo, hi).rstrip())
         return "\n".join(out)
 
     # -- texto (cópia) ------------------------------------------------
@@ -1859,13 +2026,13 @@ class Term:
             a = c1 if y == r1 else 0
             b = (c2 + 1) if y == r2 else self.cols
             row = rows[y]
-            out.append("".join(c[0] for c in row[a:b]).rstrip())
+            out.append(row_text(row, a, b).rstrip())
         return "\n".join(out)
 
     def all_text(self, rows=None):
         """A viewport inteira (Ctrl+Shift+C sem seleção)."""
         rows = self.grid if rows is None else rows
-        lines = ["".join(c[0] for c in row).rstrip() for row in rows]
+        lines = [row_text(row).rstrip() for row in rows]
         while lines and not lines[-1]:
             lines.pop()
         return "\n".join(lines) + ("\n" if lines else "")
