@@ -35,7 +35,7 @@ from .palette import (
     rgb,
     ul_style,
 )
-from .term import TITLE_STACK_MAX, Term, link_allowed
+from .term import _BLANK_CELL, TITLE_STACK_MAX, Term, link_allowed
 
 
 def _row_text(row):
@@ -748,6 +748,24 @@ def combining_marks():
     t3.feed("ab\u0301")
     assert t3.grid[0][1][0] == "b\u0301"
     assert (t3.cy, t3.cx) == (0, 1)
+
+
+def mark_on_shared_blank_cell():
+    """P73: marca sobre a célula em branco compartilhada não corrompe a grade."""
+    t = Term(cols=10, rows=3)
+    t.feed("\x1b[3;5H")  # cursor na coluna 5 de uma linha nunca escrita
+    t.feed("\u0301")
+    # a marca copiou a célula em branco em vez de mutá-la
+    assert _BLANK_CELL == [" ", DEF_FG, DEF_BG, 0], _BLANK_CELL
+    assert t.grid[2][3] is not _BLANK_CELL
+    assert t.grid[2][3][0] == " \u0301"
+    # as linhas que não receberam a marca seguem em branco
+    assert _row_text(t.grid[0]) == " " * 10
+    assert _row_text(t.grid[1]) == " " * 10
+    # e a base real continua recebendo a marca (P73)
+    t.feed("\x1b[1;1He\u0301")
+    assert t.grid[0][0][0] == "e\u0301"
+    assert _row_text(t.grid[1]) == " " * 10
 
 
 def osc8_link_id():
@@ -1731,6 +1749,7 @@ ALL = (
     hyperlinks,
     osc8_link_id,
     combining_marks,
+    mark_on_shared_blank_cell,
     chrome_config,
     paste_markers,
     truecolor,

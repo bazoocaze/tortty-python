@@ -756,7 +756,9 @@ class Term:
             if col >= 0:
                 alvo = self.grid[self.cy][col]
                 if alvo is not None:
-                    alvo[0] += ch
+                    novo = list(alvo)  # a célula em branco é compartilhada
+                    novo[0] += ch
+                    self.grid[self.cy][col] = novo
                     self.dirty.add(self.cy)
                     return
         if self.wrap_pending:
