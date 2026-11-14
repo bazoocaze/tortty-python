@@ -706,9 +706,11 @@ recording.
     gone for good, so `Shift+PgUp` after `mc`/`vim` showed nothing. It is not what
     `?1049` means — it saves the cursor and switches to the alternate buffer,
     which is the one born clean; the primary buffer and its scrollback come back
-    on exit. Fix: drop the three `clear()` calls; check
-    `alt_screen_keeps_scrollback`. Same behavior exists in the Rust TorTTY
-    (`enter_alt(clear_scrollback)`), fixed here first.
+    on exit. Fix: drop the three `clear()` calls, and `ED 3` issued up there
+    (`CSI 3J`) no longer takes the main history, its links and its pictures —
+    it clears the alternate screen and nothing else. Check
+    `alt_screen_keeps_scrollback`. Parity with the Rust TorTTY, fixed there as
+    B63 with the same two guards.
 
 ## Documentation note: number in only one place
 

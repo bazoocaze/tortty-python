@@ -616,17 +616,27 @@ def reflow_keeps_styled_blank():
 
 
 def alt_screen_keeps_scrollback():
-    """`?1049` troca de buffer sem comer o histórico do principal (P79)."""
+    """`?1049` e `ED 3` na tela cheia não comem o histórico do principal (P79)."""
     t = Term(cols=40, rows=8)
     t.feed("".join("linha %d\r\n" % i for i in range(40)))
     antes = [_row_text(r) for r in t.scrollback]
     assert len(antes) == 33
     t.feed("\x1b[?1049hALT only")
     assert [_row_text(r) for r in t.scrollback] == antes
+    t.feed("\x1b[3J")  # `clear` na tela cheia é assunto dela
+    assert [_row_text(r) for r in t.scrollback] == antes
+    assert not _row_text(t.grid[0]).strip(), "o ED 3 limpou a tela do alto"
     t.feed("\x1b[?1049l")
     assert [_row_text(r) for r in t.scrollback] == antes
     assert all("ALT only" not in r for r in antes)  # tela cheia não vira histórico
     assert _row_text(t.grid[0]).startswith("linha 33")  # a tela principal voltou
+    t.feed("\x1b[3J")  # no principal o ED 3 continua limpando
+    assert not t.scrollback
+
+    u = Term(cols=20, rows=4)
+    u.feed("a\x1b]8;;https://e\x1b\\L\x1b]8;;\x1b\\\r\n")
+    u.feed("\x1b[?1049h\x1b[3J\x1b[?1049l")
+    assert u.links == ["https://e"], "o ED 3 na tela cheia não leva o link"
 
 
 def history():

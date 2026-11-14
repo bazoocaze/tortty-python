@@ -979,7 +979,10 @@ class Term:
         if n == 2 or n == 3:
             for y in range(self.rows):
                 self.grid[y] = self._bce_row()
-            if n == 3:
+            # `ED 3` na tela cheia é assunto do buffer alternativo: ele não
+            # tem histórico e não manda no que cobre — limpar levava junto o
+            # histórico e as imagens do principal (P79, paridade com o B63)
+            if n == 3 and self.alt_grid is None:
                 self.scrollback.clear()
                 self.sb_wrapped.clear()
                 self.sb_chrome.clear()
