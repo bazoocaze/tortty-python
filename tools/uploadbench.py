@@ -1,37 +1,42 @@
 #!/usr/bin/env python3
-"""uploadbench.py — vale trocar N operações de cairo por 1 upload por frame?
+"""uploadbench.py — is trading N cairo operations for 1 upload per frame worth it?
 
-O P27 propõe cachear linha em surface e reduzir o número de runs. No display
-real (glamor), o custo do 2D é **por operação**: 13,9 ms por frame em 61x18,
-contra 4,2 ms no Xvfb na mesma grade. Se for esse o mecanismo, desenhar o frame
-num ImageSurface e subir uma imagem só deveria custar bem menos que dezenas de
-preenchimentos pequenos — e é isso que este microbench mede, sem tocar no app.
+P27 proposes caching a row in a surface and cutting the number of runs. On the
+real display (glamor) the 2D cost is **per operation**: 13.9 ms per frame at
+61x18, against 4.2 ms on Xvfb on the same grid. If that is the mechanism, drawing
+the frame into an ImageSurface and uploading a single image should cost far less
+than dozens of small fills — and that is what this microbench measures, without
+touching the app.
 
-Duas estratégias, mesmo conteúdo, mesmo número de pixels:
+Four strategies, same content, same number of pixels:
 
-- `runs`: o desenho de hoje — por run, um `fill_rectangle` de fundo e um
-  `show_layout` de texto direto na janela.
-- `upload`: o mesmo frame num ImageSurface e um `set_source_surface` + `paint`
-  na janela — um pedido por frame, mas os pixels sobem pelo fio a cada frame.
-- `pixmap`: o frame num surface **do servidor** (`create_similar_surface`), como
-  o cache de linha do P27 sonha: desenha no pixmap e compõe uma vez, sem subir
-  pixel nenhum.
-- `pixmap 10%`: idem, mas redesenhando só 10% da grade (o caso do dirty-rect).
+- `runs`: today's drawing — per run, a background `fill_rectangle` and a text
+  `show_layout` straight into the window.
+- `upload`: the same frame in an ImageSurface and one `set_source_surface` +
+  `paint` into the window — one request per frame, but the pixels go up the wire
+  every frame.
+- `pixmap`: the frame in a **server-side** surface (`create_similar_surface`), as
+  the P27 row cache dreams of: draw into the pixmap and compose once, uploading
+  no pixel at all.
+- `pixmap 10%`: the same, but redrawing only 10% of the grid (the dirty-rect
+  case).
 
-Cada frame sorteia cores de uma paleta de 37 tons (como o doom-fire), então não
-há cache de conteúdo entre frames. A cada frame há `Gdk.Display.sync()`, que é
-XSync: garante que o trabalho do servidor entrou na conta (o tortty-python não sincroniza;
-lá o custo aparece como bloqueio do buffer de pedidos, mas o total é o mesmo).
+Every frame picks colours from a 37-shade palette (like the doom fire), so there
+is no content cache between frames. Each frame has a `Gdk.Display.sync()`, which
+is XSync: it guarantees the server work entered the count (tortty-python does not
+sync; there the cost shows up as a blocked request buffer, but the total is the
+same).
 
-Uso: tools/uploadbench.py [--frames N] [--cols C] [--rows R] [--font-size P]
-                          [--display :0]
-Roda no display atual; para comparar com um virtual:
+Usage: tools/uploadbench.py [--frames N] [--cols C] [--rows R] [--font-size P]
+                            [--display :0]
+It runs on the current display; to compare against a virtual one:
     Xvfb :99 -screen 0 1600x1000x24 & DISPLAY=:99 tools/uploadbench.py
 
-Imprime ms/frame de cada estratégia e a razão entre elas. Se a razão ficar perto
-de 1, o P27 não se paga por aí; se ficar em 3x ou mais, o upload é o caminho.
+It prints ms/frame of each strategy and the ratio between them. If the ratio
+stays near 1, P27 does not pay off that way; if it reaches 3x or more, the upload
+is the way.
 
-MIT (ver LICENSE).
+MIT (see LICENSE).
 """
 
 import argparse

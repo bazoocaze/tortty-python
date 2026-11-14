@@ -1,23 +1,23 @@
 #!/usr/bin/env python3
-"""Doom fire no terminal: carga máxima de escrita para medir o caminho quente.
+"""Doom fire in the terminal: maximum write load to measure the hot path.
 
-O efeito do port de PSX do Doom: buffer de intensidade 0..36 propagado de baixo
-para cima com decaimento aleatório e uma paleta de 37 cores. Desenhado em
-meio-bloco (`▀`, dois pixels por célula) com fg e bg truecolor por célula, sem
-agrupar nada — é o pior caso para o parser e para o desenho.
+The effect from the PSX port of Doom: an intensity buffer 0..36 propagated from
+the bottom up with random decay and a 37-colour palette. Drawn in half blocks
+(`▀`, two pixels per cell) with truecolor fg and bg per cell, grouping nothing —
+it is the worst case for the parser and for the drawing.
 
-Medição, não teste: roda à mão dentro do terminal que se quer medir.
+Measurement, not a test: run it by hand inside the terminal being measured.
 
-    python3 tools/doomfire.py                 # 30 fps até Ctrl+C
+    python3 tools/doomfire.py                 # 30 fps until Ctrl+C
     python3 tools/doomfire.py --fps 0 --frames 600
     ./tools/debug.sh --cmd 'python3 tools/doomfire.py --fps 0 --frames 600 \
-        --stats-to /tmp/fire-tortty-python.txt'      # estatística no arquivo
+        --stats-to /tmp/fire-tortty-python.txt'      # stats into the file
 
-`--fps 0` solta a mão: quem passa a limitar é o terminal, e o fps alcançado (e
-o MB/s de escapes) é a medida de vazão dele. As estatísticas saem ao sair, em
-stderr ou no arquivo pedido, para dar para comparar dois terminais.
+`--fps 0` lets go: the terminal becomes the limiter, and the fps reached (and the
+MB/s of escapes) is its throughput measure. The stats come out on exit, on
+stderr or in the file asked for, so that two terminals can be compared.
 
-MIT (ver LICENSE).
+MIT (see LICENSE).
 """
 
 import argparse

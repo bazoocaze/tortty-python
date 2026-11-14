@@ -1,11 +1,11 @@
-"""Socket Unix de introspecção (P35): uma linha JSON por pedido/resposta.
+"""Introspection Unix socket (P35): one JSON line per request/response.
 
-Ferramenta de debug, com o agente como usuário: os verbos podem mudar sem aviso.
-Desligado por omissão — só a linha de comando abre (`--debug-socket ARQ`, e
-`auto` = arquivo com o pid em `$XDG_RUNTIME_DIR`).
+A debug tool with the agent as its user: the verbs may change without notice.
+Off by default — only the command line opens it (`--debug-socket FILE`, and
+`auto` = a file with the pid under `$XDG_RUNTIME_DIR`).
 
-O despacho é puro (testável sem display); a parte de socket importa o `GLib` só
-no `start()`, então este módulo não arrasta o Gtk para o `--selftest`.
+The dispatch is pure (testable without a display); the socket part imports
+`GLib` only in `start()`, so this module does not drag Gtk into `--selftest`.
 """
 
 import json

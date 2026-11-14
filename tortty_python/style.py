@@ -1,11 +1,12 @@
-"""Cores e CSS do cromo da janela (lateral, cartões) — puro, sem Gtk.
+"""Colours and CSS of the window chrome (sidebar, cards) — pure, no Gtk.
 
-Esta é a única fonte de cor da interface: o CSS é gerado daqui e ninguém mais
-escreve hex. A paleta do terminal é outra coisa (`palette.py`: célula, xterm-256
-e truecolor) e não se mistura com esta.
+This is the only source of interface colour: the CSS is generated here and
+nobody else writes hex. The terminal palette is another thing (`palette.py`:
+cell, xterm-256 and truecolor) and does not mix with this one.
 
-Contraste é medido, não opinado: `contrast()` é sRGB relativo (WCAG) e o check
-`style_contrast` exige o mínimo entre cada texto e o seu fundo.
+Contrast is measured, not opined: `contrast()` is relative sRGB (WCAG) and the
+`style_contrast` check demands the minimum between every text and its
+background.
 """
 
 SIDEBAR_BG = "#000000"  # fundo da lateral e do cartão normal

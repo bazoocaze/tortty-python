@@ -1,27 +1,27 @@
-"""Mouse: codificar um evento da janela no protocolo que o app espera.
+"""Mouse: encode a window event in the protocol the app expects.
 
-Puro (só ints e str): não importa Gtk, então dá para testar sem display.
-Quem sabe se o app pediu mouse é o `Term` (`?1000`/`?1002`/`?1003`/`?1006`);
-aqui só mora o formato dos bytes.
+Pure (ints and str only): it does not import Gtk, so it is testable without a
+display. Who knows whether the app asked for the mouse is `Term`
+(`?1000`/`?1002`/`?1003`/`?1006`); only the byte format lives here.
 
-Protocolo xterm:
+xterm protocol:
 
-    1000  press/release de botão
-    1002  + movimento com botão apertado
-    1003  + movimento sem botão
-    1006  SGR: `CSI < b ; x ; y M` (press) / `m` (release), coordenadas
-          1-based em decimal — sem o limite de 223 do protocolo antigo
-    1016  a mesma forma do 1006, com as coordenadas em PIXELS a partir da
-          origem da grade (quem passa col/row preenche com pixels)
-    1015  urxvt: `CSI b ; x ; y M`, o botão em decimal com o +32 do X10 e as
-          coordenadas 1-based; release continua sendo o botão 3
-    1005  UTF-8: `CSI M` + (b+32) e x+32/y+32 como code points UTF-8 — sem
-          o limite de 223 do protocolo antigo
-    normal (sem 1006): `CSI M` + 3 bytes (b+32, x+32, y+32); release é
-          sempre "botão 3" e coordenada acima de 223 não cabe no byte.
+    1000  button press/release
+    1002  + motion with a button held down
+    1003  + motion with no button
+    1006  SGR: `CSI < b ; x ; y M` (press) / `m` (release), 1-based decimal
+          coordinates — no 223 limit as in the old protocol
+    1016  the same shape as 1006, with the coordinates in PIXELS from the
+          origin of the grid (the caller that passes col/row fills in pixels)
+    1015  urxvt: `CSI b ; x ; y M`, the button in decimal with the X10 +32 and
+          1-based coordinates; release is still button 3
+    1005  UTF-8: `CSI M` + (b+32) and x+32/y+32 as UTF-8 code points — no 223
+          limit as in the old protocol
+    plain (no 1006): `CSI M` + 3 bytes (b+32, x+32, y+32); release is always
+          "button 3" and a coordinate above 223 does not fit in the byte.
 
-    Com mais de uma forma ligada o SGR vence (P69): é a que não tem limite de
-    coordenada, e a 1015 é a que o próprio xterm desaconselha.
+    With more than one form on the SGR wins (P69): it is the one with no
+    coordinate limit, and 1015 is the one xterm itself discourages.
 """
 
 # botões no protocolo (não é o número do botão do Gdk)

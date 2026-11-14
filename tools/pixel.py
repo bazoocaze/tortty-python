@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
-"""Lê cores de pixel de um PNG — para conferir o que foi desenhado na tela.
+"""Reads pixel colours from a PNG — to check what was drawn on the screen.
 
-Ferramenta **manual** de teste (não entra no `--selftest`): serve para provar
-coisa do tipo "o rodapé ficou com o fundo da última fileira" ou "o truecolor
-saiu exatamente (18,52,86)" numa captura feita com `import -window <id>`.
+A **manual** test tool (it does not go into `--selftest`): it proves things like
+"the footer got the background of the last row" or "the truecolor came out
+exactly (18,52,86)" on a capture made with `import -window <id>`.
 
-Usa o GdkPixbuf (o mesmo `gi` que a janela usa).
+It uses GdkPixbuf (the same `gi` the window uses).
 
-    tools/pixel.py shot.png                  # pontos de sondagem padrão
-    tools/pixel.py shot.png 697,515 350,90   # pontos específicos (x,y)
-    tools/pixel.py shot.png --scan 300       # coluna x=300, uma amostra por
-                                             # faixa de 19 px (altura da célula)
-    tools/pixel.py shot.png --row 515        # linha y=515 amostrada na largura
-    tools/pixel.py shot.png --expect 5,9=ff0000   # cor no ponto (repetível;
-                                                   # sai 1 se divergir)
-    tools/pixel.py shot.png --find ff0000     # primeiro ponto com a cor (x y)
-    tools/pixel.py a.png --diff b.png --max 0 # quantos pixels diferem; sai 1
-                                              # se passar do máximo (0 = idênticas)
+    tools/pixel.py shot.png                  # default probe points
+    tools/pixel.py shot.png 697,515 350,90   # specific points (x,y)
+    tools/pixel.py shot.png --scan 300       # column x=300, one sample per
+                                             # 19 px band (the cell height)
+    tools/pixel.py shot.png --row 515        # row y=515 sampled along the width
+    tools/pixel.py shot.png --expect 5,9=ff0000   # colour at the point (repeatable;
+                                                   # exits 1 on a mismatch)
+    tools/pixel.py shot.png --find ff0000     # first point with the colour (x y)
+    tools/pixel.py a.png --diff b.png --max 0 # how many pixels differ; exits 1
+                                              # above the maximum (0 = identical)
     tools/pixel.py a.png --diff b.png --region 0,37,9999,460
-                                              # compara só o retângulo (o resto
-                                              # é overlay que pode animar)
+                                              # compares only the rectangle (the
+                                              # rest is an overlay that may animate)
 """
 
 import argparse

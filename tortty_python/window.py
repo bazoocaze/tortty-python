@@ -1,11 +1,12 @@
-"""A janela GTK: workspaces (P12) e, dentro de cada um, abas (P11).
+"""The GTK window: workspaces (P12) and, inside each one, tabs (P11).
 
-    TorttyWindow  Gtk.Box[ lateral (Gtk.ListBox) | Gtk.Stack ]
-    Workspace     um Gtk.Notebook + as TermView dele + o cartão da lateral
+    TorttyWindow  Gtk.Box[ sidebar (Gtk.ListBox) | Gtk.Stack ]
+    Workspace     one Gtk.Notebook + its TermViews + the sidebar card
 
-Cada workspace tem o seu conjunto de abas (`Gtk.Stack` e não trocar páginas do
-mesmo notebook: assim cada um guarda a aba selecionada, a ordem e os títulos).
-O que é de sessão mora na `view.py`; aqui só há ciclo de vida e atalhos.
+Each workspace has its own set of tabs (`Gtk.Stack` instead of swapping pages of
+the same notebook: that way each one keeps its selected tab, order and titles).
+What belongs to a session lives in `view.py`; here there is only life cycle and
+shortcuts.
 """
 
 import os

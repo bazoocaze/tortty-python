@@ -1,7 +1,7 @@
-"""Teclado: keyval do X11 -> bytes que o terminal manda pro filho.
+"""Keyboard: X11 keyval -> the bytes the terminal sends to the child.
 
-Aqui mora a tradução, não o estado: `encode_key` é pura (recebe o dead key
-pendente e devolve o novo), então dá para testar sem GTK de verdade.
+The translation lives here, not the state: `encode_key` is pure (it takes the
+pending dead key and returns the new one), so it is testable without real GTK.
 """
 
 import unicodedata

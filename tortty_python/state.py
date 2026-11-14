@@ -1,10 +1,10 @@
-"""Estado da janela entre execuções: posição, tamanho e maximizado.
+"""Window state between runs: position, size and maximised.
 
-Puro (sem gi) para poder ser testado nos checks: quem fala com Gtk/Gdk é o
-window.py, que aqui só entrega e recebe retângulos.
+Pure (no gi) so that the checks can test it: whoever talks to Gtk/Gdk is
+window.py, which only hands rectangles in and out here.
 
-O arquivo é JSON em XDG_STATE_HOME (estado, não configuração): se ele sumir, a
-janela abre no padrão e nada mais acontece.
+The file is JSON under XDG_STATE_HOME (state, not configuration): if it goes
+away, the window opens at the default and nothing else happens.
 """
 
 import json

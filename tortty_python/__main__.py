@@ -1,4 +1,4 @@
-"""Permite `python -m tortty_python`: usa o mesmo caminho do console script."""
+"""Allows `python -m tortty_python`: the same path as the console script."""
 
 from .cli import run
 

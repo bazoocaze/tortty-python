@@ -1,36 +1,37 @@
 #!/usr/bin/env python3
-"""benchrun.py — uma medição do doom-fire com a condição travada pelo GRID.
+"""benchrun.py — one doom-fire measurement with the condition pinned by the GRID.
 
-O número do benchmark não depende da janela em pixels: depende de quantas
-células o fio desenha. Só que o grid cai da conta janela/célula, e a célula
-muda com a fonte e com o Xft.dpi da sessão — a mesma janela de 980x640 dá 70x21
-com Xft.dpi 130 e 98x27 com 96. Medir "no olho" produz número de outra condição.
+The benchmark number does not depend on the window in pixels: it depends on how
+many cells the fire draws. But the grid comes out of window/cell, and the cell
+changes with the font and with the session's Xft.dpi — the same 980x640 window
+gives 70x21 with Xft.dpi 130 and 98x27 with 96. Measuring "by eye" produces a
+number from another condition.
 
-Este script inverte a ordem e deixa o resto do drama de fora:
+This script inverts the order and keeps the rest of the drama out:
 
-- sobe o app com o socket de introspecção e um XDG_STATE_HOME descartável (nada
-  de geometria salva nem janela maximizada de uma execução anterior);
-- pede o grid ao próprio app e usa o verbo `resize` até ele bater no alvo — o
-  alvo é em células (61x18, a janela padrão na tela do dia a dia), não em
-  pixels;
-- confere o grid e, se não bater, sai com código 3 em vez de imprimir número de
-  outra condição;
-- só então digita o doomfire no pty. É isto que mata a corrida do arranque: o
-  filho nasce depois da janela assentada, então ele mede o grid de verdade (com
-  --cmd ele podia medir o padrão 80x24 antes do primeiro TIOCSWINSZ).
+- it brings the app up with the introspection socket and a throwaway
+  XDG_STATE_HOME (no saved geometry, no maximised window from a previous run);
+- it asks the app itself for the grid and uses the `resize` verb until it hits
+  the target — the target is in cells (61x18, the default window on the daily
+  display), not in pixels;
+- it checks the grid and, on a mismatch, exits with code 3 instead of printing a
+  number from another condition;
+- only then does it type doomfire into the pty. That is what kills the startup
+  race: the child is born after the window settles, so it measures the real grid
+  (with --cmd it could measure the default 80x24 before the first TIOCSWINSZ).
 
-Uso: tools/benchrun.py [--frames N] [--cols C] [--rows R] [--font-size P]
-                       [--app SCRIPT] [--env K=V]... [--stats ARQ] [--timeout S]
+Usage: tools/benchrun.py [--frames N] [--cols C] [--rows R] [--font-size P]
+                         [--app SCRIPT] [--env K=V]... [--stats FILE] [--timeout S]
 
---cols 0 / --rows 0 deixam o grid como está (imprime o que veio; não é
-comparável com a referência). Imprime linhas `chave valor` no stdout; uma
-medição por execução — a escada é o tools/bench.sh.
+--cols 0 / --rows 0 leave the grid as it is (it prints what came; it is not
+comparable with the reference). It prints `key value` lines on stdout; one
+measurement per run — the ladder is tools/bench.sh.
 
-Roda com o python do sistema (só stdlib); quem sobe o app é o --app (run.sh por
-padrão), que escolhe o python com gi. Roda no display atual: feche o que estiver
-desenhando, dois terminais disputando CPU contaminam.
+It runs on the system python (stdlib only); the --app brings the app up (run.sh
+by default), which chooses the python with gi. It runs on the current display:
+close whatever is drawing, two terminals fighting over the CPU contaminate.
 
-MIT (ver LICENSE).
+MIT (see LICENSE).
 """
 
 import argparse

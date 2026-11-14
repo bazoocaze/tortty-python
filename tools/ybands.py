@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Faixas de pixel que diferem entre duas capturas — sem supor geometria.
+"""Pixel bands that differ between two captures — with no assumption of geometry.
 
-Ferramenta **manual** de teste (não entra no `--selftest`): compara dois PNGs da
-mesma janela e imprime os intervalos de `y` (e o `x` de cada um) onde os pixels
-mudaram. Serve quando a conta de "linha x altura da célula" já custou tempo
-demais: a resposta vem dos pixels, não de uma coordenada que se acredita certa.
+A **manual** test tool (it does not go into `--selftest`): it compares two PNGs of
+the same window and prints the `y` ranges (and the `x` of each one) where pixels
+changed. It is for when the "row x cell height" arithmetic has already cost too
+much time: the answer comes from the pixels, not from a coordinate believed to be
+right.
 
     tools/ybands.py a.png b.png
-    tools/ybands.py a.png b.png --min 4      # ignora blocos com menos de 4 px
+    tools/ybands.py a.png b.png --min 4      # drops bands with fewer than 4 px
 
-O caso típico é provar que um hover/efeito pintou **onde devia** e em mais
-nenhum lugar (P67/P70/P76). Para "quantos pixels diferem" e "--expect"/--find",
-`tools/pixel.py` já responde; este lê o PNG e diz *onde*.
+The usual case is proving that a hover/effect painted **where it should** and
+nowhere else (P67/P70/P76). For "how many pixels differ" and "--expect"/--find,
+`tools/pixel.py` already answers; this one reads the PNG and says *where*.
 """
 
 import argparse

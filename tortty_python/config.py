@@ -1,13 +1,14 @@
-"""Configuração (P33): chave/valor no formato do kitty, puro (sem Gtk).
+"""Configuration (P33): key/value in the kitty format, pure (no Gtk).
 
-Sempre **merge**: o arquivo `data/tortty-python.conf` que embarca com o pacote é a base
-e o arquivo do usuário entra por cima, chave a chave. O `-c` só troca o caminho
-do arquivo do usuário — a base continua valendo.
+Always a **merge**: the `data/tortty-python.conf` shipped inside the package is
+the base and the user file comes on top, key by key. `-c` only changes the path
+of the user file — the base still applies.
 
-Erro é **por linha, não por arquivo**: `load()` aplica o que validou e devolve
-os erros em `errors`; a chave inválida fica no valor padrão. Assim a carga
-inicial aproveita o resto do arquivo (e o toast mostra o primeiro erro), e o
-reload descarta tudo e mantém a configuração que já estava valendo (`ok`).
+Error is **per line, not per file**: `load()` applies what validated and returns
+the errors in `errors`; the invalid key keeps the default value. That is what
+lets the initial load use the rest of the file (and the toast show the first
+error) while the reload drops everything and keeps the configuration already in
+force (`ok`).
 """
 
 import os

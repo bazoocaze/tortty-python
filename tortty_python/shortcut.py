@@ -1,6 +1,6 @@
-"""Atalho no sistema: .desktop + ícone em XDG_DATA_HOME.
+"""System shortcut: .desktop + icon in XDG_DATA_HOME.
 
-Puro (sem gi): entra pelo cli antes do import do Gtk, como o --selftest.
+Pure (no gi): it comes in through cli before the Gtk import, like --selftest.
 """
 
 import os

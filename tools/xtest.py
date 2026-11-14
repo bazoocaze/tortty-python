@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
-"""Injeta eventos no X11 (XTest) numa janela do tortty-python, achada por `_NET_WM_PID`.
+"""Injects X11 events (XTest) into a tortty-python window, found by `_NET_WM_PID`.
 
-Ferramenta **manual** de teste — não entra no `--selftest` (precisa de display).
-Precisa de `python3-xlib` (está no sistema) e de um servidor X.
+A **manual** test tool — it does not go into `--selftest` (it needs a display). It
+needs `python3-xlib` (present on the system) and an X server.
 
-Coordenadas são **relativas à janela**: o script soma a origem sozinho. Cuidado
-com o layout — a lateral ocupa 170 px e a barra de abas ~28 px, então a grade
-começa em `y≈58`, não em `y=0`.
+Coordinates are **window relative**: the script adds the origin itself. Mind the
+layout — the sidebar takes 170 px and the tab bar ~28 px, so the grid starts at
+`y≈58`, not at `y=0`.
 
-    tools/xtest.py id                        # id da janela (por _NET_WM_PID)
+    tools/xtest.py id                        # window id (by _NET_WM_PID)
     tools/xtest.py activate
     tools/xtest.py geometry
-    tools/xtest.py key ctrl+shift+n          # atalho global
+    tools/xtest.py key ctrl+shift+n          # global shortcut
     tools/xtest.py key Return
-    tools/xtest.py type 'echo /usr/lib -x'   # texto arbitrário (com símbolos)
-    tools/xtest.py click 60 28               # botão 1
-    tools/xtest.py click 60 82 --button 2    # botão do meio
-    tools/xtest.py dclick 60 28              # duplo clique (renomeia workspace)
+    tools/xtest.py type 'echo /usr/lib -x'   # arbitrary text (with symbols)
+    tools/xtest.py click 60 28               # button 1
+    tools/xtest.py click 60 82 --button 2    # middle button
+    tools/xtest.py dclick 60 28              # double click (renames the workspace)
     tools/xtest.py wheel 400 250 up --times 4
-    tools/xtest.py drag 200 60 320 60        # seleção de texto
+    tools/xtest.py drag 200 60 320 60        # text selection
     tools/xtest.py move 300 200
 
-O PID vem de `/tmp/tortty-python.pid` (o `tools/debug.sh` escreve lá); `--pid N` ou
-`--window ID` sobrescrevem.
+The PID comes from `/tmp/tortty-python.pid` (`tools/debug.sh` writes it there);
+`--pid N` or `--window ID` override it.
 """
 
 import argparse

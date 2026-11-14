@@ -1,23 +1,23 @@
-"""Protocolo de teclado do kitty: keyval do X11 -> `CSI ... u`.
+"""Kitty keyboard protocol: X11 keyval -> `CSI ... u`.
 
-Puro (ints e str, sem Gtk): a decisão de *quando* usar é do `Term`, que guarda
-as flags (`kbd_flags`); aqui só mora a codificação. Espelha o
-`encode_key()`/`encode_function_key()` do kitty (`key_encoding.c`), que é a
-referência de verdade.
+Pure (ints and str, no Gtk): the decision of *when* to use it belongs to `Term`,
+which holds the flags (`kbd_flags`); only the encoding lives here. It mirrors
+kitty's `encode_key()`/`encode_function_key()` (`key_encoding.c`), the reference
+that actually matters.
 
-Flags (bitmask, empilháveis por `CSI > flags u`):
+Flags (bitmask, stackable through `CSI > flags u`):
 
-    1   disambiguate — esc, enter, tab, backspace e tecla com Ctrl/Alt/Super
-        saem como `CSI codigo ; mods u` em vez do byte de controle
-    2   report event types — acrescenta `:1`/`:2`/`:3` (press/repeat/release)
-    8   report all keys as escape codes — tudo vira `CSI ... u`, inclusive
-        digitar `a`
-    16  report associated text — `CSI codigo ; mods ; texto u`
-    4   report alternate keys — NÃO implementado (exige o keysym alternativo,
-        que o Gdk não dá de graça)
+    1   disambiguate — esc, enter, tab, backspace and any key with Ctrl/Alt/Super
+        come out as `CSI code ; mods u` instead of the control byte
+    2   report event types — adds `:1`/`:2`/`:3` (press/repeat/release)
+    8   report all keys as escape codes — everything becomes `CSI ... u`, typing
+        `a` included
+    16  report associated text — `CSI code ; mods ; text u`
+    4   report alternate keys — NOT implemented (it needs the alternate keysym,
+        which Gdk does not give away for free)
 
-O que fica de fora do encoding novo cai no caminho legado do `keys.py`
-(`\x1bOA`, `\x03`, texto puro...) — e é assim no kitty também.
+Whatever the new encoding does not cover falls to the legacy path of `keys.py`
+(`\x1bOA`, `\x03`, plain text...) — and that is how kitty does it as well.
 """
 
 # teclas funcionais: keyval do X11 -> (número do CSI, trailer)

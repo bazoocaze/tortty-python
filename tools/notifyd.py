@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Daemon de notificação falso: registra o que a janela manda por D-Bus.
+"""Fake notification daemon: records what the window sends over D-Bus.
 
-Ferramenta **manual** de teste (não entra no `--selftest`): assume o nome
-`org.freedesktop.Notifications` numa sessão D-Bus e grava cada `Notify` recebido
-como `<resumo> | <corpo>` numa linha. Serve para provar que um `OSC 9`/`777`
-chegou ao desktop (P74) sem depender do daemon de verdade da sessão.
+A **manual** test tool (it does not go into `--selftest`): it takes the name
+`org.freedesktop.Notifications` on a D-Bus session and writes every `Notify`
+received as `<summary> | <body>` on one line. It is what proves that an
+`OSC 9`/`777` reached the desktop (P74) without depending on the real daemon of
+the session.
 
     dbus-run-session -- sh -c 'tools/notifyd.py /tmp/notif.txt & sleep 1;
         tortty-python --debug-socket /tmp/s.sock & ...'
     cat /tmp/notif.txt
 
-O app só chama o daemon quando **não** está na frente: sem WM, tire o foco do X
-(`set_input_focus` em `PointerRoot`) ou a notificação não sai.
+The app only calls the daemon when it is **not** in front: with no WM, take the
+X focus away (`set_input_focus` on `PointerRoot`) or the notification never goes.
 """
 
 import sys

@@ -1,9 +1,9 @@
-"""Os checks do tortty_python: uma fonte de verdade, chamada pelo --selftest e pelo pytest.
+"""The tortty_python checks: one source of truth, called by --selftest and by pytest.
 
-Cada função é um teste de comportamento, sem display e sem PyGObject — o módulo
-só importa term (que puxa graphics), palette, mouse, kitty_kbd e style. Um bug
-corrigido virou uma asserção (regressão vale mais que cobertura); nada de
-matriz de casos.
+Each function is a behaviour test, with no display and no PyGObject — the module
+imports only term (which pulls graphics), palette, mouse, kitty_kbd and style. A
+fixed bug became an assertion (regression is worth more than coverage); no case
+matrix.
 """
 
 import base64

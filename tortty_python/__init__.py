@@ -1,25 +1,25 @@
-"""tortty_python — as partes do terminal, separadas por responsabilidade.
+"""tortty_python — the parts of the terminal, split by responsibility.
 
-    palette.py   célula, paleta xterm-256, charset DEC        (puro dado)
-    term.py      grade, cursor, parser VT                     (sem GTK)
-    keys.py      keyval do X11 -> bytes do terminal           (sem GTK*)
-    kitty_kbd.py protocolo de teclado do kitty (CSI ... u)    (puro)
-    mouse.py     protocolo de mouse (SGR e o antigo)          (puro)
-    graphics.py  protocolo de imagens do kitty (APC G)         (puro)
-    gui.py       import único de Gtk/Gdk/GLib/Pango/cairo     (só glue)
-    view.py      uma sessão: pty, desenho, input               (só GTK)
-    window.py    a janela: abas, lateral, atalhos globais      (só GTK)
-    checks.py    a bateria de testes, sem janela              (sem GTK)
-    selftest.py  runner sem dependências (--selftest)         (sem GTK)
-    cli.py       argv e arranque                              (liga tudo)
+    palette.py   cell, xterm-256 palette, DEC charset           (pure data)
+    term.py      grid, cursor, VT parser                       (no GTK)
+    keys.py      X11 keyval -> terminal bytes                  (no GTK*)
+    kitty_kbd.py kitty keyboard protocol (CSI ... u)            (pure)
+    mouse.py     mouse protocol (SGR and the old one)          (pure)
+    graphics.py  kitty image protocol (APC G)                  (pure)
+    gui.py       single import of Gtk/Gdk/GLib/Pango/cairo    (glue only)
+    view.py      one session: pty, drawing, input              (GTK only)
+    window.py    the window: tabs, sidebar, global shortcuts   (GTK only)
+    checks.py    the test battery, no window                  (no GTK)
+    selftest.py  dependency-free runner (--selftest)          (no GTK)
+    cli.py       argv and startup                              (wires it all)
 
-* keys usa as constantes de keyval do Gdk, mas não importa Gtk.
+* keys uses the Gdk keyval constants, but does not import Gtk.
 
-Dependência: `term`/`palette` não conhecem `window`. Assim o parser roda em
-máquina sem PyGObject (`python3 -m tortty_python --selftest`) e a janela pode ser
-trocada sem tocar no núcleo.
+Dependency: `term`/`palette` do not know `window`. That is what lets the parser
+run on a machine without PyGObject (`python3 -m tortty_python --selftest`) and the
+window be replaced without touching the core.
 
-MIT (ver LICENSE).
+MIT (see LICENSE).
 """
 
 # Fonte única da versão: o pyproject lê daqui (hatch) e o `--version` mostra.

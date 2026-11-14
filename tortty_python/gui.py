@@ -1,9 +1,9 @@
-"""Importação única de Gtk/Gdk/GLib/Pango/cairo.
+"""The single import of Gtk/Gdk/GLib/Pango/cairo.
 
-`gi.require_version` tem que vir ANTES do `from gi.repository import ...`;
-centralizar aqui evita que um módulo esqueça e trave a versão errada, e deixa
-o resto do pacote importar `from .gui import Gtk, Gdk, GLib, Pango, PangoCairo,
-cairo`.
+`gi.require_version` has to come BEFORE `from gi.repository import ...`;
+centralising it here keeps a module from forgetting and pinning the wrong
+version, and lets the rest of the package import `from .gui import Gtk, Gdk,
+GLib, Pango, PangoCairo, cairo`.
 """
 
 import gi

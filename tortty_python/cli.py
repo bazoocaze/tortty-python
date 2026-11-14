@@ -1,4 +1,4 @@
-"""Linha de comando: `tortty-python [--cmd CMD] [--quit-after SEG] ...`."""
+"""Command line: `tortty-python [--cmd CMD] [--quit-after SEG] ...`."""
 
 import sys
 

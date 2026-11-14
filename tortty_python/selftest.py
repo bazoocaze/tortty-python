@@ -1,4 +1,4 @@
-"""Runner sem dependências dos checks: python3 -m tortty_python --selftest."""
+"""Dependency-free runner for the checks: python3 -m tortty_python --selftest."""
 
 import sys
 import traceback

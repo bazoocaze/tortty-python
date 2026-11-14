@@ -1,13 +1,13 @@
-"""Célula, paleta de cores e o charset DEC especial.
+"""Cell, colour palette and the special DEC charset.
 
-Célula é [char, fg, bg, flags]: fg/bg são índice xterm (0-255, 256=fg
-default, 257=bg default) ou, no truecolor, o RGB marcado no bit 24 (ver
-`rgb()`/`cell_rgb()`); flags é bitmask (BOLD/UL/INV/ITALIC, mais o estilo do
-sublinhado). Uma célula com hyperlink OSC 8 carrega um quinto campo com o
-índice do URI em `Term.links` — só ele, para o caminho quente não pagar nada.
+A cell is [char, fg, bg, flags]: fg/bg are an xterm index (0-255, 256=default
+fg, 257=default bg) or, in truecolor, the RGB marked in bit 24 (see
+`rgb()`/`cell_rgb()`); flags is a bitmask (BOLD/UL/INV/ITALIC, plus the
+underline style). A cell with an OSC 8 hyperlink carries a fifth field with the
+index of the URI in `Term.links` — only that, so the hot path pays nothing.
 
-Puro dado: sem GTK e sem estado de sessão, então isto pode ser importado por
-um teste de parser em máquina sem PyGObject.
+Pure data: no GTK and no session state, so this can be imported by a parser
+test on a machine without PyGObject.
 """
 
 # ---------------------------------------------------------------- grade ---

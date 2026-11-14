@@ -1,9 +1,9 @@
-"""A view de uma sessão: pty, desenho em cairo e eventos de input.
+"""The view of one session: pty, cairo drawing and input events.
 
-Era o `TorttyWindow` inteiro até o P11 (abas): o que é por-aba veio pra cá, e
-`window.py` ficou com a janela — `Gtk.Notebook`, atalhos globais e o ciclo de
-vida das abas. Continua sendo a única camada que desenha; o estado do
-terminal está em `term`.
+It was the whole `TorttyWindow` until P11 (tabs): what is per tab came here, and
+`window.py` kept the window — `Gtk.Notebook`, global shortcuts and the life
+cycle of the tabs. It is still the only layer that draws; the terminal state
+lives in `term`.
 """
 
 import codecs

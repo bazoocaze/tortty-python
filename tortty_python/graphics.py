@@ -1,23 +1,23 @@
-"""Protocolo de gráficos do kitty (APC `G ...`) — a parte pura.
+"""Kitty graphics protocol (APC `G ...`) — the pure part.
 
-Um app manda uma imagem assim::
+An app sends an image like this::
 
-    ESC _ G a=T,f=100,i=1,q=2;<base64 do PNG> ESC \\
+    ESC _ G a=T,f=100,i=1,q=2;<base64 of the PNG> ESC \\
 
-e o terminal responde (quando não pedem silêncio) `ESC _ G i=1;OK ESC \\`.
-Aqui mora só o parse/decodificação e a lista de *placements*; o cairo entra
-depois, no `window.py` (`surface_from_image`). Assim o protocolo é testável
-sem display.
+and the terminal answers (unless silence was asked) `ESC _ G i=1;OK ESC \\`.
+Only the parse/decoding and the list of *placements* live here; cairo comes
+later, in `window.py` (`surface_from_image`). That is what makes the protocol
+testable without a display.
 
-Suportado (o suficiente pro `kitten icat`):
+Supported (enough for `kitten icat`):
 
-    a=t transmitir   a=T transmitir+e_mostrar   a=p mostrar (já transmitida)
-    a=d apagar (d=i,i=<id> ou d=a)              a=q query
-    f=24 RGB  f=32 RGBA  f=100 PNG   (m=1 pra imagem em pedaços)
-    i=<id>  c=<colunas>  r=<linhas>  C=1 (não move o cursor)  q=<silêncio>
+    a=t transmit   a=T transmit+show   a=p show (already transmitted)
+    a=d delete (d=i,i=<id> or d=a)     a=q query
+    f=24 RGB  f=32 RGBA  f=100 PNG   (m=1 for a chunked image)
+    i=<id>  c=<columns>  r=<rows>  C=1 (do not move the cursor)  q=<silence>
 
-Fora: animação (`a=f`/`a=a`), z-index e transmissão por arquivo/shared-memory
-(`t=f`/`t=t`/`t=s`). Compressão `o=z` é suportada (zlib).
+Out: animation (`a=f`/`a=a`), z-index and transmission by file/shared-memory
+(`t=f`/`t=t`/`t=s`). Compression `o=z` is supported (zlib).
 """
 
 import base64
