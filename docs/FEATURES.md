@@ -8,7 +8,8 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
 - **VT parser** with ground/esc/csi/osc states, SGR (the colors and the styles
   have their own bullets below), cursor
   (`CUP`/`CUU`/`CUD`/`CUF`/`CUB`/`CNL`/`CPL`/`CHA`),
-  erasing (`ED`/`EL`/`ECH`, and `CSI 3J` throws the scrollback away), line and
+  erasing (`ED`/`EL`/`ECH`, and `CSI 3J` throws the scrollback away — in the
+  main buffer; on the alternate screen it clears that screen only), line and
   character insertion/removal
   (`IL`/`DL`/`ICH`/`DCH`), scroll region (`DECSTBM`), save/restore
   (`DECSC`/`DECRC`, `CSI s`/`u`), `DECAWM`, cursor on/off (`?25`) and the

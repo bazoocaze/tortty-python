@@ -343,6 +343,15 @@ when it opens, the window shows a security warning toast with the socket path.
   focus stays on the notebook): schedule with `GLib.idle_add`.
 - A focus `GLib.idle_add` steals focus from a `Gtk.Entry`: check `get_focus()`
   first, otherwise the typed name goes to the terminal.
+- The instrument for the scrollback surviving an app is `state.scrollback`
+  through the socket: start `seq 1 300`, then `vim`/`mc`, and it must stay at
+  the same number inside and after (P79). A zero there means something cleared
+  the main buffer's history again — `?1049`/`CSI 3J` are the two suspects, and
+  the terminal type, not the app, decides whether an app enters the alt screen.
+- A photo taken while an app owns the screen (`restore_state content`, P57)
+  carries the history plus the **main** screen, not what the app is drawing:
+  that is the screen the app gives back on exit, so the restore shows what was
+  behind `mc`/`vim`.
 - `CSI 3J` erases the scrollback: the absolute scroll anchor dies with it. The
   repaint that clears rewrites the same text, so what counts is the distance
   from live (`Term.hist_gen` marks the clearing, `pinned_view_off` recounts);
