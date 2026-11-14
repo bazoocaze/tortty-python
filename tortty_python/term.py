@@ -247,6 +247,11 @@ def _has_mark(text):
     return hit
 
 
+def _vazia(cell):
+    """Célula sem nada pintado: espaço, fundo default, sem atributo e sem link."""
+    return cell[0] == " " and cell[2] == DEF_BG and not cell[3] and (len(cell) < 5 or not cell[4])
+
+
 class CellAnchor(NamedTuple):
     """Célula em coordenada absoluta: não envelhece quando a tela rola."""
 
@@ -525,10 +530,11 @@ class Term:
         # uma linha de 3 caracteres numa tela de 68 colunas re-quebra em DUAS
         # linhas (a segunda só de espaços) e o conteúdo aparece intercalado
         # com linhas vazias ao estreitar. Só corta célula vazia de verdade
-        # (espaço com bg default) — fundo colorido de barra/status fica.
+        # (espaço, bg default, sem atributo e sem link) — fundo colorido de
+        # barra/status, espaço sublinhado e espaço de hyperlink ficam.
         for li, line in enumerate(lines):
             real = len(line)
-            while real and line[real - 1][0] == " " and line[real - 1][2] == DEF_BG:
+            while real and _vazia(line[real - 1]):
                 real -= 1
             if li == line_idx and cur_off is not None and cur_off > real:
                 real = cur_off  # não perde a posição do cursor
@@ -562,7 +568,7 @@ class Term:
         if cur_new is not None:
             while len(new_rows) - 1 > cur_new[0]:
                 last = new_rows[-1]
-                if any(c[0] != " " for c in last):
+                if any(not _vazia(c) for c in last):
                     break
                 new_rows.pop()
                 new_wrap.pop()
@@ -1187,13 +1193,16 @@ class Term:
         elif final == "M":
             self.delete_lines(get(0, 1) or 1)
         elif final == "@":
-            k = get(0, 1) or 1
+            k = min(get(0, 1) or 1, self.cols - self.cx)  # além da borda não entra
             self.dirty.add(self.cy)
             row = self.grid[self.cy]
             row[self.cx : self.cx] = [self.blank_cell()] * k
             del row[self.cols :]
         elif final == "P":
-            k = get(0, 1) or 1
+            # sem o limite, del apagava menos do que k e o extend devolvia k
+            # células: a linha crescia além de self.cols e o histórico ficava
+            # com linha de largura errada (a re-quebra supõe len(row) == cols)
+            k = min(get(0, 1) or 1, self.cols - self.cx)
             self.dirty.add(self.cy)
             row = self.grid[self.cy]
             del row[self.cx : self.cx + k]

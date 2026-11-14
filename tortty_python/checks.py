@@ -579,6 +579,33 @@ def reflow():
     assert (_screen_text(t), (t.cx, t.cy)) == (text, (19, 1))
 
 
+def dch_beyond_row_width():
+    """DCH/ICH além da largura: a linha não passa de cols (a re-quebra supõe isso)."""
+    t = Term(cols=10, rows=2)
+    t.feed("abcdefghij")
+    t.feed("\x1b[1;5H\x1b[99P")  # apaga 99 a partir da coluna 5: só 6 existem
+    assert len(t.grid[0]) == 10
+    assert _row_text(t.grid[0]) == "abcd      "
+    t.feed("\x1b[1;3H\x1b[99@")  # insere 99 na coluna 3: entra o que cabe
+    assert len(t.grid[0]) == 10
+    assert _row_text(t.grid[0]) == "ab        "
+
+
+def reflow_keeps_styled_blank():
+    """O corte de branco do reflow não come espaço sublinhado nem de link."""
+    t = Term(cols=20, rows=4)
+    t.feed("\x1b[4mab    \x1b[0m\r\nx")  # linha 0 fora do cursor: sem blindagem
+    t.resize(10, 4)
+    linha = t.grid[0]
+    assert _row_text(linha).rstrip() == "ab"
+    assert [bool(c[3] & UL) for c in linha[:8]] == [True, True] + [True] * 4 + [False] * 2
+    # célula de espaço com hyperlink também é conteúdo, não é branco
+    t = Term(cols=20, rows=4)
+    t.feed("\x1b]8;;http://x/\x1b\\ab  \x1b]8;;\x1b\\")
+    t.resize(10, 4)
+    assert t.link_key(t.grid[0][3]) == "http://x/"
+
+
 def history():
     """A visão desliza sobre scrollback + grade."""
     t = Term(cols=10, rows=3)
@@ -1736,6 +1763,8 @@ ALL = (
     origin_mode,
     osc52_clipboard,
     reflow,
+    dch_beyond_row_width,
+    reflow_keeps_styled_blank,
     history,
     scroll_anchor,
     selection_follows_history,
