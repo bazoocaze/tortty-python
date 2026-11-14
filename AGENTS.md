@@ -179,9 +179,10 @@ is always merged over the default embedded in tortty_python/data/tortty-python.c
   finishes an iteration, mention discreetly that the doc is pending; the
   decision to sync is theirs.
 - Avoid backticks.
-- Style comes from `ruff format` (line-length 88), not manual alignment; the
-  lint is `ruff check` with E, F, I, W. Do not choose hand-format over the
-  formatter: `./run-tests.sh` fails if the file is not formatted.
+- Style comes from `ruff format` (line-length 100, from `pyproject.toml`), not
+  manual alignment; the lint is `ruff check` with E, F, I, W. Do not choose
+  hand-format over the formatter: `./run-tests.sh` fails if the file is not
+  formatted.
 - Commits: conventional commits, maximum of 3 lines.
 
 ## Tests
