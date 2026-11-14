@@ -5,6 +5,26 @@ goes to [HISTORY.md](HISTORY.md); what is not an item — a limit accepted by
 decision, a tool and its pitfalls — belongs to [LIMITATIONS.md](LIMITATIONS.md)
 and [DEBUG.md](DEBUG.md).
 
+P79 — Running `mc` throws the scrollback away. **Bug.** Reported from the real
+session (2026-11-14): after leaving `mc` the history that was off screen is gone
+— scrolling up shows nothing more. Mechanism, reproduced headless: `set_mode`
+(term.py) handles `?47`/`?1047`/`?1049` in one branch, and entering the alt
+screen with **`?1049`** clears `scrollback`, `sb_wrapped` and `sb_chrome`
+(lines 1220-1223); `?47` and `?1047` keep them. Repro: feed 40 lines into a
+8-row `Term`, `len(t.scrollback)` is 33, feed `\x1b[?1049h` and it is 0, feed
+`\x1b[?1049l` and it stays 0. That is not what `?1049` means: it saves the
+cursor and switches to the alternate buffer, which is what gets cleared — the
+primary buffer *and its scrollback* are supposed to come back on exit, and that
+is what makes scroll-up work after `vim`/`mc` in every mainstream terminal. The
+Rust TorTTY does the same (`crates/core/src/term.rs`, `enter_alt(clear_scrollback)`
+with `p == 1049`), so the decision belongs to both trees, and there is no note in
+LIMITATIONS/HISTORY explaining it (the subtree split hides the original commit).
+Fix candidate: drop the three `clear()` calls, keep the rest of the branch; no
+check depends on it today (`alt_screen_and_scroll` and `snapshot_restore` only use
+`?1049` for the buffer swap), but check the P57 photo: while in the alt screen it
+is `scrollback + alt_grid`, so keeping the history changes what a photo taken
+inside `mc` carries. Reproduce by hand: `seq 1 200`, `mc`, quit `mc`, `Shift+PgUp`.
+
 P26 — Drawing: `cr.show_glyphs` with precomputed glyphs. **Experiment, not a
 commitment.** It is the only path that really attacks the emission cost:
 2.43 → 0.76 µs (-69%, ~24% of the drawing). The price is leaving Pango: no font
