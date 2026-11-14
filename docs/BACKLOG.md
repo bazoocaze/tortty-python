@@ -5,6 +5,23 @@ goes to [HISTORY.md](HISTORY.md); what is not an item — a limit accepted by
 decision, a tool and its pitfalls — belongs to [LIMITATIONS.md](LIMITATIONS.md)
 and [DEBUG.md](DEBUG.md).
 
+P78 — Double click on a tab bar leaves the keyboard dead. **Bug.** Reported
+from the real session (2026-11-14): a double click on the tab label stops the
+keys from reaching the terminal, and they only come back after switching tabs
+(`Ctrl+Shift+Page_Up`, another tab, or a new one). Nothing is echoed, the
+shortcuts do not work either, so the window is not just "reading the wrong
+widget". Hypothesis: the click moves the keyboard focus to the notebook or to
+the tab `EventBox` (the page itself is already current, so no switch-page fires
+and the `_focus_idle` that gives the focus back to the `TermView` never runs);
+switching tabs fires it and the terminal is alive again. Where to look:
+`Workspace.on_tab_click` (window.py) — it returns `False` for button 1, so the
+press is left to GTK — and `on_switch_page`/`_focus_idle`, which is today the
+only place that restores the focus. Fix candidate: take the button-1 press on
+the tab box and hand the focus back to the view (the label is not a text
+target). Reproduce by hand: double click a tab, type; then switch tabs and type
+again. What is NOT known: whether a single click also does it (the report is
+about the double), and whether the middle-click/right-click paths matter.
+
 P26 — Drawing: `cr.show_glyphs` with precomputed glyphs. **Experiment, not a
 commitment.** It is the only path that really attacks the emission cost:
 2.43 → 0.76 µs (-69%, ~24% of the drawing). The price is leaving Pango: no font
