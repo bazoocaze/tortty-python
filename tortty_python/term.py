@@ -1217,10 +1217,11 @@ class Term:
                     self.row_chrome = [False] * self.rows
                     self.saved = (self.cx, self.cy)
                     self.cursor_to(0, 0)
-                    if p == 1049:
-                        self.scrollback.clear()
-                        self.sb_wrapped.clear()
-                        self.sb_chrome.clear()
+                    # P79: `?1049` salva o cursor e troca para o buffer
+                    # ALTERNATIVO (é ele que nasce limpo); o histórico do
+                    # buffer principal volta na saída, como em qualquer
+                    # terminal — limpar aqui apagava para sempre a leitura de
+                    # quem estava lendo antes de abrir o `mc`/`vim`.
                 elif not on and self.alt_grid is not None:
                     self.abs_gen += 1
                     self.grid = self.alt_grid

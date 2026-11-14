@@ -109,6 +109,11 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 
 ## Reflow and scrollback
 
+- **The history is not slid while an app owns the screen**: entering the
+  alt screen (`mc`, `vim`) keeps the scrollback of the main buffer intact — it is
+  read again after the app leaves — but the wheel, `Shift+PgUp` and the scrollbar
+  do nothing while it runs: the app is drawing the whole screen, and sliding the
+  view would show text that is no longer there. Decision, not a limit of storage.
 - **Reflow only in the main buffer**: in alt-screen (`mc`, `vim`) the resize
   crops/pads on purpose — whoever is in full screen redraws itself
   on SIGWINCH, and re-wrapping over what it wrote would get in the way.

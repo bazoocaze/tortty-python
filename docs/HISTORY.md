@@ -701,6 +701,15 @@ recording.
     inside the handler, the default one runs after it. Verified on Xvfb with
     injected clicks and the new `state.focus` field.
 
+26. **`mc` threw the scrollback away.** Entering the alt screen with `?1049`
+    cleared `scrollback` in `set_mode` (`?47`/`?1047` did not): the history was
+    gone for good, so `Shift+PgUp` after `mc`/`vim` showed nothing. It is not what
+    `?1049` means — it saves the cursor and switches to the alternate buffer,
+    which is the one born clean; the primary buffer and its scrollback come back
+    on exit. Fix: drop the three `clear()` calls; check
+    `alt_screen_keeps_scrollback`. Same behavior exists in the Rust TorTTY
+    (`enter_alt(clear_scrollback)`), fixed here first.
+
 ## Documentation note: number in only one place
 
 Until 2026-10-27 the throughput numbers lived repeated in README, LIMITATIONS,

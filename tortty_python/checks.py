@@ -615,6 +615,20 @@ def reflow_keeps_styled_blank():
     assert lk is not None and t.link_key(lk[3]) == "http://x/"
 
 
+def alt_screen_keeps_scrollback():
+    """`?1049` troca de buffer sem comer o histórico do principal (P79)."""
+    t = Term(cols=40, rows=8)
+    t.feed("".join("linha %d\r\n" % i for i in range(40)))
+    antes = [_row_text(r) for r in t.scrollback]
+    assert len(antes) == 33
+    t.feed("\x1b[?1049hALT only")
+    assert [_row_text(r) for r in t.scrollback] == antes
+    t.feed("\x1b[?1049l")
+    assert [_row_text(r) for r in t.scrollback] == antes
+    assert all("ALT only" not in r for r in antes)  # tela cheia não vira histórico
+    assert _row_text(t.grid[0]).startswith("linha 33")  # a tela principal voltou
+
+
 def history():
     """A visão desliza sobre scrollback + grade."""
     t = Term(cols=10, rows=3)
@@ -1842,6 +1856,7 @@ ALL = (
     sgr_and_erasing,
     sgr_italic_and_underline_styles,
     alt_screen_and_scroll,
+    alt_screen_keeps_scrollback,
     charset_and_replies,
     csi_with_intermediate,
     argv_parsing,

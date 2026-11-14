@@ -66,11 +66,15 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   how you copy an old excerpt. Being **one line** from the end is live again on
   the next output (there is nothing to read there). An `↑N` in the corner shows
   how far back you went;
-  the app's cursor is not drawn in the scrollback. A **scrollbar** of 8 px
+  the app's cursor is not drawn in the scrollback. The history belongs to the
+  main buffer and **survives an app in full screen** (`mc`, `vim`, `less`):
+  scrolling up after leaving it still shows what came before. A **scrollbar** of
+  8 px
   sits over the last column while there is scrollback (proportional thumb,
   translucent, brighter while the pointer is over it): clicking on the track
   jumps, dragging walks the history. It does
-  not exist in alt-screen (there is nothing to scroll) and it answers before the
+  not exist in alt-screen (the app owns the screen; the kept history is not slid
+  while it runs) and it answers before the
   mouse report, so it works inside `mc` and `vim`.
 - **Keyboard**: letters (including UTF-8), arrows, Home/End, PgUp/PgDn,
   Insert/Delete, F1–F24, Ctrl+letter, Alt+letter, Shift+Tab. It respects
