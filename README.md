@@ -123,7 +123,8 @@ replace it.
 ./run.sh -c /tmp/my.conf      # uses another file (merge with the default)
 ```
 
-The options (and the factory values):
+The common options (and the factory values) — every key, range and error rule
+is in [docs/CONFIG.md](docs/CONFIG.md):
 
 ```
 shell                      # program of each new tab; empty = the environment's $SHELL

@@ -16,6 +16,8 @@ Split by content type — each fact lives in one place only, do not duplicate.
 All are written for agent reading; only README.md is for humans.
 
 - AGENTS.md (this one) — conventions, architecture, scripts, tools.
+- docs/CONFIG.md — every configuration key: default, range, meaning, the
+  error rules and the not-yet (no map/unmap, no include).
 - docs/BACKLOG.md — pending backlog and the queue rules (record,
   close, where things that are not items go).
 - docs/LIMITATIONS.md — what is not done and why (accepted decision/limit, not
@@ -146,18 +148,17 @@ Key/value in kitty format (`#` comments). The user file is
 $XDG_CONFIG_HOME/tortty-python/tortty-python.conf (the -c FILE switches it) and
 is always merged over the default embedded in tortty_python/data/tortty-python.conf.
 
+Every key, range, default and error rule is in docs/CONFIG.md; it does not get
+copied here. What the code needs to know:
+
 - Valid keys and ranges live in tortty_python/config.py (CHECKS); the default values,
-  in tortty_python/data/tortty-python.conf. The ones that most change day to day: font_size (in
-  points, not px), scrollback, cursor_shape.
+  in tortty_python/data/tortty-python.conf, and check config_options fails when the
+  two disagree.
 - Empty `shell` (the default) inherits the environment `$SHELL`;
   `config.tab_command` decides (tab command, child `$SHELL`) and `--cmd` does
   not touch `$SHELL`.
-- `debug_log` (default /tmp/tortty-python.debug.log, `off` disables it; `--debug-log
-  FILE` wins over the configuration) is the JSONL log of `?2026` — events,
-  fields and usage in docs/DEBUG.md.
-- Editing with the app open applies immediately. Error is per line: on the
-  initial load what validated holds (the toast shows the first error), on
-  reload nothing changes.
+- Errors are per line, never per file: it is what lets the initial load keep
+  the rest and the reload change nothing (the caller looks at `ok`).
 
 ## Conventions
 
@@ -166,7 +167,10 @@ is always merged over the default embedded in tortty_python/data/tortty-python.c
   bump, not every commit. A docs, test or one-off adjustment commit does not
   bump. It is the single source: `pyproject.toml` reads from there (hatch) and
   `--version` shows it.
-- Texts, descriptions and comments concise and in English.
+- Test is concise. **Docs** (this file, docs/, README, --help, messages of the
+  toasts) and commit messages **in English**; **docstrings and comments in the
+  code in Portuguese** (818 lines against 1 today: translating them is a
+  decision of its own, not a side effect of another change).
 - Filenames and symbols in the code (functions, variables, classes, constants)
   in English.
 - Docstrings and comments in the code: at most one line.
