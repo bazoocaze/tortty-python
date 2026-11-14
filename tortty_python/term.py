@@ -1,7 +1,7 @@
-"""Estado do terminal: grade de células, cursor e parser VT.
+"""Terminal state: cell grid, cursor and VT parser.
 
-Sem GTK aqui dentro — é o que deixa o parser testável por `--selftest` sem
-abrir janela (e sem display). Quem desenha é `window.TorttyWindow`.
+No GTK in here: it is what makes the parser testable by `--selftest` without a
+window (and without a display). `window.TorttyWindow` does the drawing.
 """
 
 import base64
@@ -36,19 +36,19 @@ from .palette import (
     ul_style,
 )
 
-# Fast path do parser (P20): fim do texto imprimível e cache de escape -> cor.
+# Parser fast path (P20): end of the printable run and the escape -> colour cache.
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 _ESC_CACHE = {}
 _ESC_MAX = 1024
 
-# Layout C: a linha é `ch` (um str por célula), `pk` (array('Q') com fg, bg e
-# flags empacotados) e `lk` (array('i') de links, só quando a linha tem link).
+# Layout C: a row is `ch` (one str per cell), `pk` (array('Q') with fg, bg and
+# flags packed) and `lk` (array('i') of links, only when the row has a link).
 
 
 class Row:
-    """Uma linha: caracteres, atributos empacotados e links.
+    """One row: characters, packed attributes and links.
 
-    `ch` é lista na grade viva e `str` no histórico congelado (ver `frozen`).
+    `ch` is a list in the live grid and a `str` in the frozen history (`frozen`).
     """
 
     __slots__ = ("ch", "pk", "lk")
@@ -58,13 +58,13 @@ class Row:
 
 
 def frozen(row):
-    """Congela a linha que vai para o histórico: chars numa `str` em vez de lista.
+    """Freezes the row on its way to the history: chars in a `str`, not a list.
 
-    O histórico é imutável (só é lido, no reflow e na foto), então a lista de
-    ponteiros (8 B por célula) não precisa existir: uma `str` guarda ASCII num
-    byte por célula e CJK em 2-3, em vez de um objeto `str` por célula. Célula
-    com marca combinante tem mais de um code point e deixaria de casar com a
-    coluna, então essa linha fica como lista.
+    The history is immutable (read only, by reflow and by the snapshot), so the
+    pointer list (8 B per cell) need not exist: a `str` keeps ASCII in one byte
+    per cell and CJK in 2-3, instead of one `str` object per cell. A cell with a
+    combining mark has more than one code point and would stop matching the
+    column, so that row stays a list.
     """
     ch = row.ch
     if type(ch) is str:
@@ -76,19 +76,19 @@ def frozen(row):
 
 
 def row_text(row, a=0, b=None):
-    """Texto de um trecho da linha (congelada ou viva)."""
+    """Text of a slice of the row (frozen or live)."""
     ch = row.ch
     if type(ch) is str:
         return ch[a:b]
     return "".join(ch[a:b])
 
 
-# 25 bits de fg, 25 de bg, 12 de flags: branco truecolor (0x1FFFFFF) cabe exato.
+# 25 bits of fg, 25 of bg, 12 of flags: truecolor white (0x1FFFFFF) fits exactly.
 _FG_MASK = (1 << 25) - 1
 
 
 def _pack(fg, bg, fl):
-    """Célula empacotada: fg nos bits 0-24, bg em 25-49, flags em 50-61."""
+    """Packed cell: fg in bits 0-24, bg in 25-49, flags in 50-61."""
     return (fl << 50) | (bg << 25) | fg
 
 
@@ -98,13 +98,13 @@ def _unpack(v):
 
 _BLANK_V = _pack(DEF_FG, DEF_BG, 0)
 
-# Repetir um valor numa fatia de array pede uma origem do mesmo typecode: o
-# cache guarda o array pronto porque o valor é constante no run.
+# Repeating a value into an array slice needs a source of the same typecode: the
+# cache keeps the ready array, because the value is constant across the run.
 _REP = {}
 
 
 def _rep(tipo, v, n):
-    """`array(tipo, [v]) * n`, cacheado (teto pequeno: poucos valores por run)."""
+    """`array(kind, [v]) * n`, cached (small cap: few values per run)."""
     chave = (tipo, v, n)
     a = _REP.get(chave)
     if a is None:
@@ -115,12 +115,12 @@ def _rep(tipo, v, n):
 
 
 def row_link(row, x):
-    """Índice do hyperlink na célula `x` (0 = nenhum)."""
+    """Hyperlink index at cell `x` (0 = none)."""
     return row.lk[x] if row.lk is not None else 0
 
 
 def _erase(row, x0, x1, v):
-    """Células de `x0` a `x1` em branco com o valor `v` (bce: sem link)."""
+    """Cells `x0`..`x1` blank with value `v` (bce: no link)."""
     n = x1 - x0
     if n <= 0:
         return
@@ -131,7 +131,7 @@ def _erase(row, x0, x1, v):
 
 
 def _crop_row(row, cols):
-    """Linha recortada (ou completada com branco) em `cols` células."""
+    """Row cropped (or padded with blank) to `cols` cells."""
     lk = None if row.lk is None else row.lk[:cols]
     ch, pk = row.ch[:cols], row.pk[:cols]
     falta = cols - len(ch)
@@ -143,15 +143,15 @@ def _crop_row(row, cols):
     return Row(ch, pk, lk)
 
 
-# Cache de parâmetros de CSI (P22): (corpo do CSI, final) -> (nums, prefixo).
-# Independente do estado do terminal — só o parse dos números é cacheado.
+# CSI parameter cache (P22): (CSI body, final) -> (nums, prefix). Independent of
+# the terminal state: only the number parsing is cached.
 _CSI_CACHE = {}
 _CSI_MAX = 1024
 
-# `OSC 9`/`777`: teto do texto guardado — um app que notifica em laço não pode
-# crescer isto sem limite (o texto é para uma linha de toast/badge).
+# `OSC 9`/`777`: cap on the stored text — an app notifying in a loop cannot grow
+# it without bound (the text is for one toast/badge line).
 NOTIF_MAX = 512
-# pilha de título (`CSI 22`/`23 t`): o Rust também para em 16
+# title stack (`CSI 22`/`23 t`): the Rust stops at 16 too
 TITLE_STACK_MAX = 16
 
 
@@ -159,26 +159,26 @@ _SHELL_SAFE = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012
 
 
 def shell_quoted(path):
-    """Caminho pronto para o shell (P62): direto se é seguro, senão aspas simples.
+    """Path ready for the shell (P62): as is when safe, single quoted otherwise.
 
-    Mesma regra do Rust (`shell_quoted`): só ganha aspas o que tem espaço,
-    `$`, `*`, `'` ou qualquer coisa fora do conjunto seguro — e a aspa simples
-    dentro do caminho vira `'\''`.
+    Same rule as the Rust (`shell_quoted`): only what has a space, `$`, `*`, `'`
+    or anything outside the safe set gets quotes — and a single quote inside the
+    path becomes `'\''`.
     """
     if path and all(c in _SHELL_SAFE for c in path):
         return path
     return "'" + path.replace("'", "'\\''") + "'"
 
 
-# -- foto da aba (P57) ------------------------------------------------------
-# `restore_state content`: o que sai no fechamento e volta na abertura seguinte,
-# em ANSI porque o leitor já existe (o parser). Reabrir numa janela estreita
-# re-quebra pelo mesmo código do resize, então quebra mole não vira `\n`.
-# Fora da foto: imagem, clipboard, notificação, título — tudo que FAZ algo.
+# -- snapshot of the tab (P57) ----------------------------------------------
+# `restore_state content`: what leaves on close and comes back on the next open,
+# in ANSI because the reader already exists (the parser). Reopening in a narrow
+# window re-wraps through the resize code, so a soft wrap does not become `\n`.
+# Out of the snapshot: image, clipboard, notification, title — all that DOES.
 
 
 def _sgr(fg, bg, fl):
-    """SGR que reproduz a caneta de uma célula, partindo do reset (P57)."""
+    """SGR that reproduces a cell's pen, starting from the reset (P57)."""
     out = ["\x1b[0"]
     for bit, code in (
         (BOLD, ";1"),
@@ -194,8 +194,8 @@ def _sgr(fg, bg, fl):
             out.append(code)
     if fl & UL:
         estilo = ul_style(fl)
-        # estilo fora da faixa conhecida volta ao simples: um SGR inventado
-        # pintaria a célula errada na volta
+        # a style out of the known range falls back to simple: an invented SGR
+        # would paint the wrong cell on the way back
         out.append(";4:%d" % (estilo + 1) if 0 < estilo <= 4 else ";4")
     out.append(_sgr_color(fg, True))
     out.append(_sgr_color(bg, False))
@@ -204,7 +204,7 @@ def _sgr(fg, bg, fl):
 
 
 def _sgr_color(c, fg):
-    """Cor de célula em SGR: 39/49, 30-37/90-97, 38;5;n ou 38;2;r;g;b."""
+    """Cell colour in SGR: 39/49, 30-37/90-97, 38;5;n or 38;2;r;g;b."""
     if c is None or c == DEF_FG or c == DEF_BG:
         return ";39" if fg else ";49"
     if c & TC:
@@ -217,21 +217,21 @@ def _sgr_color(c, fg):
 
 
 def _padding(row, x):
-    """Célula em `x` que não desenha nem carrega nada: o branco à direita."""
+    """Cell at `x` that draws and carries nothing: the padding on the right."""
     return row.ch[x] == " " and row.pk[x] == _BLANK_V and not row_link(row, x)
 
 
 def _link_text(uri):
-    """URI sem caractere de controle: o URI veio do filho e fecharia o OSC."""
+    """URI without control characters: it came from the child and would close the OSC."""
     return "".join(c for c in uri if not (ord(c) < 32 or ord(c) == 127))
 
 
 def snapshot(term):
-    """A aba inteira (histórico e tela) em ANSI: alimentar um Term a refaz (P57)."""
+    """The whole tab (history and screen) in ANSI: feeding a Term rebuilds it (P57)."""
     alt = term.alt_grid is not None
     if alt:
-        # em tela cheia a foto é do buffer principal guardado, e o cursor dele
-        # não é conhecido enquanto o app segura a tela (sem CUP no fim)
+        # in alt screen the snapshot is of the saved main buffer, and its cursor
+        # is unknown while the app holds the screen (no CUP at the end)
         rows = term.scrollback + term.alt_grid
         wrapped = term.sb_wrapped + term.alt_wrapped
         chrome = term.sb_chrome + term.alt_chrome
@@ -240,22 +240,22 @@ def snapshot(term):
         wrapped = term.sb_wrapped + term.row_wrapped
         chrome = term.sb_chrome + term.row_chrome
     out = []
-    pen = None  # nenhum SGR emitido ainda: a primeira célula sempre emite
+    pen = None  # no SGR emitted yet: the first cell always emits
     link = 0
     prev_wrapped = False
     first = True
     for row, wrap, deco in zip(rows, wrapped, chrome):
         if deco:
-            continue  # a marca da restauração: na tela, fora da foto
+            continue  # the restore marker: on screen, out of the snapshot
         if not first and not prev_wrapped:
             out.append("\r\n")
         first, prev_wrapped = False, wrap
-        # linha de quebra mole está cheia por definição: os brancos do fim são
-        # conteúdo, e cortá-los moveria a quebra
+        # a soft-wrapped row is full by definition: the blanks at the end are
+        # content, and cutting them would move the wrap
         end = len(row.ch) if wrap else _end_of_content(row)
         pks, lks = row.pk, row.lk
-        # o texto sai por trecho (não por célula): a linha congelada é `str`,
-        # então o trecho é uma fatia, e a linha viva junta de uma vez
+        # text leaves by slice (not by cell): the frozen row is a `str`, so the
+        # slice is a cut, and the live row joins in one go
         pend = 0
         for x in range(end):
             i = lks[x] if lks is not None else 0
@@ -289,7 +289,7 @@ def snapshot(term):
 
 
 def _end_of_content(row):
-    """Índice (em células) depois da última que carrega algo (corta o branco)."""
+    """Index (in cells) after the last one that carries anything (cuts the padding)."""
     for x in range(len(row.ch) - 1, -1, -1):
         if not _padding(row, x):
             return x + 1
@@ -297,7 +297,7 @@ def _end_of_content(row):
 
 
 def _osc_progress(arg):
-    """`9;4;estado[;%]`: progresso (estado, %) do mintty/ConEmu, ou None (P65)."""
+    """`9;4;state[;%]`: mintty/ConEmu progress (state, %), or None (P65)."""
     parts = arg.split(";")
     if parts[0] != "4" or not 2 <= len(parts) <= 3:
         return None
@@ -307,23 +307,23 @@ def _osc_progress(arg):
     return (int(parts[1]), pct)
 
 
-# CSI curto inteiro no buffer: corpo sem intermediários, final em 0x40-0x7e.
-# Tudo que não casar aqui (chunk partido, intermediário, dígito Unicode) cai
-# no parser lento, que continua sendo o dono da gramática.
+# Whole short CSI in the buffer: body with no intermediates, final in 0x40-0x7e.
+# Anything that does not match here (split chunk, intermediate, Unicode digit)
+# falls to the slow parser, which remains the owner of the grammar.
 _CSI_RE = re.compile(r"\x1b\[([0-9;:?]*)([\x40-\x7e])")
 
 
-# Título até o app mandar OSC 0/2: é o valor que `view` compara para saber se o
-# título veio do filho.
+# Title until the app sends OSC 0/2: the value `view` compares to know whether
+# the title came from the child.
 DEFAULT_TITLE = "TorTTY (Python)"
 
-# Esquemas que o Ctrl+clique entrega ao xdg-open: o URI vem do filho, que não
-# escolhe qual handler do desktop vai rodar.
+# Schemes Ctrl+click hands to xdg-open: the URI comes from the child, which does
+# not get to choose which desktop handler runs.
 LINK_SCHEMES = ("http://", "https://", "file://", "ftp://", "mailto:")
 
 
 def link_allowed(uri):
-    """Só os esquemas conhecidos vão para o xdg-open."""
+    """Only the known schemes go to xdg-open."""
     return uri.lower().startswith(LINK_SCHEMES)
 
 
@@ -423,33 +423,33 @@ class Term:
         self.grid = [self._blank_row() for _ in range(rows)]
         self.alt_grid = None  # None = buffer principal
         self.scrolled = 0  # linhas que saíram pelo topo (índice absoluto)
-        # geração do mapa absoluto: reflow (linhas juntam/partem) e limpeza do
-        # histórico (CSI 3J) invalidam âncoras velhas. O corte no teto NÃO
-        # invalida: a linha absoluta continua a mesma (como no P32).
+        # absolute map generation: reflow (rows join/split) and clearing the
+        # history (CSI 3J) invalidate old anchors. The cap trim does NOT: the
+        # absolute row stays the same (as in P32).
         self.abs_gen = 0
-        # `CSI 3J` apaga o histórico: quem está rolando precisa saber (B20)
+        # `CSI 3J` wipes the history: whoever is scrolling has to know (B20)
         self.hist_gen = 0
         self.scrollback = []
         self.scrollback_limit = 1000  # teto de linhas do histórico (P34)
-        # dano do desenho (P27): linhas com célula alterada desde o último
-        # draw; dirty_all = grade inteira (rolagem, resize, RIS, alt-screen)
+        # draw damage (P27): rows with a cell changed since the last draw;
+        # dirty_all = the whole grid (scroll, resize, RIS, alt-screen)
         self.dirty, self.dirty_all = set(), True
-        # reflow (P3): row_wrapped[i] = "esta linha continua na de baixo"
-        # (quebra mole, não '\n'). É o que permite re-quebrar no resize em vez
-        # de recortar. sb_wrapped é o mesmo, paralelo ao scrollback.
+        # reflow (P3): row_wrapped[i] = "this row continues on the next one"
+        # (soft wrap, not '\n'). It is what allows re-wrapping on resize instead
+        # of cropping. sb_wrapped is the same, parallel to the scrollback.
         self.row_wrapped = [False] * rows
-        # P57: linha escrita pelo TERMINAL (a marca da restauração), não pelo
-        # filho. Decoração não é conteúdo: ela fica na tela e fora da foto. Os
-        # três são paralelos a grade/histórico, como row_wrapped.
+        # P57: row written by the TERMINAL (the restore marker), not by the
+        # child. Decoration is not content: it stays on screen and out of the
+        # snapshot. The three are parallel to grid/history, like row_wrapped.
         self.row_chrome = [False] * rows
         self.chrome_feed = False
-        # paradas de tabulação (P53): `ESC H` põe, `CSI g` tira, `CSI I`/`Z`
-        # andam por elas — o Rust também re-semeia a cada 8 no resize
+        # tab stops (P53): `ESC H` sets, `CSI g` clears, `CSI I`/`Z` walk them —
+        # the Rust re-seeds them every 8 on resize too
         self.tabstops = [x % 8 == 0 for x in range(cols)]
-        # último caractere impresso (`REP`, P56); o default do ECMA é espaço
+        # last printed character (`REP`, P56); the ECMA default is a space
         self.last_char = " "
-        # teclado numérico em modo de aplicação (DECKPAM, P56): só estado,
-        # os bytes não mudam (decisão do Rust, ver `keypad_app`)
+        # keypad in application mode (DECKPAM, P56): state only, the bytes do
+        # not change (the Rust decision, see `keypad_app`)
         self.keypad_app = False
         self.sb_wrapped = []
         self.alt_wrapped = None
@@ -457,7 +457,7 @@ class Term:
         self.alt_chrome = None
         self.cx, self.cy = 0, 0
         self.fg, self.bg, self.flags = DEF_FG, DEF_BG, 0
-        # LNM (`CSI 20 h`, P58): com ele o LF volta também para a coluna 0
+        # LNM (`CSI 20 h`, P58): with it LF also returns to column 0
         self.lnm = False
         self.top, self.bottom = 0, rows - 1  # scroll region
         self.wrap_pending = False
@@ -465,18 +465,18 @@ class Term:
         self.origin = False  # DECOM (?6): cursor relativo à região e preso a ela
         self.cursor_visible = True
         self.app_cursor = False  # DECCKM (?1): setas em modo aplicação
-        # DECSCUSR (CSI 6 q): (forma, pisca) pedido pelo app; None = config
+        # DECSCUSR (CSI 6 q): (shape, blink) asked by the app; None = config
         self.app_cursor_style = None
         self.bells = 0  # BEL contados (o host decide visual/audível)
-        # notificação do app (`OSC 9`/`777`, P44): o texto e o contador ficam
-        # aqui; quem decide toast, badge e urgência é a janela
+        # app notification (`OSC 9`/`777`, P44): the text and the counter stay
+        # here; the window decides toast, badge and urgency
         self.notifs = 0
         self.notif_text = ""
-        # progresso (`OSC 9;4`, P65): (estado, %) ou None; quem mostra é a
-        # janela (o rótulo da aba), no mesmo poll em que `notifs` é entregue
+        # progress (`OSC 9;4`, P65): (state, %) or None; the window shows it (in
+        # the tab label), on the same poll that delivers `notifs`
         self.progress = None
-        # `OSC 52` (clipboard do app, P64): o texto decodificado e o contador;
-        # quem põe no Gtk.Clipboard é a view (mesmo molde das notificações)
+        # `OSC 52` (the app's clipboard, P64): the decoded text and the counter;
+        # the view is who puts it in Gtk.Clipboard (same shape as notifications)
         self.clip_seq = 0
         self.clip_text = ""
         self.clip_sel = "clipboard"  # alvo: clipboard (c, 0-7) ou primary (p, s)
@@ -489,8 +489,8 @@ class Term:
         self.focus_report = False  # ?1004: avisar foco in/out
         self.bracketed_paste = False  # ?2004: colar com marcadores
         self.sync_output = False  # ?2026: transação de desenho aberta
-        # protocolo de teclado do kitty (P5): flags atuais + pilha para
-        # push/pop (CSI > flags u / CSI < n u / CSI = flags ; modo u)
+        # kitty keyboard protocol (P5): current flags + stack for push/pop
+        # (CSI > flags u / CSI < n u / CSI = flags ; mode u)
         self.kbd_flags = 0
         self.kbd_stack = []
         self.cell_size = (10, 19)  # px por célula (o window ajusta)
@@ -500,12 +500,12 @@ class Term:
         self.graphics = Graphics()  # protocolo de imagens do kitty (P6)
         self.apc = ""
         self.title = DEFAULT_TITLE
-        # `CSI 22;Ps t` empilha o título e `23` devolve (P52): vim/less/screen
-        # entram e saem sem deixar o rótulo preso no título deles
+        # `CSI 22;Ps t` pushes the title and `23` gives it back (P52): vim/less/
+        # screen come and go without leaving the label stuck on their title
         self.title_stack = []
         self.theme = Theme()  # cores desta aba (P49): config + OSC 4/10-12
-        # OSC 8: hyperlink corrente (índice em `links`, 0 = nenhum). O URI é
-        # internado, então a célula carrega só um int no quinto campo.
+        # OSC 8: current hyperlink (index into `links`, 0 = none). The URI is
+        # interned, so the cell carries just an int in the fifth field.
         self.link = 0
         self.links = []
         self.link_keys = []  # P76: chave de agrupamento (`id=`) de cada link
@@ -514,47 +514,47 @@ class Term:
         self.csi = ""
         self.osc = ""
         self.apc = ""
-        # resposta a query de tamanho (o icat pergunta; aqui só o básico)
+        # answer to a size query (icat asks; only the basics here)
         self.respond_size = False
 
-    # -- grade ------------------------------------------------------
+    # -- grid --------------------------------------------------------
     def _blank_row(self):
-        """Linha em branco: `cols` espaços e o valor empacotado do branco."""
+        """Blank row: `cols` spaces and the packed blank value."""
         return Row([" "] * self.cols, array("Q", [_BLANK_V]) * self.cols)
 
     def _blank_v(self):
-        """Valor empacotado da área apagada (bce: herda o bg corrente)."""
+        """Packed value of the erased area (bce: inherits the current bg)."""
         return _pack(DEF_FG, self.bg, 0)
 
     def _bce_row(self):
-        """Linha em branco com o bg corrente (área apagada, bce)."""
+        """Blank row with the current bg (erased area, bce)."""
         return Row([" "] * self.cols, array("Q", [self._blank_v()]) * self.cols)
 
     def blank_cell(self):
-        """Célula em branco com o bg corrente, como tupla de 5 (caminho frio)."""
+        """Blank cell with the current bg, as a 5-tuple (cold path)."""
         return (" ", DEF_FG, self.bg, 0, 0)
 
     def cell(self, y, x):
-        """Célula da grade como tupla de 5 (caminho frio: aloca)."""
+        """Cell of the grid as a 5-tuple (cold path: allocates)."""
         row = self.grid[y]
         fg, bg, fl = _unpack(row.pk[x])
         return (row.ch[x], fg, bg, fl, row_link(row, x))
 
     def sb_cell(self, i, x):
-        """Célula do histórico como tupla de 5 (caminho frio: aloca)."""
+        """Cell of the history as a 5-tuple (cold path: allocates)."""
         row = self.scrollback[i]
         fg, bg, fl = _unpack(row.pk[x])
         return (row.ch[x], fg, bg, fl, row_link(row, x))
 
     def cell_abs(self, i, x):
-        """Célula de `scrollback + grid` como tupla de 5 (caminho frio: aloca)."""
+        """Cell of `scrollback + grid` as a 5-tuple (cold path: allocates)."""
         sb = len(self.scrollback)
         row = self.scrollback[i] if i < sb else self.grid[i - sb]
         fg, bg, fl = _unpack(row.pk[x])
         return (row.ch[x], fg, bg, fl, row_link(row, x))
 
     def reset(self):
-        """RIS (ESC c): limpa tudo, mantém o tamanho e o teto do histórico."""
+        """RIS (ESC c): clears everything, keeps the size and the history cap."""
         cols, rows, gen = self.cols, self.rows, self.abs_gen + 1
         limit = self.scrollback_limit  # o teto é configuração, não estado do app
         hist = self.hist_gen
@@ -564,11 +564,11 @@ class Term:
         self.scrollback_limit = limit
 
     def resize(self, cols, rows):
-        """Redimensiona: re-quebra (reflow) no buffer principal.
+        """Resizes: reflows the main buffer.
 
-        Alt-screen não tem reflow — quem está em tela cheia (mc, vim) se
-        redesenha inteiro no SIGWINCH, e re-quebrar por cima do que ele
-        escreveu só atrapalharia.
+        Alt-screen has no reflow — whoever is in full screen (mc, vim) redraws
+        itself whole on SIGWINCH, and re-wrapping over what it wrote would only
+        get in the way.
         """
         if (cols, rows) == (self.cols, self.rows):
             return
@@ -577,18 +577,18 @@ class Term:
             self._reflow(cols, rows)
         else:
             self._resize_crop(cols, rows)
-        # tabulações (P53): como o Rust, o resize re-semeia a cada 8 em vez de
-        # preservar as que o app pôs — largura nova, paradas no padrão de novo
+        # tabs (P53): like the Rust, the resize re-seeds them every 8 instead of
+        # preserving the ones the app set — new width, default stops again
         self.tabstops = [x % 8 == 0 for x in range(self.cols)]
 
     def _resize_crop(self, cols, rows):
-        """Alt-screen: recorta a tela e re-quebra o buffer principal salvo.
+        """Alt-screen: crops the screen and reflows the saved main buffer.
 
-        O `alt_grid` (o buffer principal guardado enquanto o app está em tela
-        cheia) TAMBÉM tem que acompanhar o tamanho novo — senão, ao sair de
-        `mc`/`vim` depois de um resize, a grade volta com a largura antiga e a
-        primeira `EL` estoura (`IndexError` em `erase_line`), o que derruba o
-        watch do pty e congela o terminal.
+        `alt_grid` (the main buffer saved while the app holds the screen) has to
+        follow the new size TOO — otherwise, leaving `mc`/`vim` after a resize
+        brings the grid back in the old width and the first `EL` overflows
+        (`IndexError` in `erase_line`), which kills the pty watch and freezes
+        the terminal.
         """
         old_grid, old_cols, old_rows = self.grid, self.cols, self.rows
         old_wrapped, old_cx, old_cy = self.row_wrapped, self.cx, self.cy
@@ -618,13 +618,13 @@ class Term:
         self.wrap_pending = False
 
     def _reflow(self, cols, rows):
-        """Junta as linhas lógicas (scrollback + grade), corta na largura nova
-        e recoloca o cursor na célula equivalente.
+        """Joins the logical rows (scrollback + grid), cuts at the new width and
+        puts the cursor back on the equivalent cell.
 
-        Linha lógica = sequência de linhas de tela ligadas por quebra mole. Ao
-        estreitar, uma linha longa vira várias; ao alargar, várias voltam a
-        ser uma. O que sobra em cima vai pro scrollback, o que falta embaixo é
-        preenchido — e o cursor continua sobre o mesmo caractere.
+        A logical row = a sequence of screen rows joined by soft wrap. Narrowing
+        turns one long row into several; widening turns several back into one.
+        What overflows at the top goes to the scrollback, what is missing at the
+        bottom is filled — and the cursor stays over the same character.
         """
         old_cols = self.cols
         self.abs_gen += 1  # as linhas absolutas antigas não valem mais
@@ -649,8 +649,8 @@ class Term:
                 line_chrome.append(False)
                 off = 0
             row_info.append((len(lines) - 1, off))
-            # decoração viaja com o parágrafo (P57): a marca da restauração não
-            # pode reaparecer como conteúdo depois de uma re-quebra
+            # decoration travels with the paragraph (P57): the restore marker
+            # cannot come back as content after a re-wrap
             line_chrome[-1] = line_chrome[-1] or deco
             n0 = len(cur.ch)
             cur.ch.extend(row.ch)
@@ -670,12 +670,12 @@ class Term:
         else:
             line_idx, cur_off = None, None
 
-        # Corta o espaço em branco à direita de cada linha lógica. Sem isso,
-        # uma linha de 3 caracteres numa tela de 68 colunas re-quebra em DUAS
-        # linhas (a segunda só de espaços) e o conteúdo aparece intercalado
-        # com linhas vazias ao estreitar. Só corta célula vazia de verdade
-        # (espaço, bg default, sem atributo e sem link) — fundo colorido de
-        # barra/status, espaço sublinhado e espaço de hyperlink ficam.
+        # Cuts the trailing blank of every logical row. Without it, a 3-char row
+        # in a 68-column screen re-wraps into TWO rows (the second only spaces)
+        # and the content shows up interleaved with empty rows when narrowing.
+        # Only a truly empty cell is cut (space, default bg, no attribute and no
+        # link) — a coloured bar/status background, an underlined space and a
+        # hyperlink space stay.
         for li, line in enumerate(lines):
             real = len(line.ch)
             while real and _vazia(line, real - 1):
@@ -705,8 +705,8 @@ class Term:
                 new_rows.append(Row(ch, pk, lk))
                 new_wrap.append(ci < nch - 1)
                 new_chrome.append(line_chrome[li])
-                # só o primeiro chunk que contém o cursor ganha (sem isso o
-                # último chunk da linha sobrescrevia e o cursor pulava)
+                # only the first chunk holding the cursor wins (without this the
+                # last chunk of the row overwrote it and the cursor jumped)
                 if (
                     li == line_idx
                     and cur_off is not None
@@ -717,8 +717,8 @@ class Term:
                         len(new_rows) - 1,
                         max(0, min(cols - 1, cur_off - ci * cols)),
                     )
-        # o que está DEPOIS do cursor é área em branco: não vale empurrar
-        # linha vazia pro scrollback só porque a tela alargou
+        # what comes AFTER the cursor is blank area: no point pushing an empty
+        # row into the scrollback just because the screen got wider
         if cur_new is not None:
             while len(new_rows) - 1 > cur_new[0]:
                 last = new_rows[-1]
@@ -741,12 +741,11 @@ class Term:
             self.row_wrapped.append(False)
             self.row_chrome.append(False)
 
-        # As colocações de imagem vivem em LINHAS DE TELA, e o reflow acabou
-        # de mudar quantas linhas existem acima da grade: quem ficou fora do
-        # histórico virou inalcançável (nem com o wheel) e nunca mais seria
-        # desenhado — melhor descartar do que guardar lixo. As que continuam
-        # na faixa ficam onde estão (imagem não acompanha reflow linha a linha,
-        # como no kitty).
+        # Image placements live in SCREEN ROWS, and the reflow just changed how
+        # many rows exist above the grid: what fell out of the history became
+        # unreachable (not even with the wheel) and would never be drawn again —
+        # better to drop it than to keep junk. The ones still in range stay where
+        # they are (an image does not follow reflow row by row, as in kitty).
         self.graphics.drop_above(-len(self.scrollback))
 
         self.cols, self.rows = cols, rows
@@ -760,7 +759,7 @@ class Term:
             self.cy = min(self.cy, rows - 1)
 
     def set_scrollback(self, n):
-        """Novo teto do histórico (P34): corta o excedente na hora."""
+        """New history cap (P34): trims the excess right away."""
         n = max(0, int(n))
         if n == self.scrollback_limit:
             return False
@@ -770,15 +769,15 @@ class Term:
         return True
 
     def touch(self, y):
-        """Marca a linha como alterada: o host só precisa desenhar essa."""
+        """Marks the row as changed: the host only has to draw that one."""
         self.dirty.add(y)
 
     def touch_all(self):
-        """Grade inteira mudou (rolagem, resize, RIS, troca de buffer)."""
+        """The whole grid changed (scroll, resize, RIS, buffer switch)."""
         self.dirty_all = True
 
     def take_damage(self):
-        """Linhas alteradas desde o último draw; None = a grade inteira."""
+        """Rows changed since the last draw; None = the whole grid."""
         if self.dirty_all:
             self.dirty.clear()
             self.dirty_all = False
@@ -787,7 +786,7 @@ class Term:
         return linhas
 
     def _trim_scrollback(self):
-        """Corta o histórico no teto (chamado quando o teto muda e no scroll)."""
+        """Cuts the history at the cap (called when the cap changes and on scroll)."""
         n = self.scrollback_limit
         if len(self.scrollback) > n:
             del self.scrollback[: len(self.scrollback) - n]
@@ -797,9 +796,9 @@ class Term:
     def scroll_up(self):
         self.touch_all()  # a tela desliza: toda linha muda de conteúdo
         self.scrolled += 1
-        # rolagem de tela cheia: a linha que sai pelo topo vai pro histórico,
-        # então a imagem que estava nela continua existindo (com linha
-        # negativa) e reaparece quando a visão sobe no scrollback
+        # full-screen scroll: the row leaving at the top goes to the history, so
+        # the image that was on it keeps existing (on a negative row) and comes
+        # back when the view scrolls up the scrollback
         self.graphics.scroll(
             self.top, self.bottom, -(self.scrollback_limit + 1) if self.top == 0 else None
         )
@@ -819,7 +818,7 @@ class Term:
                     self.scrollback.pop(0)
                     self.sb_wrapped.pop(0)
                     self.sb_chrome.pop(0)
-                    # o que estava preso nessa linha morreu de vez
+                    # what was pinned to that row is gone for good
                     self.graphics.drop_above(-len(self.scrollback))
                 self.grid.append(self._blank_row())
                 self.row_wrapped.append(False)
@@ -839,14 +838,14 @@ class Term:
             self.cy = min(self.cy + 1, self.rows - 1)
 
     def reverse_index(self):
-        """`ESC M` (RI): no topo da região, rola a região uma linha para baixo."""
+        """`ESC M` (RI): at the top of the region, scrolls the region one row down."""
         if self.cy == self.top:
             self.scroll_down(1)
         else:
             self.cy = max(0, self.cy - 1)
 
     def scroll_down(self, n=1):
-        """`CSI T` (SD) e `ESC M` no topo: a região desce, o topo ganha linha."""
+        """`CSI T` (SD) and `ESC M` at the top: the region goes down, the top gains a row."""
         self.touch_all()
         for _ in range(max(1, n)):
             self.graphics.scroll(self.top, self.bottom, None)
@@ -858,36 +857,36 @@ class Term:
             self.row_chrome.insert(self.top, False)
 
     def link_of(self, i):
-        """URI do hyperlink pelo índice do slot da célula (5º campo), ou None."""
+        """Hyperlink URI by the cell's slot index (5th field), or None."""
         if not i or i > len(self.links):
             return None
         return self.links[i - 1]
 
     def link_key(self, i):
-        """Chave de agrupamento do link pelo índice (5º campo): `id=` ou URI (P76)."""
+        """Link grouping key by the index (5th field): `id=` or URI (P76)."""
         if not i or i > len(self.link_keys):
             return None
         return self.link_keys[i - 1]
 
     def _link_id(self, uri, ident=""):
-        """Índice do link na tabela: mesmo URI e mesmo `id=` reusam o mesmo int."""
+        """Index of the link in the table: same URI and same `id=` reuse the same int."""
         if not uri:
             return 0
         i = self._link_ids.get((uri, ident))
         if i is None:
             self.links.append(uri)
-            # sem `id=` o agrupamento é o próprio URI: duas células do mesmo
-            # URI continuam sendo um link só
+            # with no `id=` the grouping is the URI itself: two cells of the same
+            # URI are still a single link
             self.link_keys.append(ident or uri)
             i = len(self.links)
             self._link_ids[(uri, ident)] = i
         return i
 
     def put(self, ch):
-        # Controle vem ANTES da quebra pendente: um `\r\n` depois de uma linha
-        # que encheu a largura avançava DUAS linhas (a quebra pendente + o LF),
-        # e app que preenche a linha inteira (pi, Ink) caía em layout dobrado
-        # e tela rolando sem parar (P15).
+        # Control comes BEFORE the pending wrap: a `\r\n` after a row that filled
+        # the width advanced TWO rows (the pending wrap + the LF), and an app that
+        # fills the whole row (pi, Ink) fell into doubled layout and a screen
+        # scrolling without stopping (P15).
         if ch == "\r":
             self.cx, self.wrap_pending = 0, False
             return
@@ -905,8 +904,8 @@ class Term:
             self.forward_tab(1)
             return
         if ch >= "\u0300" and unicodedata.category(ch) in ("Mn", "Me"):
-            # P73: marca combinante (acento, VS16) cola na célula anterior em vez
-            # de ocupar outra — a linha andava uma coluna a mais
+            # P73: a combining mark (accent, VS16) glues to the previous cell
+            # instead of taking another one — the row walked one column too far
             col = self.cols - 1 if self.wrap_pending else self.cx - 1
             if col >= 0:
                 row = self.grid[self.cy]
@@ -914,8 +913,8 @@ class Term:
                 self.dirty.add(self.cy)
                 return
         if self.wrap_pending:
-            # a linha que encheu continua na de baixo (quebra mole): é o que
-            # o reflow usa pra juntar de novo ao alargar
+            # the row that filled up continues on the next one (soft wrap): it is
+            # what reflow uses to join them again when widening
             self.row_wrapped[self.cy] = True
             self.cx = 0
             self.newline()
@@ -939,9 +938,9 @@ class Term:
         else:
             self.cx += 1
 
-    # -- comandos ----------------------------------------------------
+    # -- commands ----------------------------------------------------
     def forward_tab(self, n=1):
-        """`HT`/`CSI I`: anda `n` paradas de tabulação para a direita (P53)."""
+        """`HT`/`CSI I`: walks `n` tab stops to the right (P53)."""
         for _ in range(max(1, n)):
             x = self.cx + 1
             while x < self.cols and not self.tabstops[x]:
@@ -950,7 +949,7 @@ class Term:
         self.wrap_pending = False
 
     def backward_tab(self, n=1):
-        """`CSI Z` (CBT): anda `n` paradas para a esquerda (P53)."""
+        """`CSI Z` (CBT): walks `n` stops to the left (P53)."""
         for _ in range(max(1, n)):
             x = self.cx
             while x > 0:
@@ -962,7 +961,7 @@ class Term:
 
     def cursor_to(self, r, c):
         if self.origin and self.top <= self.bottom:
-            # DECOM (P68): a linha absoluta fica presa à região de rolagem
+            # DECOM (P68): the absolute row is held inside the scroll region
             self.cy = max(self.top, min(self.bottom, r))
         else:
             self.cy = max(0, min(self.rows - 1, r))
@@ -970,7 +969,7 @@ class Term:
         self.wrap_pending = False
 
     def row_abs(self, r):
-        """Linha de endereçamento relativo (DECOM) convertida em absoluta."""
+        """Relative-addressing row (DECOM) turned into an absolute one."""
         return r + self.top if self.origin else r
 
     def erase_display(self, n):
@@ -979,9 +978,9 @@ class Term:
         if n == 2 or n == 3:
             for y in range(self.rows):
                 self.grid[y] = self._bce_row()
-            # `ED 3` na tela cheia é assunto do buffer alternativo: ele não
-            # tem histórico e não manda no que cobre — limpar levava junto o
-            # histórico e as imagens do principal (P79, paridade com o B63)
+            # `ED 3` in alt screen is the alternate buffer's business: it has no
+            # history and no say about what it covers — clearing took the main
+            # history and its images with it (P79, parity with B63)
             if n == 3 and self.alt_grid is None:
                 self.scrollback.clear()
                 self.sb_wrapped.clear()
