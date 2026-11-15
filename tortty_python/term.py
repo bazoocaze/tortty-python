@@ -979,6 +979,7 @@ class Term:
         self.touch_all()
         v = self._blank_v()
         if n == 2 or n == 3:
+            self.graphics.erase(0, self.rows, 0, self.cols)  # P86
             for y in range(self.rows):
                 self.grid[y] = self._bce_row()
             # `ED 3` in alt screen is the alternate buffer's business: it has no
@@ -997,10 +998,14 @@ class Term:
                 self.hist_gen += 1
             self.cursor_to(0, 0)
         elif n == 1:
+            self.graphics.erase(0, self.cy, 0, self.cols)  # P86
+            self.graphics.erase(self.cy, self.cy + 1, 0, self.cx + 1)
             _erase(self.grid[self.cy], 0, self.cx + 1, v)
             for y in range(self.cy):
                 self.grid[y] = self._bce_row()
         else:  # 0
+            self.graphics.erase(self.cy + 1, self.rows, 0, self.cols)  # P86
+            self.graphics.erase(self.cy, self.cy + 1, self.cx, self.cols)
             _erase(self.grid[self.cy], self.cx, self.cols, v)
             for y in range(self.cy + 1, self.rows):
                 self.grid[y] = self._bce_row()
@@ -1009,10 +1014,13 @@ class Term:
         self.dirty.add(self.cy)
         row = self.grid[self.cy]
         if n == 2:
+            self.graphics.erase(self.cy, self.cy + 1, 0, self.cols)  # P86
             self.grid[self.cy] = self._bce_row()
         elif n == 1:
+            self.graphics.erase(self.cy, self.cy + 1, 0, self.cx + 1)
             _erase(row, 0, self.cx + 1, self._blank_v())
         else:
+            self.graphics.erase(self.cy, self.cy + 1, self.cx, self.cols)
             _erase(row, self.cx, self.cols, self._blank_v())
 
     def insert_lines(self, n):
@@ -1214,6 +1222,7 @@ class Term:
                 self.touch_all()  # o buffer inteiro troca
                 if on and self.alt_grid is None:
                     self.abs_gen += 1
+                    self.graphics.enter_alt()  # P86: o alt tem as suas imagens
                     self.alt_grid = self.grid
                     self.alt_wrapped = self.row_wrapped
                     self.alt_chrome = self.row_chrome
@@ -1229,6 +1238,7 @@ class Term:
                     # quem estava lendo antes de abrir o `mc`/`vim`.
                 elif not on and self.alt_grid is not None:
                     self.abs_gen += 1
+                    self.graphics.leave_alt()  # P86: as do principal voltam
                     self.grid = self.alt_grid
                     self.alt_grid = None
                     if len(self.alt_wrapped) == self.rows:
@@ -1376,6 +1386,7 @@ class Term:
         elif final == "X":
             hi = min(self.cols, self.cx + (get(0, 1) or 1))
             self.dirty.add(self.cy)
+            self.graphics.erase(self.cy, self.cy + 1, self.cx, hi)  # P86
             _erase(self.grid[self.cy], self.cx, hi, self._blank_v())
         elif final == "r":
             t, b = get(0, 1) - 1, get(1, self.rows) - 1

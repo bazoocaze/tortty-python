@@ -510,6 +510,50 @@ def dcs_is_consumed():
     assert _row_text(t.grid[0]).rstrip() == "C" and len(t.dcs) == 256
 
 
+def erasing_takes_the_picture():
+    """P86: the cells are the picture's place — erasing them takes it (parity B3)."""
+    rgba = base64.b64encode(bytes([200, 30, 30, 255]) * 16).decode()
+
+    def imagem(t):
+        t.feed(f"\x1b_Ga=T,f=32,s=4,v=4,i=1;{rgba}\x1b\\")
+
+    t = Term(20, 6)
+    t.cell_size = (8, 16)
+    t.feed("\x1b[1;1H")
+    imagem(t)
+    assert len(t.graphics.placements) == 1
+    t.feed("\x1b[2J")
+    assert not t.graphics.placements, "ED 2 took it"
+    t.feed("\x1b[2;9H")
+    imagem(t)
+    t.feed("\x1b[2;1H\x1b[K")
+    assert not t.graphics.placements, "EL 0 took it"
+    t.feed("\x1b[3;13H")
+    imagem(t)
+    t.feed("\x1b[3;1H\x1b[4X")
+    assert len(t.graphics.placements) == 1, "ECH to its left leaves it"
+    # the alternate screen is its own place, and leaving gives the main one back
+    t = Term(20, 6)
+    t.cell_size = (8, 16)
+    t.feed("\x1b[1;1H")
+    imagem(t)
+    t.feed("\x1b[?1049h\x1b[H\x1b[2J")
+    assert not t.graphics.placements, "the alt screen starts empty"
+    imagem(t)
+    assert len(t.graphics.placements) == 1, "the alt one has its own"
+    t.feed("\x1b[?1049l")
+    assert [(p.row, p.col) for p in t.graphics.placements] == [(0, 0)]
+    # the screen is what was erased: a picture in the history stays
+    t = Term(20, 4)
+    t.cell_size = (8, 16)
+    t.feed("\x1b[1;1H")
+    imagem(t)
+    t.feed("\r\n\r\n\r\n")
+    assert t.graphics.placements[0].row < 0
+    t.feed("\x1b[H\x1b[2J")
+    assert len(t.graphics.placements) == 1, "ED 2 clears the screen, not the history"
+
+
 def graphics_follow_history():
     """Imagem que sai pelo topo vai pro scrollback e o reflow poda o inalcançável."""
     t = Term(cols=20, rows=4)
@@ -1922,6 +1966,7 @@ ALL = (
     graphics_follow_history,
     graphics_chunked,
     dcs_is_consumed,
+    erasing_takes_the_picture,
     wrap_and_control,
     deccawm,
     sgr_faint_and_hidden,

@@ -136,8 +136,10 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   every chunk). `kitten icat` works, including `--place` and `--scale-up`, and
   so does `chafa -f kitty`; it detects through `a=q` + `DA` + `CSI 14 t` and
   transmits in stream or compressed. An image that hangs off an edge is clipped
-  as in kitty (icat scrolls it past row 0 on purpose). Images scroll along with
-  the text **including into the scrollback**: `Shift+PgUp`/wheel bring the image back on the right
+  as in kitty (icat scrolls it past row 0 on purpose). Erasing the cells takes
+  the picture (`ED`/`EL`/`ECH`), and the alternate screen has its own set, so
+  `mc`/`vim` cover the image and give it back on the way out. Images scroll along
+  with the text **including into the scrollback**: `Shift+PgUp`/wheel bring the image back on the right
   line (the placement lives in the grid and may have a negative line, as in kitty)
   and they are drawn on top of the cells.
 - **Bracketed paste** (`?2004`): when the app asks, `Ctrl+Shift+V`/the middle

@@ -228,6 +228,11 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **The image is drawn above the text, so a stale placement survives every
+  repaint.** An app that paints over without the alternate screen (`mc`) leaves
+  the picture visible in each blank cell unless `ED`/`EL`/`ECH` drop the
+  placements they cover (P86). Probe: `chafa -f kitty IMG; sleep 3; clear` in the
+  tab must leave no picture.
 - **A chunked kitty image is base64 per chunk, padding included.** chafa and
   `kitten icat` close every `m=1` chunk with `=`; decoding the joined string
   makes `binascii` stop at the first padding, the image arrives short and the

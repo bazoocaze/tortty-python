@@ -24,7 +24,7 @@ MIT (see LICENSE).
 
 # Fonte única da versão: o pyproject lê daqui (hatch) e o `--version` mostra.
 # O patch sobe ao fechar um item de backlog, não a cada commit.
-__version__ = "0.0.28"
+__version__ = "0.0.29"
 
 __all__ = ["Term", "TorttyWindow", "selftest", "__version__"]
 

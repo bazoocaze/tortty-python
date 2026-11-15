@@ -65,3 +65,14 @@ Image/Placement list used by the kitty protocol, honour `inline=1` versus
 `inline=0` (download) and the `width`/`height` in cells or `auto`; ignore
 `preserveAspectRatio=0`. Cost: ~80 lines, the OSC body already reaches
 `_osc_done`.
+
+P87 — A child that measures the cell before the first resize gets the wrong
+aspect. **Bug, minor.** Found while verifying P86: `chafa -f kitty --size 40x14`
+right after the tab opens drew the image squeezed (98 px wide instead of the 224
+px the placement asked for: `cols=28` or `14` instead of `32`), because it reads
+the cell from `TIOCGWINSZ` (`ws_xpixel`/`ws_ypixel`) before the app's first
+`size-allocate` set the pixel fields, and guesses 8x8 (or worse). With
+`sleep 2; chafa …` the placement is always `cols=32 rows=14` and the aspect is
+right — 3 runs each way. Route: set the winsize (with the pixel fields) in
+`TermView.spawn`, from the saved geometry or `--cols/--rows`, before the child
+reads it; the first `size-allocate` overwrites it with the real one.

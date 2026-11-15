@@ -57,6 +57,7 @@ class Graphics:
     def __init__(self):
         self.images = {}  # id -> Image
         self.placements = []  # o que está desenhado agora
+        self.saved = None  # placement do buffer principal enquanto o alt está no ar
         self._next_id = 1
         self._buf = None  # chunks de uma transmissão em curso (m=1)
 
@@ -64,7 +65,37 @@ class Graphics:
     def clear(self):
         self.images.clear()
         self.placements.clear()
+        self.saved = None
         self._buf = None
+
+    def erase(self, top, bottom, left, right):
+        """P86: erasing the cells takes the picture drawn in them.
+
+        `ED`/`EL`/`ECH` erase cells; without this the placement survived, and an
+        app that paints over without the alternate screen (`mc`) kept the image
+        in every cell it left blank. A picture in the history is out of 0..rows
+        and stays, so scrolling up to it still finds it.
+        """
+        if top >= bottom or left >= right:
+            return
+        self.placements = [
+            p
+            for p in self.placements
+            if not (
+                p.row < bottom and p.row + p.rows > top and p.col < right and p.col + p.cols > left
+            )
+        ]
+
+    def enter_alt(self):
+        """The alternate screen has its own set; the main one waits here (P86)."""
+        self.saved = self.placements
+        self.placements = []
+
+    def leave_alt(self):
+        """Leaving gives the main screen's pictures back, on their own lines."""
+        if self.saved is not None:
+            self.placements = self.saved
+            self.saved = None
 
     def scroll(self, top, bottom, floor=None):
         """Acompanha o scroll: placements sobem junto com o texto.

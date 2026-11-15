@@ -595,6 +595,15 @@ draw loop skipped any placement with `vr < 0`, so the picture vanished even
 though the grid had 1 image and 1 placement. The loop now skips only what does
 not overlap the screen and lets the cairo clip cut the rest, as kitty does.
 
+### P86 — A picture lives in its cells; the alternate screen has its own (2026-11-14)
+
+Reported: `chafa -f kitty` drew the image, `mc` opened and the picture stayed on
+every cell `mc` left blank, because `ED`/`EL`/`ECH` erased the cells and kept the
+placement. `Graphics.erase` now drops what intersects the erased span, and
+`?1049` gives the alternate buffer its own set (`enter_alt`/`leave_alt`), so the
+main screen's pictures wait and come back on their lines. `ED 2` reaches the
+screen, not the history. Parity with the Rust TorTTY (B3, 1.0.85).
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth
