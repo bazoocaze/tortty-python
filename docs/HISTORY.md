@@ -612,6 +612,16 @@ The winsize now goes out right after `pty.fork`, and `metrics()` runs **before**
 the fork — it loads the font, and that delay was what let the child read first.
 6 of 6 runs correct afterwards, 3 of 6 before.
 
+### P84 — iTerm2 inline images (2026-11-14)
+
+`OSC 1337;File=inline=1;width=…;height=…:<base64>` now draws at the cursor and
+the cursor goes below it. Same placement object as the kitty protocol, so
+scrolling, `ED`/`EL`, the alt screen and the history work with no extra code.
+Units are cells, `px` and `%`; `preserveAspectRatio` (the default) derives the
+missing side. Payload is decoded by `GdkPixbuf`, since `chafa -f iterm` sends
+TIFF and cairo only reads PNG. Verified with a PNG of four quadrants: 32x14
+cells land pixel-exact, 112 px per half.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

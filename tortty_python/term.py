@@ -1726,6 +1726,15 @@ class Term:
                 self.progress = p  # estado fora de 0..4: engolido, como sempre
         elif o.startswith("777;"):
             self._osc_notify777(o[4:])
+        elif o.startswith("1337;File="):
+            # iTerm2 inline image (P84): the cursor goes below the picture
+            cw, ch = self.cell_size
+            used, move = self.graphics.inline(
+                o[5:], (self.cx, self.cy), (cw, ch), (self.cols * cw, self.rows * ch)
+            )
+            if move and used:
+                for _ in range(used):
+                    self.newline()
         elif o.startswith("52;"):
             self._osc_clip(o[3:])
         elif o.startswith("8;"):

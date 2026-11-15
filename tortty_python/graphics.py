@@ -17,7 +17,8 @@ Supported (enough for `kitten icat`):
     i=<id>  c=<columns>  r=<rows>  C=1 (do not move the cursor)  q=<silence>
 
 Out: animation (`a=f`/`a=a`), z-index and transmission by file/shared-memory
-(`t=f`/`t=t`/`t=s`). Compression `o=z` is supported (zlib).
+(`t=f`/`t=t`/`t=s`). Compression `o=z` is supported (zlib). The iTerm2 form
+(`OSC 1337;File=`, P84) also lands here: `inline()` paints at the cursor.
 """
 
 import base64
@@ -39,6 +40,20 @@ class Image:
     def __init__(self, id_, width, height, fmt, data):
         self.id, self.width, self.height = id_, width, height
         self.fmt, self.data = fmt, data
+
+
+def iterm_dim(spec, px, cell_len, total_px):
+    """`N` células, `Npx`, `N%` da tela ou `auto` (o tamanho em pixels)."""
+    if not spec or spec == "auto":
+        return max(1, math.ceil(px / cell_len)) if px else 0
+    try:
+        if spec.endswith("%"):
+            return max(1, math.ceil(total_px * float(spec[:-1]) / 100 / cell_len))
+        if spec.endswith("px"):
+            return max(1, math.ceil(float(spec[:-2]) / cell_len))
+        return max(1, int(float(spec)))
+    except ValueError:
+        return 0
 
 
 class Placement:
@@ -130,6 +145,48 @@ class Graphics:
         dy = int(kv.get("Y") or 0)
         self.placements.append(Placement(img.id, col, row, cols, rows, dx, dy))
         return rows
+
+    def inline(self, body, cursor=(0, 0), cell=(10, 19), screen=(0, 0)):
+        """`OSC 1337;File=...:<base64>` (P84): desenha no cursor e diz quantas linhas.
+
+        O iTerm2 manda qualquer formato que ele saiba ler — o `chafa` manda
+        TIFF — então aqui os bytes ficam crus e quem decodifica é o `view.py`.
+        Devolve `(linhas, move)`, no mesmo contrato do `handle`.
+        """
+        if not body.startswith("File="):
+            return 0, False
+        args, _, payload = body[5:].partition(":")
+        kv = {}
+        for item in args.split(";"):
+            k, _, v = item.partition("=")
+            if k:
+                kv[k] = v
+        if kv.get("inline", "1") == "0":
+            return 0, False  # download sem mostrar
+        try:
+            data = base64.b64decode(payload + "=" * (-len(payload) % 4))
+        except Exception:
+            return 0, False
+        if not data:
+            return 0, False
+        width, height = png_size(data)  # 0,0 fora do PNG (TIFF, JPEG)
+        cw, ch = cell
+        w_spec, h_spec = kv.get("width", ""), kv.get("height", "")
+        cols = iterm_dim(w_spec, width, cw, screen[0])
+        rows = iterm_dim(h_spec, height, ch, screen[1])
+        # preserveAspectRatio=1 (o default): o lado que falta sai da proporção
+        if kv.get("preserveAspectRatio", "1") != "0" and width and height:
+            if cols and not h_spec:
+                rows = max(1, math.ceil(cols * cw * height / width / ch))
+            elif rows and not w_spec:
+                cols = max(1, math.ceil(rows * ch * width / height / cw))
+        if not cols or not rows:
+            return 0, False  # sem tamanho e sem cabeçalho: nada a desenhar
+        ident = self._next_id
+        self._next_id += 1
+        self.images[ident] = Image(ident, width, height, 100, data)
+        self.placements.append(Placement(ident, cursor[0], cursor[1], cols, rows))
+        return rows, True
 
     # -- o protocolo --------------------------------------------------
     def handle(self, body, cursor=(0, 0), cell=(10, 19)):

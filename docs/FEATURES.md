@@ -142,6 +142,12 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   with the text **including into the scrollback**: `Shift+PgUp`/wheel bring the image back on the right
   line (the placement lives in the grid and may have a negative line, as in kitty)
   and they are drawn on top of the cells.
+- **iTerm2 inline images** (`OSC 1337;File=`, `tortty_python/graphics.py`):
+  `inline=1` desenha no cursor, `width`/`height` em células, `px` ou `%` do
+  tamanho da tela, `preserveAspectRatio` completa o lado que falta e o cursor
+  desce as linhas usadas. O payload pode ser PNG, TIFF ou JPEG — quem decodifica
+  é o `GdkPixbuf` (o `chafa -f iterm` manda TIFF). A imagem é a mesma colocação
+  do kitty, então rola, some com o `ED`/`EL` e espera o alt screen igual.
 - **Bracketed paste** (`?2004`): when the app asks, `Ctrl+Shift+V`/the middle
   button send the text between `ESC[200~` and `ESC[201~` — readline/vim know it
   is a paste and do not run each line. Pasting a line copied with the mouse no

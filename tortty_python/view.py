@@ -116,7 +116,17 @@ def surface_from_image(img, cairo):
     guarda o segundo item da tupla.
     """
     if img.fmt == 100:  # PNG: o cairo lê direto
-        return cairo.ImageSurface.create_from_png(io.BytesIO(img.data)), None
+        if img.data[:8] == b"\x89PNG\r\n\x1a\n":
+            return cairo.ImageSurface.create_from_png(io.BytesIO(img.data)), None
+        # P84: o iTerm2 aceita qualquer formato que ele leia — o `chafa` manda
+        # TIFF — então fora do PNG quem decodifica é o GdkPixbuf
+        from gi.repository import GdkPixbuf
+
+        loader = GdkPixbuf.PixbufLoader()
+        loader.write(img.data)
+        loader.close()
+        pb = loader.get_pixbuf()
+        return Gdk.cairo_surface_create_from_pixbuf(pb, 0, None), pb
     w, h = img.width, img.height
     src = img.data
     n = 4 if img.fmt == 32 else 3

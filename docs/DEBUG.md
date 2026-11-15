@@ -228,6 +228,12 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **The inline image payload is not necessarily PNG.** `chafa -f iterm` sends
+  **TIFF** (magic `II*`), and `cairo.ImageSurface.create_from_png` refuses it:
+  `surface_from_image` keeps cairo for PNG and hands everything else to
+  `GdkPixbuf.PixbufLoader` (P84). Probe: `python3 tools/pixel.py` over the
+  capture, or `chafa -f iterm IMG` and look; the 4-quadrant PNG
+  (32x14 cells, 112 px halves) proves the geometry.
 - **A child reads the cell size once, at startup** (`TIOCGWINSZ`, what chafa
   uses): a fresh pty reports 0x0 px and the fallback is an 8x8 cell, so the
   picture comes out squashed. The winsize is sent right after `pty.fork` and

@@ -10,9 +10,11 @@ import base64
 import contextlib
 import io
 import json
+import math
 import os
 import shutil
 import socket
+import struct
 import tempfile
 import zlib
 
@@ -491,6 +493,56 @@ def graphics_chunked():
     t.feed(f"\x1b_Ga=t,f=32,s=4,v=4,i=4,m=1;{b64[:32]}\x1b\\")
     t.feed(f"\x1b_Gm=0;{b64[32:]}\x1b\\")
     assert t.graphics.images[4].data == dados
+
+
+def _png_b64(w, h):
+    """PNG RGBA w x h em base64: cabeçalho de verdade para o png_size."""
+
+    def chunk(tag, data):
+        corpo = tag + data
+        return struct.pack(">I", len(data)) + corpo + struct.pack(">I", zlib.crc32(corpo))
+
+    ihdr = struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0)
+    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IEND", b"")
+    return base64.b64encode(png).decode()
+
+
+def iterm2_inline():
+    """P84: OSC 1337 File= draws at the cursor, with units and aspect."""
+    t = Term(cols=20, rows=6)
+    t.cell_size = (7, 16)
+    t.feed("\x1b]1337;File=inline=1;width=4;height=2:" + _png_b64(10, 5) + "\x07")
+    pl = t.graphics.placements[0]
+    assert (pl.col, pl.row, pl.cols, pl.rows) == (0, 0, 4, 2)
+    assert t.graphics.images[pl.image_id].fmt == 100
+    assert (t.cx, t.cy) == (0, 2)  # the cursor went below the picture
+    # Npx and N% of the screen: 70px / 7 = 10 columns, 50% of 140px = 10 too
+    for spec in ("70px", "50%"):
+        t = Term(cols=20, rows=6)
+        t.cell_size = (7, 16)
+        t.feed(f"\x1b]1337;File=inline=1;width={spec};height=1:{_png_b64(4, 4)}\x07")
+        assert t.graphics.placements[0].cols == 10, spec
+    # preserveAspectRatio: only the width, the height comes from the picture
+    t = Term(cols=20, rows=8)
+    t.cell_size = (7, 16)
+    t.feed("\x1b]1337;File=inline=1;width=5:" + _png_b64(10, 20) + "\x07")
+    assert t.graphics.placements[0].rows == max(1, math.ceil(5 * 7 * 20 / 10 / 16))
+    # inline=0 only downloads, and a broken payload draws nothing
+    for corpo in (
+        "\x1b]1337;File=inline=0:" + _png_b64(4, 4) + "\x07",
+        "\x1b]1337;File=inline=1:@@@@\x07",
+        "\x1b]1337;SetUserVar=foo=YmFy\x07",
+    ):
+        t = Term(cols=20, rows=6)
+        t.cell_size = (7, 16)
+        t.feed(corpo)
+        assert not t.graphics.placements and not t.graphics.images
+    # the erased cells take this picture too (P86 applies to both protocols)
+    t = Term(cols=20, rows=6)
+    t.cell_size = (7, 16)
+    t.feed("\x1b]1337;File=inline=1;width=4;height=2:" + _png_b64(8, 8) + "\x07")
+    t.feed("\x1b[2J")
+    assert not t.graphics.placements
 
 
 def dcs_is_consumed():
@@ -1965,6 +2017,7 @@ ALL = (
     graphics_image_and_offset,
     graphics_follow_history,
     graphics_chunked,
+    iterm2_inline,
     dcs_is_consumed,
     erasing_takes_the_picture,
     wrap_and_control,

@@ -58,10 +58,8 @@ raster attributes), build RGBA and hand it to the same placement path the kitty
 protocol uses, so drawing, scrolling and the photo of the tab (P57) come for
 free. Cost: ~200 lines of pure code plus checks; the source is `chafa -f sixel`.
 
-P84 — iTerm2 inline images (OSC 1337). **Feature.** `ESC ] 1337 ; File=inline=1;
-width=...;height=...:BASE64 ESC \` — chafa `-f iterm` and `-f iterm2` are the
-same bytes, so one parser serves both. Route: decode the base64 into the same
-Image/Placement list used by the kitty protocol, honour `inline=1` versus
-`inline=0` (download) and the `width`/`height` in cells or `auto`; ignore
-`preserveAspectRatio=0`. Cost: ~80 lines, the OSC body already reaches
-`_osc_done`.
+P88 — The OSC and APC buffers have no ceiling. **Robustness.** `feed` appends to
+self.osc/self.apc until the terminator arrives; a child that never sends one
+(BEL/ST) grows the string without bound — a 273 KB iTerm2 payload already goes
+through, and nothing stops 10 GB. Route: a cap (a few MB, above any real image),
+and over it drop the sequence and go back to ground.
