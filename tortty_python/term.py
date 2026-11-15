@@ -39,7 +39,8 @@ from .palette import (
 # Parser fast path (P20): end of the printable run and the escape -> colour cache.
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
 _DCS_END = re.compile("[\x07\x1b]")  # BEL or ESC: where a DCS body stops
-_DCS_KEEP = 256  # chars of the DCS body kept for debugging (P81)
+_SIXEL_HEAD = re.compile("[0-9;]*q")  # `DCS P1;P2;P3;q` = DECSIXEL (P83)
+_SIXEL_PREFIX = re.compile("[0-9;]*q?")  # o que ainda pode virar um DECSIXEL
 _ESC_CACHE = {}
 _ESC_MAX = 1024
 
@@ -521,7 +522,9 @@ class Term:
         # P88: body over OSC_MAX is not stored, only consumed until the terminator
         self.osc_drop = False
         self.apc_drop = False
-        self.dcs = ""  # kept only to the cap; DCS is consumed and ignored (P81)
+        self.dcs = []  # body pieces; only DECSIXEL is decoded (P81, P83)
+        self.dcs_len = 0
+        self.dcs_drop = False
         # answer to a size query (icat asks; only the basics here)
         self.respond_size = False
 
@@ -1608,7 +1611,8 @@ class Term:
                 elif ch == "_":
                     self.state, self.apc, self.apc_drop = "apc", [], False
                 elif ch == "P":
-                    self.state, self.dcs = "dcs", ""
+                    self.state, self.dcs, self.dcs_len = "dcs", [], 0
+                    self.dcs_drop = False
                 elif ch == "(":
                     self.state = "charset"
                 elif ch == "M":
@@ -1686,27 +1690,54 @@ class Term:
                 else:
                     self.state = "ground"
             elif st == "dcs":
-                # DCS (sixel, DECRQSS, XTVERSION): consumed, never decoded, so
-                # the payload cannot leak to the screen as text (P81). Skipping
-                # by find keeps a megabyte of sixel off the per-char loop.
+                # DCS body never reaches the screen (P81). Skipping by find keeps
+                # a megabyte of sixel off the per-char loop; the slice is stored
+                # for the sixel decoder (P83).
                 m = _DCS_END.search(text, i)
                 j = m.start() if m else n
-                if len(self.dcs) < _DCS_KEEP:
-                    self.dcs += text[i:j][: _DCS_KEEP - len(self.dcs)]
+                if not self.dcs_drop:
+                    parte = text[i:j]
+                    self.dcs.append(parte)
+                    self.dcs_len += len(parte)
+                    if self.dcs_len > OSC_MAX:
+                        self.dcs, self.dcs_drop = [], True
+                    elif self.dcs_len <= 8 and not _SIXEL_PREFIX.fullmatch("".join(self.dcs)):
+                        self.dcs, self.dcs_drop = [], True  # XTVERSION, DECRQSS...
                 if not m:
                     i = n
                     continue
-                self.state = "ground" if text[j] == "\x07" else "dcs-esc"
+                if text[j] == "\x07":
+                    self._dcs_done()
+                else:
+                    self.state = "dcs-esc"
                 i = j + 1
                 continue
             elif st == "dcs-esc":
-                self.state = "ground" if ch == "\\" else "dcs"
-                if self.state == "dcs":
-                    self.dcs = ""
+                if ch == "\\":
+                    self._dcs_done()
+                else:  # ESC alone: back to DCS, throwing away what it held
+                    self.state, self.dcs, self.dcs_len = "dcs", [], 0
             elif st == "charset":
                 self.charset_dec = ch == "0"
                 self.state = "ground"
             i += 1
+
+    def _dcs_done(self):
+        """DCS: only DECSIXEL (`...q`, P83) is decoded; the rest is dropped."""
+        body, self.dcs = "".join(self.dcs), []
+        self.dcs_len = 0
+        self.state = "ground"
+        if self.dcs_drop:  # P88: dropped body, discard silently
+            self.dcs_drop = False
+            return
+        m = _SIXEL_HEAD.match(body)
+        if m is None:
+            return
+        cw, ch = self.cell_size
+        used, move = self.graphics.sixel(body[m.end() :], (self.cx, self.cy), (cw, ch))
+        if move and used:
+            for _ in range(used):
+                self.newline()
 
     def _apc_done(self):
         body, self.apc = "".join(self.apc), []

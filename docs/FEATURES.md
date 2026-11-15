@@ -142,6 +142,11 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   with the text **including into the scrollback**: `Shift+PgUp`/wheel bring the image back on the right
   line (the placement lives in the grid and may have a negative line, as in kitty)
   and they are drawn on top of the cells.
+- **Sixel** (`DCS P1;P2;P3;q`, `tortty_python/graphics.py`): `decode_sixel`
+  decodifica em ARGB32 puro — cores `#` (RGB e HLS), bandas de 6 linhas, `!`
+  de repetição, `$` e `-`, e o raster `"` para o tamanho. O bitmap entra como
+  `fmt 101`, que o `view.py` entrega ao cairo **sem a cópia por pixel** do
+  caminho RGBA. `chafa -f sixel` desenha; pixel não pintado fica transparente.
 - **iTerm2 inline images** (`OSC 1337;File=`, `tortty_python/graphics.py`):
   `inline=1` desenha no cursor, `width`/`height` em células, `px` ou `%` do
   tamanho da tela, `preserveAspectRatio` completa o lado que falta e o cursor

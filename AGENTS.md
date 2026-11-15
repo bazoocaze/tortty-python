@@ -81,7 +81,8 @@ The tortty_python/ package installs the `tortty-python` command and also runs as
 - tortty_python/keys.py — X11 keyval -> child bytes (dead keys, DECCKM)
 - tortty_python/kitty_kbd.py — kitty keyboard protocol (CSI ... u)
 - tortty_python/mouse.py — mouse protocol (SGR and the old one) — pure
-- tortty_python/graphics.py — kitty image protocol (APC G) — pure
+- tortty_python/graphics.py — image protocols (kitty APC G, iTerm2 OSC
+  1337, sixel DCS) — pure
 - tortty_python/gui.py — the only import of Gtk/Gdk/GLib/Pango/PangoCairo/cairo
 - tortty_python/style.py — chrome color tokens + generated CSS + contrast (pure)
 - tortty_python/view.py — TermView: one session (pty, cairo + Pango, events)

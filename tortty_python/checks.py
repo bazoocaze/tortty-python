@@ -592,6 +592,44 @@ def oversized_body_is_dropped():
         modterm.OSC_MAX = antigo
 
 
+def sixel_decoded():
+    """P83: DECSIXEL — cor, banda, repetição, transparência e o DCS no parser."""
+    from .graphics import decode_sixel
+
+    # raster 3x8: `~` pinta as 6 linhas da banda 0 em vermelho; `-` desce a banda
+    # e `!2A` pinta 2 colunas no bit 1 em verde; o resto fica transparente
+    corpo = '"1;1;3;8#0;2;100;0;0#1;2;0;100;0#0~~~#1-!2A'
+    w, h, buf = decode_sixel(corpo)
+
+    def px(x, y):
+        i = (y * w + x) * 4
+        return tuple(buf[i : i + 4])  # BGRA
+
+    assert (w, h) == (3, 8)
+    assert px(0, 0) == (0, 0, 255, 255) and px(2, 5) == (0, 0, 255, 255)
+    assert px(0, 7) == (0, 255, 0, 255) and px(1, 7) == (0, 255, 0, 255)
+    assert px(2, 7) == (0, 0, 0, 0)  # fora da repetição
+    assert px(0, 6) == (0, 0, 0, 0)  # entre as bandas
+    # HLS (`Pu=1`) e um bitmap largo demais
+    assert tuple(decode_sixel("#0;1;0;50;100#0~")[2][:4]) == (0, 0, 255, 255)
+    assert decode_sixel("#0;2;0;0;0" + "~" * 9000)[0] == 0
+
+    # no parser: ST e BEL fecham o DCS, e a imagem entra como uma colocação só
+    for fim in ("\x1b\\", "\x07"):
+        t = Term(cols=20, rows=6)
+        t.cell_size = (7, 16)
+        t.feed("\x1bP0;0;0q" + corpo + fim)
+        pl = t.graphics.placements[0]
+        assert (pl.cols, pl.rows, pl.col, pl.row) == (1, 1, 0, 0)
+        assert t.graphics.images[pl.image_id].fmt == 101  # ARGB32 pronto
+        assert (t.cx, t.cy) == (0, 1)  # o cursor desceu a imagem
+    # DCS que não é sixel continua consumido e descartado (XTVERSION)
+    t = Term(cols=20, rows=6)
+    t.cell_size = (7, 16)
+    t.feed("\x1bP>|XTVERSION(3.4.0)\x1b\\")
+    assert not t.graphics.images and not _screen_text(t)
+
+
 def huge_osc_is_linear():
     """P89: a 1 MB OSC/APC must not cost quadratic time (`str +=` did)."""
 
@@ -617,20 +655,21 @@ def huge_osc_is_linear():
 
 
 def dcs_is_consumed():
-    """P81: DCS leaves the screen alone — sixel and XTVERSION do not print."""
+    """P81/P83: DCS never prints — sixel draws, anything else is dropped."""
     t = Term(cols=40, rows=3)
     t.feed('\x1bP0;0;0q"1;1;4;4#0;2;0;0;0#1!4~$-#2~~\x1b\\fim')
-    assert _row_text(t.grid[0]).rstrip() == "fim"
-    assert t.child_out == bytearray()  # sixel still gets no answer
+    assert _screen_text(t).strip() == "fim"  # o texto segue abaixo da imagem
+    assert t.child_out == bytearray()  # sixel gets no answer
+    assert len(t.graphics.images) == 1  # e agora desenha (P83)
     t = Term(cols=40, rows=3)
     t.feed("\x1bP+q544e\x1b\\A")
-    assert _row_text(t.grid[0]).rstrip() == "A" and t.dcs == "+q544e"
+    assert _row_text(t.grid[0]).rstrip() == "A" and not t.dcs  # não é sixel
     t = Term(cols=40, rows=3)
     t.feed("\x1bP1$qm\x07B")  # BEL also ends it
     assert _row_text(t.grid[0]).rstrip() == "B"
     t = Term(cols=40, rows=3)
     t.feed("\x1bP" + "x" * 5000 + "\x1b\\C")
-    assert _row_text(t.grid[0]).rstrip() == "C" and len(t.dcs) == 256
+    assert _row_text(t.grid[0]).rstrip() == "C" and not t.dcs
 
 
 def erasing_takes_the_picture():
@@ -2091,6 +2130,7 @@ ALL = (
     iterm2_inline,
     iterm2_measures_unknown_size,
     oversized_body_is_dropped,
+    sixel_decoded,
     huge_osc_is_linear,
     dcs_is_consumed,
     erasing_takes_the_picture,

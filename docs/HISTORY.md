@@ -646,6 +646,17 @@ because the pure layer only knows `png_size`. `Graphics.measure` is a hook the
 GUI layer fills (`view.measure_image`, GdkPixbuf); unset — the `--selftest`
 path — behaviour is exactly what it was.
 
+### P83 — Sixel (2026-11-14)
+
+The last image format. `decode_sixel` in `graphics.py` reads the DECSIXEL
+stream into an ARGB32 bitmap: `#` colours (RGB in %, HLS), 6-row bands, `!`
+repetition, `$`/`-`, and the `"` raster for the real size. The parser stops
+dropping every DCS: a head matching `[0-9;]*q` is sixel, anything else
+(XTVERSION, DECRQSS) is discarded at the first non-matching byte, as before.
+The bitmap is `fmt 101`, so `view.py` hands it to cairo with no per-pixel copy —
+the RGBA path would cost a second per megapixel. `chafa -f sixel` draws, 32x14
+cells for a 224x224 image, cursor below it.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

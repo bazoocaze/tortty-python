@@ -18,13 +18,18 @@ Supported (enough for `kitten icat`):
 
 Out: animation (`a=f`/`a=a`), z-index and transmission by file/shared-memory
 (`t=f`/`t=t`/`t=s`). Compression `o=z` is supported (zlib). The iTerm2 form
-(`OSC 1337;File=`, P84) also lands here: `inline()` paints at the cursor.
+(`OSC 1337;File=`, P84) also lands here: `inline()` paints at the cursor, and
+DECSIXEL (P83) is decoded by `decode_sixel` into ARGB32 (fmt 101).
 """
 
 import base64
+import colorsys
 import math
 import struct
 import zlib
+
+SIXEL_MAX_PX = 16 << 20  # teto do bitmap: 16 MP (P83)
+SIXEL_MAX_SIDE = 8192  # e nenhum lado passa disso
 
 
 def png_size(data):
@@ -32,6 +37,109 @@ def png_size(data):
     if len(data) < 24 or data[:8] != b"\x89PNG\r\n\x1a\n":
         return 0, 0
     return struct.unpack(">II", data[16:24])
+
+
+def _sixel_nums(data, i):
+    """Lê `P1;P2;...` a partir de i: devolve (lista, índice depois do último)."""
+    out = []
+    n = len(data)
+    while i < n:
+        j = i
+        while j < n and data[j].isdigit():
+            j += 1
+        if j == i:
+            break
+        out.append(int(data[i:j]))
+        i = j
+        if i < n and data[i] == ";":
+            i += 1
+        else:
+            break
+    return out, i
+
+
+def _sixel_color(mode, vals):
+    """`#` definition: mode 2 is RGB in %, mode 1 is HLS (hue 0..360)."""
+    if mode == 1:
+        matiz, luz, sat = vals[0] * 3.6 / 360, vals[1] / 100, vals[2] / 100
+        r, g, b = colorsys.hls_to_rgb(matiz, luz, sat)
+        return round(r * 255), round(g * 255), round(b * 255)
+    return tuple(min(255, round(v * 255 / 100)) for v in vals[:3])
+
+
+def decode_sixel(data):
+    """DECSIXEL -> (width, height, ARGB32 rows) or (0, 0, None) (P83). Pure.
+
+    Sixel draws six vertical pixels per character, one band at a time; the
+    canvas grows as the stream asks for it. Unset pixels stay transparent — the
+    background colour of the terminal does not enter the pure layer.
+    """
+    colors = {}
+    rgb = (0, 0, 0)
+    rows = []  # one bytearray per pixel row, ARGB32 (=BGRA bytes)
+    x = top = 0
+    w = h = 0
+
+    def paint(bits, rep):
+        nonlocal x, w, h
+        px = bytes((rgb[2], rgb[1], rgb[0], 255))
+        for _ in range(rep):
+            if bits:
+                for bit in range(6):
+                    if bits >> bit & 1:
+                        y = top + bit
+                        while len(rows) <= y:
+                            rows.append(bytearray())
+                        row = rows[y]
+                        need = (x + 1) * 4
+                        if len(row) < need:
+                            row.extend(bytes(need - len(row)))
+                        row[x * 4 : x * 4 + 4] = px
+            x += 1
+            if x > SIXEL_MAX_SIDE:
+                return
+        w = max(w, x)
+
+    i, n = 0, len(data)
+    while i < n:
+        c = data[i]
+        if c == "#":
+            fields, i = _sixel_nums(data, i + 1)
+            if len(fields) >= 5:
+                colors[fields[0]] = _sixel_color(fields[1], fields[2:5])
+            if fields:
+                rgb = colors.get(fields[0], (0, 0, 0))
+        elif c == '"':
+            fields, i = _sixel_nums(data, i + 1)
+            if len(fields) >= 4:  # Pan;Pad;Ph;Pv
+                w, h = max(w, fields[2]), max(h, fields[3])
+        elif c == "!":
+            fields, i = _sixel_nums(data, i + 1)
+            rep = fields[0] if fields else 1
+            if i < n and "?" <= data[i] <= "~":
+                paint(ord(data[i]) - 0x3F, min(rep, SIXEL_MAX_SIDE))
+                i += 1
+        elif c == "$":
+            x, i = 0, i + 1
+        elif c == "-":
+            top, x, i = top + 6, 0, i + 1
+        elif "?" <= c <= "~":
+            paint(ord(c) - 0x3F, 1)
+            i += 1
+        else:  # newline and anything else outside the alphabet
+            i += 1
+
+    if not rows:
+        return 0, 0, None
+    w = max(w, max((len(r) // 4 for r in rows), default=0))
+    h = max(h, len(rows))  # `h` já traz o Ph;Pv do raster, quando veio
+    if not w or not h or w > SIXEL_MAX_SIDE or w * h > SIXEL_MAX_PX:
+        return 0, 0, None
+    buf = bytearray(w * h * 4)
+    for y, row in enumerate(rows):
+        if row:
+            buf[y * w * 4 : y * w * 4 + len(row)] = row
+    return w, h, buf
 
 
 class Image:
@@ -191,6 +299,20 @@ class Graphics:
         ident = self._next_id
         self._next_id += 1
         self.images[ident] = Image(ident, width, height, 100, data)
+        self.placements.append(Placement(ident, cursor[0], cursor[1], cols, rows))
+        return rows, True
+
+    def sixel(self, data, cursor=(0, 0), cell=(10, 19)):
+        """DECSIXEL (P83): decodifica e coloca no cursor, como o iTerm2 faz."""
+        w, h, buf = decode_sixel(data)
+        if not w or not h:
+            return 0, False
+        cw, ch = cell
+        ident = self._next_id
+        self._next_id += 1
+        # fmt 101 = ARGB32 pronto: o view.py entrega ao cairo sem cópia por pixel
+        self.images[ident] = Image(ident, w, h, 101, buf)
+        cols, rows = max(1, math.ceil(w / cw)), max(1, math.ceil(h / ch))
         self.placements.append(Placement(ident, cursor[0], cursor[1], cols, rows))
         return rows, True
 

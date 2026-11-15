@@ -228,6 +228,15 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **The DCS head decides everything.** `DCS P1;P2;P3;q` is sixel; the body is
+  buffered up to the cap and decoded at the terminator. Anything else
+  (`>|XTVERSION`, `1$r...`) is spotted in the first 8 bytes (`_SIXEL_PREFIX`) and
+  dropped at once, so a big non-sixel DCS costs nothing (P83). Probe:
+  `chafa -f sixel IMG` must draw and leave the line below it free for the next
+  text — the cursor moves below the image.
+- **A new image format should pick a `fmt` that avoids the RGBA copy.**
+  `surface_from_image` converts RGB/RGBA with a numpy-free Python loop
+  (~1 s per megapixel), so sixel produces ARGB32 straight into `fmt 101` (P83).
 - **The pure graphics layer cannot decode anything.** `graphics.py` knows only
   the PNG header, so an image with no `width`/`height` needs a pixel size from
   outside: `view.py` injects `term.graphics.measure` (P90). Keep that in mind if

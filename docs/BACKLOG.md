@@ -50,10 +50,3 @@ requirements): target OS, target features (splits, attention notice, CLI),
 throughput/latency, install form. The study, the blocks in the code and the cost
 of each route (conda, Qt, FFI) are in [PORTABILITY.md](PORTABILITY.md); none of
 it is decided.
-
-P83 — Sixel (`DCS q`) images. **Feature.** The DCS is already consumed by P81,
-so today a sixel image draws nothing. Route: parse the payload into bands of 6
-rows (`#` sets the colour register, `!` repeats, `$` CR, `-` next band, `"` the
-raster attributes), build RGBA and hand it to the same placement path the kitty
-protocol uses, so drawing, scrolling and the photo of the tab (P57) come for
-free. Cost: ~200 lines of pure code plus checks; the source is `chafa -f sixel`.

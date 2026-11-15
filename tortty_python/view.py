@@ -128,6 +128,9 @@ def surface_from_image(img, cairo):
         pb = loader.get_pixbuf()
         return Gdk.cairo_surface_create_from_pixbuf(pb, 0, None), pb
     w, h = img.width, img.height
+    if img.fmt == 101:  # ARGB32 pronto (sixel, P83): vai ao cairo sem cópia
+        buf = img.data if isinstance(img.data, bytearray) else bytearray(img.data)
+        return cairo.ImageSurface.create_for_data(buf, cairo.FORMAT_ARGB32, w, h, w * 4), buf
     src = img.data
     n = 4 if img.fmt == 32 else 3
     stride = cairo.ImageSurface.format_stride_for_width(cairo.FORMAT_ARGB32, w)
