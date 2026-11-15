@@ -228,6 +228,12 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **A large OSC/APC must not be built with `str +=`.** Per character it is
+  O(n²): chafa at a wide window sends ~1.3 MB of base64 for one image and the
+  loop froze for 25 s, with the pty full and chafa blocked writing (P89). The
+  parser collects chunks in a list and joins at the terminator; the check
+  `huge_osc_is_linear` compares 100 KB against 400 KB (4x linear, 16x
+  quadratic), which does not depend on machine speed.
 - **The inline image payload is not necessarily PNG.** `chafa -f iterm` sends
   **TIFF** (magic `II*`), and `cairo.ImageSurface.create_from_png` refuses it:
   `surface_from_image` keeps cairo for PNG and hands everything else to

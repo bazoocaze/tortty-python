@@ -500,7 +500,7 @@ class Term:
         self.saved = None
         self.child_out = bytearray()  # respostas ao filho (DA, CPR...)
         self.graphics = Graphics()  # protocolo de imagens do kitty (P6)
-        self.apc = ""
+        self.apc = []  # pedaços (P89: `str +=` era O(n²) num OSC de 1 MB)
         self.title = DEFAULT_TITLE
         # `CSI 22;Ps t` pushes the title and `23` gives it back (P52): vim/less/
         # screen come and go without leaving the label stuck on their title
@@ -514,8 +514,8 @@ class Term:
         self._link_ids = {}
         self.state = "ground"
         self.csi = ""
-        self.osc = ""
-        self.apc = ""
+        self.osc = []
+        self.apc = []
         self.dcs = ""  # kept only to the cap; DCS is consumed and ignored (P81)
         # answer to a size query (icat asks; only the basics here)
         self.respond_size = False
@@ -1599,9 +1599,9 @@ class Term:
                 if ch == "[":
                     self.state, self.csi = "csi", ""
                 elif ch == "]":
-                    self.state, self.osc = "osc", ""
+                    self.state, self.osc = "osc", []
                 elif ch == "_":
-                    self.state, self.apc = "apc", ""
+                    self.state, self.apc = "apc", []
                 elif ch == "P":
                     self.state, self.dcs = "dcs", ""
                 elif ch == "(":
@@ -1653,7 +1653,7 @@ class Term:
                 elif ch == "\x1b":
                     self.state = "osc-esc"
                 else:
-                    self.osc += ch
+                    self.osc.append(ch)
             elif st == "osc-esc":
                 if ch == "\\":
                     self._osc_done()
@@ -1666,7 +1666,7 @@ class Term:
                 elif ch == "\x1b":
                     self.state = "apc-esc"
                 else:
-                    self.apc += ch
+                    self.apc.append(ch)
             elif st == "apc-esc":
                 if ch == "\\":
                     self._apc_done()
@@ -1696,7 +1696,7 @@ class Term:
             i += 1
 
     def _apc_done(self):
-        body, self.apc = self.apc, ""
+        body, self.apc = "".join(self.apc), []
         self.state = "ground"
         cw, ch = self.cell_size
         resp, used, move = self.graphics.handle(body, (self.cx, self.cy), (cw, ch))
@@ -1707,8 +1707,8 @@ class Term:
                 self.newline()
 
     def _osc_done(self):
-        o = self.osc
-        self.osc = ""
+        o = "".join(self.osc)
+        self.osc = []
         self.state = "ground"
         if o[:2] in ("0;", "2;"):
             self.title = o[2:]

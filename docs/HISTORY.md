@@ -622,6 +622,15 @@ missing side. Payload is decoded by `GdkPixbuf`, since `chafa -f iterm` sends
 TIFF and cairo only reads PNG. Verified with a PNG of four quadrants: 32x14
 cells land pixel-exact, 112 px per half.
 
+### P89 — A big OSC was quadratic: the image took 25 s to appear (2026-11-14)
+
+User report: iTerm2 images did not work. They did arrive; `self.osc += ch` per
+character is O(n²), and chafa at a wide window sends ~1.3 MB of base64 — 25 s of
+main loop, the pty full and the app looking dead. `osc`/`apc` now collect chunks
+in a list and join at the terminator: 1.3 MB went from ~25 s to 172 ms, and the
+100→400 KB ratio from 18.5x to 4x. Check `huge_osc_is_linear` asserts the ratio,
+not a wall time, so a slow machine does not lie.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

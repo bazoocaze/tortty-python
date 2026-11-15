@@ -16,6 +16,7 @@ import shutil
 import socket
 import struct
 import tempfile
+import time
 import zlib
 
 from . import kitty_kbd, mouse, shortcut, state, style, term
@@ -543,6 +544,30 @@ def iterm2_inline():
     t.feed("\x1b]1337;File=inline=1;width=4;height=2:" + _png_b64(8, 8) + "\x07")
     t.feed("\x1b[2J")
     assert not t.graphics.placements
+
+
+def huge_osc_is_linear():
+    """P89: a 1 MB OSC/APC must not cost quadratic time (`str +=` did)."""
+
+    def tempo(kb):
+        t = Term(cols=40, rows=10)
+        t.cell_size = (7, 16)
+        corpo = "\x1b]1337;File=inline=1;width=2;height=2:" + "A" * (kb * 1024) + "\x07"
+        t0 = time.perf_counter()
+        t.feed(corpo)
+        return time.perf_counter() - t0
+
+    tempo(32)  # aquece o interpretador
+    pequeno, grande = tempo(100), tempo(400)
+    # linear = 4x; quadrático = 16x. A folga cobre máquina carregada.
+    assert grande < max(0.25, pequeno * 8), f"{pequeno:.3f}s -> {grande:.3f}s"
+    # e o conteúdo continua chegando inteiro, no APC também
+    t = Term(cols=40, rows=10)
+    t.cell_size = (7, 16)
+    dados = bytes(range(256)) * 400  # 100 KB
+    b64 = base64.b64encode(dados).decode()
+    t.feed(f"\x1b_Ga=t,f=32,s=160,v=160,i=7;{b64}\x1b\\")
+    assert t.graphics.images[7].data == dados
 
 
 def dcs_is_consumed():
@@ -2018,6 +2043,7 @@ ALL = (
     graphics_follow_history,
     graphics_chunked,
     iterm2_inline,
+    huge_osc_is_linear,
     dcs_is_consumed,
     erasing_takes_the_picture,
     wrap_and_control,
