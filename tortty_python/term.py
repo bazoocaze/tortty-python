@@ -155,6 +155,8 @@ _CSI_MAX = 1024
 NOTIF_MAX = 512
 # title stack (`CSI 22`/`23 t`): the Rust stops at 16 too
 TITLE_STACK_MAX = 16
+# OSC/APC body ceiling (P88): a payload past this is consumed and discarded
+OSC_MAX = 16 << 20  # 16 MB: above any real image, bounded anyway (P88)
 
 
 _SHELL_SAFE = frozenset("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/._-+=@,:")
@@ -516,6 +518,9 @@ class Term:
         self.csi = ""
         self.osc = []
         self.apc = []
+        # P88: body over OSC_MAX is not stored, only consumed until the terminator
+        self.osc_drop = False
+        self.apc_drop = False
         self.dcs = ""  # kept only to the cap; DCS is consumed and ignored (P81)
         # answer to a size query (icat asks; only the basics here)
         self.respond_size = False
@@ -1599,9 +1604,9 @@ class Term:
                 if ch == "[":
                     self.state, self.csi = "csi", ""
                 elif ch == "]":
-                    self.state, self.osc = "osc", []
+                    self.state, self.osc, self.osc_drop = "osc", [], False
                 elif ch == "_":
-                    self.state, self.apc = "apc", []
+                    self.state, self.apc, self.apc_drop = "apc", [], False
                 elif ch == "P":
                     self.state, self.dcs = "dcs", ""
                 elif ch == "(":
@@ -1652,6 +1657,10 @@ class Term:
                     self._osc_done()
                 elif ch == "\x1b":
                     self.state = "osc-esc"
+                elif self.osc_drop:
+                    pass
+                elif len(self.osc) >= OSC_MAX:
+                    self.osc, self.osc_drop = [], True
                 else:
                     self.osc.append(ch)
             elif st == "osc-esc":
@@ -1665,6 +1674,10 @@ class Term:
                     self._apc_done()
                 elif ch == "\x1b":
                     self.state = "apc-esc"
+                elif self.apc_drop:
+                    pass
+                elif len(self.apc) >= OSC_MAX:
+                    self.apc, self.apc_drop = [], True
                 else:
                     self.apc.append(ch)
             elif st == "apc-esc":
@@ -1698,6 +1711,9 @@ class Term:
     def _apc_done(self):
         body, self.apc = "".join(self.apc), []
         self.state = "ground"
+        if self.apc_drop:  # P88: dropped body, discard silently
+            self.apc_drop = False
+            return
         cw, ch = self.cell_size
         resp, used, move = self.graphics.handle(body, (self.cx, self.cy), (cw, ch))
         for r in resp:
@@ -1710,6 +1726,9 @@ class Term:
         o = "".join(self.osc)
         self.osc = []
         self.state = "ground"
+        if self.osc_drop:  # P88: dropped body, discard silently
+            self.osc_drop = False
+            return
         if o[:2] in ("0;", "2;"):
             self.title = o[2:]
         elif o.startswith("7;"):

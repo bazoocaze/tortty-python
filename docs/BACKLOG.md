@@ -57,19 +57,3 @@ rows (`#` sets the colour register, `!` repeats, `$` CR, `-` next band, `"` the
 raster attributes), build RGBA and hand it to the same placement path the kitty
 protocol uses, so drawing, scrolling and the photo of the tab (P57) come for
 free. Cost: ~200 lines of pure code plus checks; the source is `chafa -f sixel`.
-
-P88 — The OSC and APC buffers have no ceiling. **Robustness.** `feed` appends to
-self.osc/self.apc until the terminator arrives; a child that never sends one
-(BEL/ST) grows the string without bound — a 273 KB iTerm2 payload already goes
-through, and nothing stops 10 GB. Route: a cap (a few MB, above any real image),
-and over it drop the sequence and go back to ground.
-
-P90 — iTerm2 image without `width`/`height` and without a PNG header vanishes.
-**Bug, silent.** `Graphics.inline` takes the pixel size from `png_size`, which
-returns 0,0 for TIFF/JPEG; with neither size nor header it returns
-`(0, False)` and nothing happens — no image, no message. `chafa` always sends
-both, so P84 hides it; `imgcat` (the iTerm2 script) sends
-`File=name=…;size=…;inline=1:` and nothing else, so a JPEG or GIF through it
-disappears. Route: a `measure` hook injected by `view.py`
-(`term.graphics.measure = lambda data: GdkPixbuf…`), consulted when `png_size`
-comes back empty; the pure layer keeps working with the hook unset.

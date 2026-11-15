@@ -147,6 +147,20 @@ def surface_from_image(img, cairo):
     return surf, buf
 
 
+def measure_image(data):
+    """(w, h) of a non-PNG payload via GdkPixbuf, (0, 0) when it cannot read it (P90)."""
+    try:
+        from gi.repository import GdkPixbuf
+
+        loader = GdkPixbuf.PixbufLoader()
+        loader.write(data)
+        loader.close()
+        pb = loader.get_pixbuf()
+        return pb.get_width(), pb.get_height()
+    except Exception:
+        return 0, 0
+
+
 def _in_block(y, x, b):
     """A célula (y, x) está dentro do bloco (r1, c1, r2, c2)? (P61)
 
@@ -220,6 +234,7 @@ class TermView(Gtk.DrawingArea):
         self._notified = False
         self.dead_mark = 0  # dead key pendente (marca combinante)
         self.term = Term()
+        self.term.graphics.measure = measure_image  # P90: inline images without a size
         self.term.set_scrollback(scrollback)
         self.term.theme.apply_colors(colors or {})  # P49: as 19 chaves
         if restore:

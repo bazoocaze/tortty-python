@@ -75,6 +75,7 @@ class Graphics:
         self.saved = None  # placement do buffer principal enquanto o alt está no ar
         self._next_id = 1
         self._buf = None  # chunks de uma transmissão em curso (m=1)
+        self.measure = None  # set by the GUI layer; the pure layer needs no decoder
 
     # -- utilidades ---------------------------------------------------
     def clear(self):
@@ -170,6 +171,11 @@ class Graphics:
         if not data:
             return 0, False
         width, height = png_size(data)  # 0,0 fora do PNG (TIFF, JPEG)
+        if (not width or not height) and self.measure is not None:
+            try:
+                width, height = self.measure(data) or (0, 0)  # P90: imgcat manda só o File=
+            except Exception:
+                width, height = 0, 0
         cw, ch = cell
         w_spec, h_spec = kv.get("width", ""), kv.get("height", "")
         cols = iterm_dim(w_spec, width, cw, screen[0])

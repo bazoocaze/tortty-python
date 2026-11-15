@@ -228,6 +228,14 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **The pure graphics layer cannot decode anything.** `graphics.py` knows only
+  the PNG header, so an image with no `width`/`height` needs a pixel size from
+  outside: `view.py` injects `term.graphics.measure` (P90). Keep that in mind if
+  a second front end ever exists — unset means "draw nothing", not "crash".
+- **OSC/APC bodies have a ceiling (16 MB) and are dropped after it** (P88). A
+  probe with a 20 MB body shows the parser still healthy and the screen clean;
+  if a real client ever needs more, raise `OSC_MAX` in `term.py` — do not go
+  back to `str +=` (that was P89).
 - **A large OSC/APC must not be built with `str +=`.** Per character it is
   O(n²): chafa at a wide window sends ~1.3 MB of base64 for one image and the
   loop froze for 25 s, with the pty full and chafa blocked writing (P89). The

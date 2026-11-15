@@ -546,6 +546,52 @@ def iterm2_inline():
     assert not t.graphics.placements
 
 
+def iterm2_measures_unknown_size():
+    """P90: sem width/height e fora do PNG, quem mede é o gancho do view.py."""
+    corpo = base64.b64encode(b"II*\x00" + bytes(64)).decode()  # TIFF falso, sem IHDR
+
+    def manda(gancho=None):
+        t = Term(cols=20, rows=6)
+        t.cell_size = (7, 16)
+        t.graphics.measure = gancho
+        t.feed(f"\x1b]1337;File=inline=1:{corpo}\x07")
+        return t
+
+    assert not manda().graphics.placements  # sem gancho nada aparece, como antes
+    t = manda(lambda dados: (20, 10))
+    pl = t.graphics.placements[0]
+    assert (pl.cols, pl.rows) == (3, 1)  # 20 px / 7 e 10 px / 16, para cima
+    assert t.cy == 1  # o cursor desceu a linha da imagem
+    # um gancho que não sabe ler (ou que estoura) não pode derrubar o feed
+    for gancho in (lambda dados: (0, 0), lambda dados: 1 / 0):
+        assert not manda(gancho).graphics.placements
+
+
+def oversized_body_is_dropped():
+    """P88: a body past OSC_MAX is consumed to the terminator and thrown away."""
+    from . import term as modterm
+
+    antigo = modterm.OSC_MAX
+    modterm.OSC_MAX = 64  # teto baixo para o teste caber num piscar
+    try:
+        corpo = "A" * 200
+        t = Term(cols=20, rows=4)
+        t.cell_size = (7, 16)
+        t.feed("\x1b]1337;File=inline=1;width=2;height=2:" + corpo + "\x07")
+        assert not t.graphics.images and not t.graphics.placements
+        assert not _screen_text(t)  # nada do corpo vaza para a tela
+        assert t.state == "ground"
+        t.feed("\x1b_Ga=T,f=32,s=2,v=2,i=5;" + corpo + "\x1b\\")
+        assert not t.graphics.images  # o APC também respeita o teto
+        # abaixo do teto continua funcionando, e o parser segue saudável
+        t.feed("\x1b]0;titulo\x07")
+        assert t.title == "titulo"
+        t.feed("oi")
+        assert _screen_text(t).startswith("oi")
+    finally:
+        modterm.OSC_MAX = antigo
+
+
 def huge_osc_is_linear():
     """P89: a 1 MB OSC/APC must not cost quadratic time (`str +=` did)."""
 
@@ -2043,6 +2089,8 @@ ALL = (
     graphics_follow_history,
     graphics_chunked,
     iterm2_inline,
+    iterm2_measures_unknown_size,
+    oversized_body_is_dropped,
     huge_osc_is_linear,
     dcs_is_consumed,
     erasing_takes_the_picture,

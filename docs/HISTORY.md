@@ -631,6 +631,21 @@ in a list and join at the terminator: 1.3 MB went from ~25 s to 172 ms, and the
 100→400 KB ratio from 18.5x to 4x. Check `huge_osc_is_linear` asserts the ratio,
 not a wall time, so a slow machine does not lie.
 
+### P88 — A ceiling on the OSC/APC body (2026-11-14)
+
+A child that never sends BEL/ST grew the buffers without bound. Now past
+`OSC_MAX` (16 MB) the body is still consumed to the terminator and then thrown
+away — no text, no image, no reply, parser back to `ground`. A 1.3 MB iTerm2
+payload still lands (272 ms) and a 20 MB one costs the parser loop only.
+
+### P90 — An image without a size or a PNG header (2026-11-14)
+
+`chafa` always sends `width`/`height`, so we never saw it: `imgcat` sends only
+`File=name=…;size=…;inline=1:`, and a JPEG through it vanished with no message,
+because the pure layer only knows `png_size`. `Graphics.measure` is a hook the
+GUI layer fills (`view.measure_image`, GdkPixbuf); unset — the `--selftest`
+path — behaviour is exactly what it was.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

@@ -146,7 +146,8 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   `inline=1` desenha no cursor, `width`/`height` em células, `px` ou `%` do
   tamanho da tela, `preserveAspectRatio` completa o lado que falta e o cursor
   desce as linhas usadas. O payload pode ser PNG, TIFF ou JPEG — quem decodifica
-  é o `GdkPixbuf` (o `chafa -f iterm` manda TIFF). A imagem é a mesma colocação
+  é o `GdkPixbuf` (o `chafa -f iterm` manda TIFF), e sem `width`/`height` o
+  tamanho sai da própria imagem (o `imgcat` manda só o `File=`). A imagem é a mesma colocação
   do kitty, então rola, some com o `ED`/`EL` e espera o alt screen igual.
 - **Bracketed paste** (`?2004`): when the app asks, `Ctrl+Shift+V`/the middle
   button send the text between `ESC[200~` and `ESC[201~` — readline/vim know it
