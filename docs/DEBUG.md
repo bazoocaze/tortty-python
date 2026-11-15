@@ -228,6 +228,24 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **A tab has two orders and only one matters.** `Gtk.Notebook` reorders the
+  pages when you drag a tab; `Workspace.views` is a separate list, and before
+  B37 it stayed in creation order — so page 1 showed one tab while the focus,
+  `Ctrl+Shift+C` and the saved layout used another. `self.view` now reads the
+  page widget, `page-reordered` rebuilds `views`, and `on_switch_page` uses the
+  view the signal carries instead of `views[page_num]`. The `state` verb exposes
+  both orders (`tab_order`, `views_order`), the index (`page`) and the widget
+  with the keyboard (`focus`, e.g. `TermView#tab3`), so the invariant
+  `track == tab_order[page] == focus` is one JSON read.
+- **A tab is named `tab<N>`** for that reason: without a name every
+  `TermView#...` in `state.focus` was the same string, and "the keys went to the
+  wrong tab" could not be told apart from "the keys went nowhere".
+- **Dragging a tab under Xvfb**: `tools/xtest.py drag X 14 X2 14` works (the tab
+  bar is ~28 px tall), but **real key events do not arrive** without a window
+  manager, even with `set_input_focus` on the window — the app's `focus` is on
+  the right widget and the letters still go nowhere. Use the debug socket `keys`
+  verb for keys and XTest only for the pointer; the P78 note about `ev.string`
+  still applies.
 - **A `t=f`/`t=t`/`t=s` image needs the reader hook.** The pure layer parses the
   request and calls `Graphics.load`, which `TermView.__init__` sets to
   `media.load` (P96) — the same shape as the `measure` hook. A probe that builds

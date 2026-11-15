@@ -126,6 +126,7 @@ class Workspace:
         self.win = win
         self.name = ""  # nunca renomeada: a linha 1 do cartão vira o título (P65)
         self.views = []
+        self._tab_seq = 0  # nome da aba: o `state` diz qual delas tem o foco
         self._bell_timers = {}  # view -> (fonte do timer, contexto do rótulo)
         self._notif = set()  # views com badge de atenção (`OSC 9`/`777`, P44)
         self._tab_wheel = mouse.Notches()  # fração do touchpad na barra (P48)
@@ -133,6 +134,10 @@ class Workspace:
         self.notebook.set_scrollable(True)
         self.notebook.set_show_border(False)
         self.notebook.connect("switch-page", self.on_switch_page)
+        # arrastar a aba reordena as páginas sem tocar em `self.views`, e a
+        # partir daí página 0 != views[0]: o foco do switch-page ia para uma aba
+        # e o `view` (copiar, buscar, salvar layout) para outra
+        self.notebook.connect("page-reordered", self.on_page_reordered)
 
         # cartão da lateral: "<n>  <nome|título>" e, embaixo, o título (P65)
         # ellipsize + max_width_chars(1): o texto deixa de definir a largura (o
@@ -165,9 +170,11 @@ class Workspace:
     # -- abas ---------------------------------------------------------
     @property
     def view(self):
-        i = self.notebook.get_current_page()
-        if 0 <= i < len(self.views):
-            return self.views[i]
+        # a página do notebook é a verdade; `views` é só a ordem (e o arrasto de
+        # aba já a desalinhou uma vez: índice aqui era foco na aba errada)
+        page = self.notebook.get_nth_page(self.notebook.get_current_page())
+        if isinstance(page, TermView):
+            return page
         return self.views[0] if self.views else None
 
     def new_tab(self, cmd=None, cwd=None, restore=None):
@@ -196,6 +203,8 @@ class Workspace:
             on_notify=self.win.on_view_notify,
             shortcuts=self.win.handle_shortcut,
         )
+        self._tab_seq += 1
+        v.set_name("tab%d" % self._tab_seq)
         self.views.append(v)
         # mesmo motivo do cartão (P14): sem limite o título longo vira largura
         # mínima e a janela inteira estica (o notebook se recusa a encolher)
@@ -290,8 +299,22 @@ class Workspace:
         self.select_tab((i - n) % len(self.views))
         return True
 
+    def pages(self):
+        """As views na ordem das páginas do notebook (o arrasto de aba muda esta)."""
+        nb = self.notebook
+        return [nb.get_nth_page(i) for i in range(nb.get_n_pages())]
+
+    def on_page_reordered(self, nb, child, num):
+        """A ordem das páginas é a verdade: a lista `views` passa a segui-la."""
+        ordem = [w for w in self.pages() if isinstance(w, TermView)]
+        if len(ordem) == len(self.views):
+            self.views = ordem
+            self.update_card()
+
     def on_switch_page(self, nb, page, page_num):
-        v = self.views[page_num] if 0 <= page_num < len(self.views) else None
+        # a view vem do sinal, não de `views[page_num]`: o índice só coincide com
+        # a lista enquanto ninguém arrastou uma aba
+        v = page if isinstance(page, TermView) else None
         if v is None:
             return
         # grab_focus aqui não pega: no instante do switch-page a página nova
@@ -713,6 +736,12 @@ class TorttyWindow(Gtk.Window):
             "scrolled": t.scrolled if t else 0,
             "scrollback": len(t.scrollback) if t else 0,
             "tabs": len(self.views),
+            # as duas ordens de aba lado a lado: `tab_order` é o que a barra
+            # mostra, `views_order` é a lista que o app percorre — o arrasto de
+            # aba já as separou (foco numa aba, copiar/buscar em outra)
+            "tab_order": [w.get_name() for w in self.current.pages()] if self.current else [],
+            "views_order": [w.get_name() for w in self.current.views] if self.current else [],
+            "page": self.current.notebook.get_current_page() if self.current else -1,
             "workspaces": len(self.workspaces),
             # a ORDEM importa: é o que prova o `ws_move_up`/`ws_move_down` (P97)
             "workspace_names": [w.name or self._stack_name(w) for w in self.workspaces],

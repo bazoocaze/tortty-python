@@ -711,6 +711,14 @@ through the same `CHECKS` as the file, so a value out of range is a usage error
 (exit 2) instead of a silent default, and `cli.parse_args` returns a named
 `Args` instead of a nine-tuple.
 
+### B37 — Dragging a tab left the app on the old tab (2026-11-15)
+
+Dragging a tab reorders the pages of the `Gtk.Notebook`, but `Workspace.views`
+kept the creation order: from then on page 1 showed one tab while the keyboard
+focus, `Ctrl+Shift+C` and the saved layout used another. `self.view` now reads
+the page widget, the `page-reordered` signal rebuilds the list and
+`on_switch_page` uses the view the signal carries, not `views[page_num]`.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

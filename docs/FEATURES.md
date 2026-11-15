@@ -180,7 +180,9 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   itself).
 - **Tabs** (`Gtk.Notebook`): `Ctrl+Shift+T` opens, `Ctrl+Shift+W` closes, `Alt+1`
   … `Alt+9` selects (`Alt+0` = the 10th), middle click on the label closes and
-  dragging the tab reorders it. The label is the app title (OSC 0/2) or,
+  dragging the tab reorders it — and the order you left is the order that
+  counts: it is what `Alt+N`, the sidebar card and `restore_state` follow. The
+  label is the app title (OSC 0/2) or,
   without OSC, the session's **cwd** — which follows `OSC 7`, so `cd` moves the
   label; a new tab inherits the current one's cwd through `/proc/<pid>/cwd` (and
   `OSC 7` when `/proc` has no answer), and each tab has its own `Term`,
