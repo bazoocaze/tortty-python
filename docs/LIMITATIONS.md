@@ -65,8 +65,9 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   accepted and discarded.
 - **`OSC 7` is a fallback, not the source**: the cwd of a new tab comes from
   `/proc` (last descendant) and only then from the sequence, which needs a
-  shell that emits it — the app does not ship shell integration. **No `OSC
-  133`** (prompt marks).
+  shell that emits it — the app does not ship shell integration. `OSC 133`
+  marks are read (P93) but nothing else consumes them yet: the command's output
+  as a range and the command in the tab label are not done.
 - **Notifications go to the daemon only when the window is behind**: `OSC 9`
   and `777;notify` reach `org.freedesktop.Notifications` when the window is not
   active (and stay silent when there is no daemon); there is no per-app
@@ -78,9 +79,10 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 - **A block does not survive a resize by its columns**: the corners are
   carried like a linear selection, so a reflow moves the rectangle with the
   characters instead of re-deriving the column range.
-- **No search in the scrollback**.
 - **Selection does not survive a resize nor a reflow**: anchor and tip are
   grid coordinates.
+- **The search is plain text**: ASCII case folding, no regex and no whole-word
+  mode; a query in a huge history stops at 5000 matches (P94).
 
 ## Keyboard
 
@@ -99,8 +101,11 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 
 ## Graphics (image protocol)
 
-- **No animation and no z-index**: `a=f`/`a=a` are ignored, `z=` does not exist;
-  the image goes in arrival order, above the text and below the cursor.
+- **No z-index, and the animation is one whole bitmap per frame**: `a=f` adds a
+  frame, `a=a` runs it and `z=` is the gap, but a frame that covers only a
+  rectangle of the image (`x=`/`y=`/`s=`/`v=`) and a PNG frame are refused, and
+  `a=c` (frame composition) is not implemented. The image goes in arrival order,
+  above the text and below the cursor.
 - **No external data source**: `t=f` (file), `t=t` (temp file) and `t=s`
   (shared memory) are not read — the image has to come in the base64 escape.
 - **No optimized `f=100` beyond PNG**: PNG is read directly by cairo; raw RGBA
@@ -135,12 +140,9 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 - **Window position is only remembered on X11**: on Wayland the client does not
   choose where the window sits, so the state file stores only size and
   maximized. It is not a lack of code, it is the protocol.
-- **Shortcuts are not remappable**: the configuration file covers font, size,
-  cursor, scrollback, padding, bell, copy, the 19 terminal colors
-  (`foreground`, `background`, `cursor_color`, `color0..15`, plus `OSC 4/10-12`
-  at runtime) and, since P75, the eight chrome colors (`chrome_bg`,
-  `chrome_fg`, hover, accent and separator). What remains fixed in the code is
-  the shortcut table.
+- **The shortcut table has no sequences**: `map`/`unmap` bind one chord to one
+  action (P95), so `ctrl+x ctrl+s` style sequences and a per-program table do not
+  exist.
 - **No copy/scrollback mode**: no text editor over the scrollback.
 
 ## Scope (decision, not lack)

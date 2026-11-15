@@ -16,7 +16,7 @@ import shutil
 from pathlib import Path
 from typing import NamedTuple
 
-from . import style
+from . import keymap, style
 from .palette import parse_color
 
 # O PADRÃO é o arquivo `data/tortty-python.conf`: ele embarca no pacote e é lido
@@ -85,6 +85,15 @@ FALLBACK.update(
         )
     )
 )
+
+# P95: os atalhos são uma tabela. `map` é a única chave que ACUMULA em vez de
+# "a última vence" (cada linha vale, na ordem do arquivo); `unmap CHORD` é uma
+# linha dessa mesma tabela e o parser a normaliza para cá.
+# Vazio de propósito: a tabela vem do arquivo, linha a linha (`keymap.DEFAULTS`
+# é a rede de segurança para pacote sem o .conf, e o `config_options` garante
+# que o arquivo é a fonte).
+FALLBACK["map"] = ""
+ACCUMULATE = ("map",)
 
 KNOWN = tuple(FALLBACK)
 CURSOR_SHAPES = ("block", "beam", "underline")
@@ -158,6 +167,10 @@ def parse(text):
             continue
         partes = linha.split(None, 1)
         valor = _valor(partes[1]) if len(partes) > 1 else ""
+        if partes[0] in ("map", "unmap"):
+            # a tabela `map` guarda a linha INTEIRA (`map ...`/`unmap ...`):
+            # é o que o Bindings lê, na ordem do arquivo (P95)
+            partes, valor = ["map"], linha
         saidas.append(Entry(partes[0], valor, n))
     return saidas
 
@@ -269,6 +282,7 @@ def debug_log_path(value):
 
 
 CHECKS = {
+    "map": keymap.check_map,
     "shell": check_shell,
     "font_family": check_font_family,
     "font_size": check_font_size,
@@ -310,6 +324,18 @@ class Config:
 
     def _get(self, key):
         return self.values.get(key, FALLBACK[key])
+
+    @property
+    def map_lines(self):
+        """As linhas `map`/`unmap` na ordem do arquivo, defaults incluídos (P95)."""
+        return [ln for ln in self._get("map").split("\n") if ln.strip()]
+
+    @property
+    def bindings(self):
+        """A tabela de atalhos já montada (chord -> ação, ação -> argumento)."""
+        from .keymap import Bindings
+
+        return Bindings(self.map_lines)
 
     @property
     def shell(self):
@@ -416,10 +442,20 @@ def _validated(vals, base):
     Chave desconhecida é **erro**: linha lixo é config inválida, nada vale.
     """
     out, errors, warnings = dict(base), [], []
+    acc = {}  # chaves que acumulam (P95): juntadas no fim
     vistos = {}  # chave -> linha da primeira ocorrência (repetida avisa)
     for e in vals:
         if e.key not in KNOWN:
             errors.append("line %d: unknown key: %s" % (e.line, e.key))
+            continue
+        if e.key in ACCUMULATE:
+            # `map`: cada linha soma sobre o que já veio (base + este arquivo)
+            err = CHECKS[e.key](e.value)
+            if err:
+                errors.append("line %d: %s" % (e.line, err))
+            else:
+                antes = acc.get(e.key) or out.get(e.key, "")
+                acc[e.key] = (antes + "\n" + e.value) if antes else e.value
             continue
         if e.key in vistos:
             warnings.append(
@@ -432,6 +468,7 @@ def _validated(vals, base):
             errors.append("line %d: %s" % (e.line, err))
         else:
             out[e.key] = e.value
+    out.update(acc)
     return out, errors, warnings
 
 

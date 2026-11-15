@@ -649,6 +649,45 @@ DCS — a head matching `[0-9;]*q` is sixel, XTVERSION/DECRQSS die at the first
 non-matching byte. `fmt 101` skips the per-pixel RGBA copy. `chafa -f sixel`
 draws, cursor below.
 
+### P91 — One owner of the state (2026-11-15)
+
+Two windows opened together overwrote `window.json` on the way out, and a probe
+with `--cmd` clobbered the real session's layout. The owner is the window
+holding a `flock` on `state.lock`; a window that finds it taken is scratch (one
+tab in the cwd, default geometry, never writes). `--cmd`, `--rows`, `--cols`,
+`PYTERM_GEOM` and `restore_state none` never try the lock.
+
+### P92 — Image animation (`a=f`/`a=a`) (2026-11-15)
+
+The kitty protocol's animation was dropped on purpose since P84. Now `a=f` adds
+a frame (`z=` gap, `r=` replaces), `a=a` starts it (`s=` 1/2/3, `v=` loops) and
+`Image.show_frame` swaps in an ARGB32 built once per frame, so the draw path is
+untouched. The view runs one lazy timer with the gap the frame asks for. Frames
+are whole bitmaps: a rectangle frame and a PNG frame are refused.
+
+### P93 — Prompt marks (`OSC 133`) and the jump (2026-11-15)
+
+`A`/`B`/`C`/`D[;status]` become marks on absolute lines, capped at 512 and
+pruned when their line leaves the history; `Ctrl+Shift+Up/Down` puts the
+previous/next prompt on the first row (strictly above / strictly from the top, so
+the prompt already in sight is not "next"). Nothing else consumes them yet.
+
+### P94 — Search in the scrollback (`Ctrl+Shift+F`) (2026-11-15)
+
+`find_hits` walks the history and the grid with `str.find` (line absolute, 5000
+matches at most); `Search` walks them with a wrap. The bar is `[find: query_]` on
+the last row with `[ 1/3 ]` on the right, matches highlighted behind the text,
+and the view jumps to the newest. The socket's `keys` verb now fills `ev.string`,
+without which it could not type.
+
+### P95 — The shortcut table goes to the config (`map`/`unmap`) (2026-11-15)
+
+Nineteen actions bound to chords, the defaults written as `map` lines in the
+embedded file, so the file is the table: `map ctrl+shift+y new_tab`, `unmap
+ctrl+shift+w`. `map` is the only accumulating key (`unmap` is normalized into
+it). The view stopped handling Ctrl+Shift+C/V and Shift+PgUp/PgDn/Home/End, or
+`unmap` would not free the key.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

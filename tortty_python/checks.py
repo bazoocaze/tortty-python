@@ -42,7 +42,16 @@ from .palette import (
     ul_on,
     ul_style,
 )
-from .term import _BLANK_V, TITLE_STACK_MAX, Term, _pack, _unpack, link_allowed
+from .term import (
+    _BLANK_V,
+    MARK_CAP,
+    TITLE_STACK_MAX,
+    Mark,
+    Term,
+    _pack,
+    _unpack,
+    link_allowed,
+)
 
 
 def _row_text(row):
@@ -312,17 +321,27 @@ def config_file():
 
 def config_options():
     """P34: fonte, cursor, histórico, padding, bell e copy_on_select."""
-    from . import config
+    from . import config, keymap
 
     # o default embarcado é a FONTE dos valores, e é o `defaults_parse_clean` do
     # Rust: ele tem que carregar sem erro nenhum, com todas as chaves e com o
     # mesmo valor da rede de segurança (`FALLBACK`) — se divergir, alguém editou
     # um dos dois.
-    emb = {e.key: e.value for e in config.parse(config.DATA.read_text())}
+    emb = {}
+    for e in config.parse(config.DATA.read_text()):
+        if e.key in config.ACCUMULATE:  # `map`/`unmap` acumulam, como no _validated
+            emb[e.key] = (emb[e.key] + "\n" + e.value) if emb.get(e.key) else e.value
+        else:
+            emb[e.key] = e.value
     assert set(emb) == set(config.KNOWN), set(emb) ^ set(config.KNOWN)
-    assert emb == config.FALLBACK, set(emb.items()) ^ set(config.FALLBACK.items())
+    # `map` acumula: FALLBACK é vazio e a tabela vem do arquivo, linha a linha,
+    # então a comparação dela é com a config efetiva — as outras chaves seguem
+    # iguais à rede de segurança
+    sem_mapa = {k: v for k, v in config.FALLBACK.items() if k != "map"}
+    assert {k: v for k, v in emb.items() if k != "map"} == sem_mapa, "conf != FALLBACK"
     padroes = config.load(os.path.join(tempfile.mkdtemp(), "nao-existe.conf"))
     assert (padroes.ok, padroes.warnings) == (True, []), config.message(padroes)
+    assert emb["map"] == padroes.values["map"] and padroes.map_lines == keymap.DEFAULTS
     # as 19 de cor repetem a paleta do palette.py (o guard está no palette_config)
     d = tempfile.mkdtemp()
     p = os.path.join(d, "tortty_python.conf")
@@ -670,6 +689,58 @@ def dcs_is_consumed():
     t = Term(cols=40, rows=3)
     t.feed("\x1bP" + "x" * 5000 + "\x1b\\C")
     assert _row_text(t.grid[0]).rstrip() == "C" and not t.dcs
+
+
+def image_animation():
+    """P92: `a=f` empilha frames, `a=a` liga/para, e o `z=` manda no relógio."""
+    from .graphics import Graphics, argb32
+
+    g = Graphics()
+
+    def corpo(acao, cor, extra=""):
+        dados = base64.b64encode(cor * 4).decode()  # 2x2 RGBA
+        return f"G{acao},f=32,s=2,v=2,i=1{extra};{dados}"
+
+    assert g.handle(corpo("a=t", bytes([255, 0, 0, 255])))[0] == ["Gi=1;OK"]
+    assert g.handle(corpo("a=f", bytes([0, 255, 0, 255]), ",z=30"))[0] == ["Gi=1;OK"]
+    assert g.handle(corpo("a=f", bytes([0, 0, 255, 255])))[0] == ["Gi=1;OK"]
+    # um frame de retângulo é recusado: compor custaria um blend por pixel
+    ruim = f"Ga=f,f=32,s=1,v=1,x=1,y=0,i=1;{base64.b64encode(bytes([1, 2, 3, 255])).decode()}"
+    assert "EINVAL" in g.handle(ruim)[0][0]
+    assert "ENOENT" in g.handle(corpo("a=f", bytes([0, 0, 0, 255]), ",i=9"))[0][0]
+
+    img = g.images[1]
+    assert len(img.frames) == 3
+
+    def rgb():
+        return tuple(img.data[2::-1])  # ARGB32 é BGRA na memória
+
+    assert not g.has_animation()  # transmitir não é animar
+    assert g.handle("Ga=a,i=1,s=3,v=0")[0] == ["Gi=1;OK"]
+    assert g.has_animation() and img.anim.current == 1 and rgb() == (255, 0, 0)
+    # `z=30` no frame 2, o default de 40 ms nos outros, laço infinito
+    assert g.anim_tick(0.0) == ([1], 30) and rgb() == (0, 255, 0)
+    assert g.anim_tick(10.0) == ([], 20) and rgb() == (0, 255, 0)
+    assert g.anim_tick(31.0) == ([1], 40) and rgb() == (0, 0, 255)
+    assert g.anim_tick(72.0) == ([1], 40) and rgb() == (255, 0, 0)  # voltou ao 1
+    # `s=1` para, e uma animação parada não arma timer
+    assert g.handle("Ga=a,i=1,s=1")[0] == ["Gi=1;OK"]
+    assert not g.has_animation()
+    # `z=-1`: frame de base, nunca mostrado
+    g2 = Graphics()
+    g2.handle(corpo("a=t", bytes([255, 0, 0, 255])))
+    g2.handle(corpo("a=f", bytes([0, 255, 0, 255]), ",z=-1"))
+    g2.handle(corpo("a=f", bytes([0, 0, 255, 255]), ",z=20"))
+    g2.handle("Ga=a,i=1,s=2")  # roda uma vez e para no último
+    img2 = g2.images[1]
+    g2.anim_tick(0.0)
+    assert img2.anim.current == 3, img2.anim.current  # pulou o `z<0`
+    assert g2.has_animation()  # `s=2` ainda espera frames novos no fim
+    g2.anim_tick(40.0)  # vence a espera e não há para onde ir
+    assert not g2.has_animation() and img2.anim.mode == 1
+    # alpha parcial é premultiplicado para o cairo
+    meio = argb32(bytes([200, 100, 50, 128]), 1, 1, 32)
+    assert tuple(meio) == (25, 50, 100, 128), tuple(meio)  # B,G,R já multiplicados
 
 
 def erasing_takes_the_picture():
@@ -1681,6 +1752,134 @@ def snapshot_restore():
                 os.environ["XDG_STATE_HOME"] = old
 
 
+def shortcut_table():
+    """P95: acorde, ação e a tabela do config — `unmap` liberta de verdade."""
+    from . import keymap
+
+    assert keymap.parse_chord("ctrl+shift+y") == ("y", frozenset({"ctrl", "shift"}))
+    assert keymap.parse_chord("shift+page_up") == ("page_up", frozenset({"shift"}))
+    assert keymap.parse_chord("f2") == ("f2", frozenset())
+    for ruim in ("ctrl+", "ctrl", "", "ctrl+foo+y", "shift+alt"):
+        assert keymap.parse_chord(ruim) is None, ruim
+    assert keymap.check_map("ctrl+shift+y new_tab") is None
+    assert keymap.check_map("ctrl+shift+y no_such_action") == "unknown action: no_such_action"
+    assert "not a chord" in keymap.check_map("ctrl++y new_tab")
+    assert keymap.check_map("alt+1 select_tab") == "select_tab needs a number"
+    assert keymap.check_map("alt+11 select_tab 11") == "select_tab takes 1..10"
+    assert keymap.check_map("ctrl+x new_tab 3") == "new_tab takes no number"
+    assert keymap.check_map("unmap ctrl+shift+w") is None
+    assert keymap.check_unmap("ctrl+shift+w") is None
+    assert keymap.check_unmap("ctrl+shift+w extra") == "unmap takes one chord"
+
+    # a tabela: defaults, um `map` novo e um `unmap` que tira o default
+    b = keymap.Bindings()
+    assert b.get("t", ["ctrl", "shift"]) == ("new_tab", None)
+    assert b.get("3", ["alt"]) == ("select_tab", 3)
+    b = keymap.Bindings(["map ctrl+shift+t new_workspace", "unmap ctrl+shift+w"])
+    assert b.get("t", ["ctrl", "shift"]) == ("new_workspace", None)  # re-ligado
+    assert b.get("w", ["ctrl", "shift"]) is None  # libertado
+    assert b.get("1", ["alt"]) == ("select_tab", 1)  # o resto intacto
+    # e o config: `map` acumula sobre os defaults, `unmap` normalizado na tabela
+    from . import config
+
+    c = config.load(os.path.join(tempfile.mkdtemp(), "nao-existe.conf"))
+    assert c.map_lines == keymap.DEFAULTS and (c.ok, c.warnings) == (True, [])
+    assert c.bindings.get("f", ["ctrl", "shift"]) == ("search", None)
+    p = os.path.join(tempfile.mkdtemp(), "tortty-python.conf")
+    with open(p, "w") as f:
+        f.write("map ctrl+shift+y new_tab\nunmap ctrl+shift+w\n")
+    c = config.load(p)
+    assert c.ok, c.errors
+    assert c.bindings.get("y", ["ctrl", "shift"]) == ("new_tab", None)  # novo
+    assert c.bindings.get("w", ["ctrl", "shift"]) is None  # default libertado
+    assert c.bindings.get("t", ["ctrl", "shift"]) == ("new_tab", None)  # default fica
+    # linha inválida não derruba o arquivo: vira erro e as outras valem
+    with open(p, "w") as f:
+        f.write("map ctrl+shift+y nope\nmap ctrl+alt+k new_tab\n")
+    c = config.load(p)
+    assert not c.ok and "unknown action: nope" in c.errors[0]
+    assert c.bindings.get("k", ["ctrl", "alt"]) == ("new_tab", None)
+
+
+def search_scrollback():
+    """P94: `find_hits` acha no histórico e na tela, e a busca anda e circula."""
+    from .term import HITS_MAX, Search, find_hits
+
+    t = Term(cols=20, rows=3)
+    t.feed("alfa BETA\r\nbeta beta\r\n")
+    t.feed("\r\n\r\nbeta no histórico")
+    assert t.scrolled == 2  # duas linhas foram para o histórico
+    hits = find_hits(t, "beta")
+    # linha absoluta: 0 e 1 no histórico, 4 na grade (a linha 2 está vazia)
+    assert [tuple(h) for h in hits] == [(0, 5, 4), (1, 0, 4), (1, 5, 4), (4, 0, 4)], hits
+    assert find_hits(t, "") == [] and find_hits(t, "zebra") == []
+    assert find_hits(t, "BETA") == hits  # dobra de caixa ASCII
+    # teto: 5000 ocorrências, não uma por célula de um histórico gigante
+    t2 = Term(cols=80, rows=4)
+    t2.feed(("a" * 79 + "\r\n") * 200)
+    assert len(find_hits(t2, "a")) == HITS_MAX, len(find_hits(t2, "a"))
+    # a busca aponta o mais novo e circula nas duas pontas
+    s = Search("beta")
+    assert s.run(t) == hits[-1] and s.at == len(hits) - 1
+    assert s.step(False) == hits[0]  # "próximo" volta ao começo
+    assert s.step(True) == hits[-1]  # e "anterior" fecha o círculo
+    assert Search("").run(t) is None and Search("x").step(True) is None
+
+
+def prompt_marks():
+    """P93: `OSC 133` guarda A/B/C/D em linha absoluta e sabe saltar entre prompts."""
+    t = Term(cols=20, rows=5)
+    t.feed("\x1b]133;A\x07$ ls\r\n")
+    t.feed("\x1b]133;B\x07")
+    t.feed("\x1b]133;C\x07um\r\ndois\r\n")
+    t.feed("\x1b]133;D;2\x07")
+    kinds = [(m.line, m.kind, m.status) for m in t.marks]
+    assert kinds == [(0, "A", None), (1, "B", None), (1, "C", None), (3, "D", 2)], kinds
+    # forma desconhecida não vira marca
+    t.feed("\x1b]133;Z\x07\x1b]1337;File=inline=1\x07\x1b]133;A;aid=7\x07")
+    assert len(t.marks) == 5 and t.marks[-1] == Mark(3, "A", None), t.marks[-1]
+    # a marca não anda quando o output empurra o texto para o histórico
+    t.feed("\r\n" * 6)
+    assert t.scrolled == 5 and [m.line for m in t.marks if m.kind == "A"] == [0, 3]
+    # pular: estritamente acima / daqui para baixo
+    assert t.prompt_line(3, True) == 0 and t.prompt_line(0, False) == 3
+    assert t.prompt_line(0, True) is None and t.prompt_line(3, False) is None
+    # o histórico indo embora leva as marcas junto (poda preguiçosa: na
+    # próxima marca ou consulta) — o corte do teto não tira linha absoluta
+    t.feed("\x1b[3J")
+    assert t.prompt_line(t.scrolled, True) is None and t.marks == [], t.marks
+    # teto: 600 marcas deixam MARK_CAP
+    t2 = Term(cols=20, rows=5)
+    for _ in range(600):
+        t2.feed("\x1b]133;A\x07")
+        t2.feed("\r\n")
+    assert len(t2.marks) == MARK_CAP, len(t2.marks)
+
+
+def state_owner_lock():
+    """P91: one owner of the state — a second window gets None and stays scratch."""
+    from . import state
+
+    old = os.environ.get("XDG_STATE_HOME")
+    with tempfile.TemporaryDirectory() as tmp:
+        os.environ["XDG_STATE_HOME"] = tmp
+        try:
+            dono = state.lock()
+            assert dono is not None and os.path.exists(
+                os.path.join(tmp, "tortty-python", "state.lock")
+            )
+            assert state.lock() is None  # segunda janela: o lock está tomado
+            dono.close()  # fechar solta
+            outra = state.lock()
+            assert outra is not None
+            outra.close()
+        finally:
+            if old is None:
+                del os.environ["XDG_STATE_HOME"]
+            else:
+                os.environ["XDG_STATE_HOME"] = old
+
+
 def title_stack():
     """P52: `CSI 22 t` empilha o título e `23 t` devolve, com teto e sem invenção."""
 
@@ -2133,6 +2332,7 @@ ALL = (
     sixel_decoded,
     huge_osc_is_linear,
     dcs_is_consumed,
+    image_animation,
     erasing_takes_the_picture,
     wrap_and_control,
     deccawm,
@@ -2167,6 +2367,10 @@ ALL = (
     palette_config,
     session_restore,
     snapshot_restore,
+    shortcut_table,
+    search_scrollback,
+    prompt_marks,
+    state_owner_lock,
     title_stack,
     lnm_and_soft_reset,
     tab_stops,

@@ -7,6 +7,7 @@ The file is JSON under XDG_STATE_HOME (state, not configuration): if it goes
 away, the window opens at the default and nothing else happens.
 """
 
+import fcntl
 import json
 import os
 
@@ -43,6 +44,22 @@ def save(data):
         os.replace(tmp, path)
     except OSError:
         pass  # não poder salvar não pode derrubar o fechamento
+
+
+def lock():
+    """Pega o `flock` do estado: quem tem é o dono da sessão (P91).
+
+    Devolve o arquivo aberto (mantê-lo aberto é o que segura o lock) ou None
+    quando outra janela é a dona. Fechar o arquivo solta o lock.
+    """
+    path = os.path.join(snapshots_dir(), "state.lock")
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        fd = open(path, "a+", encoding="utf-8")
+        fcntl.flock(fd.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        return None
+    return fd
 
 
 def snapshot_name(ws, tab):

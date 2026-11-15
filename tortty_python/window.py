@@ -524,7 +524,16 @@ class TorttyWindow(Gtk.Window):
         # --cols/--rows (P63) também travam a grade: quem manda é a linha de
         # comando, então a sessão anterior não é restaurada nem regravada
         self._pin = (cols, rows)
-        self._remember = not os.environ.get("PYTERM_GEOM") and not any(self._pin)
+        # P91: one owner of the state. A probe (--cmd), `restore_state none` and
+        # a pinned grid never take the lock, so they leave the hot session alone.
+        dono = (
+            not os.environ.get("PYTERM_GEOM")
+            and not any(self._pin)
+            and cmd is None
+            and self.config.restore_state != "none"
+        )
+        self._lock = state.lock() if dono else None
+        self._remember = dono and self._lock is not None
         self._saved = (state.load() or {}) if self._remember else {}
         self._max = bool(self._saved.get("max"))
         # P50: layout da sessão anterior (workspaces, abas e o cwd de cada
@@ -539,6 +548,7 @@ class TorttyWindow(Gtk.Window):
         self._restore = lay
         self._restore_front = (lay["ws"], lay["tab"]) if lay else None
 
+        self.bindings = self.config.bindings  # P95: a tabela de atalhos do config
         apply_style(self.config.chrome)
         self.sidebar = Gtk.ListBox()
         self.sidebar.set_name("sidebar")  # alvo do CSS (style.py)
@@ -772,6 +782,9 @@ class TorttyWindow(Gtk.Window):
             estado |= mascaras[m]
         ev.keyval = keyval
         ev.state = estado
+        # um evento de teclado de verdade traz o texto em `string` (o encoder e
+        # a barra de busca leem daí); sem isto o socket não digita texto (P94)
+        ev.string = chr(keyval) if 0x20 <= keyval <= 0x10FFFF else ""
         # keycode físico real: `_digit_of` (Alt+1..9) traduz o keycode com o
         # estado zerado, e 0 devolve "não sei" — sem isto os atalhos de dígito
         # morriam no socket (a tecla vazava pro pty e digitava sozinha)
@@ -1008,6 +1021,7 @@ class TorttyWindow(Gtk.Window):
         if not getattr(self, "_cmd_fixo", False):
             self.cmd = self.shell  # vale para as próximas abas
         self._apply_options()  # fonte/padding/cursor valem em TODAS as abas
+        self.bindings = novo.bindings  # P95: a tabela também muda a quente
         apply_style(novo.chrome)  # P75: o chrome também muda a quente
         for ws in self.workspaces:
             for v in ws.views:
@@ -1174,54 +1188,105 @@ class TorttyWindow(Gtk.Window):
 
     # -- atalhos que o filho não vê ------------------------------------
     def handle_shortcut(self, ev):
-        """Atalhos globais. Roda ANTES do encoding da tecla (na view)."""
-        ctrl = bool(ev.state & Gdk.ModifierType.CONTROL_MASK)
-        shift = bool(ev.state & Gdk.ModifierType.SHIFT_MASK)
-        alt = bool(ev.state & Gdk.ModifierType.MOD1_MASK)
-        sup = bool(ev.state & Gdk.ModifierType.SUPER_MASK)
+        """Atalhos globais pela TABELA do config (P95). Roda antes do encoding."""
+        mods = []
+        if ev.state & Gdk.ModifierType.CONTROL_MASK:
+            mods.append("ctrl")
+        if ev.state & Gdk.ModifierType.SHIFT_MASK:
+            mods.append("shift")
+        if ev.state & Gdk.ModifierType.MOD1_MASK:
+            mods.append("alt")
+        if ev.state & Gdk.ModifierType.SUPER_MASK:
+            mods.append("super")
+        acao = self._bound(ev, mods)
+        if acao is None:
+            return False
+        return self.run_action(*acao)
+
+    def _bound(self, ev, mods):
+        """A ação do acorde desta tecla, ou None (P95)."""
         kv = ev.keyval
-        ws = self.current
-        if ctrl and shift:
-            if kv == Gdk.KEY_F2:  # P33: editar a configuração no vim
-                self.open_config()
-                return True
-            if kv in (Gdk.KEY_t, Gdk.KEY_T):
-                if ws is not None:
-                    ws.new_tab()
-                return True
-            if kv in (Gdk.KEY_w, Gdk.KEY_W):
-                if ws is not None:
-                    ws.close_tab()
-                return True
-            if kv in (Gdk.KEY_n, Gdk.KEY_N):
-                self.new_workspace()
-                return True
-            if kv in (Gdk.KEY_q, Gdk.KEY_Q):
-                if ws is not None:
-                    self.close_workspace(ws)
-                return True
-            n = _digit_of(ev)  # Ctrl+Shift+1..9 (0 = o 10º)
-            if n is not None:
-                self.select_workspace_index(9 if n == 0 else n - 1)
-                return True  # consome mesmo sem workspace no índice
-        if sup and not ctrl and not alt:
-            # alias de workspace pelo Super (o WM pode engolir Super+dígito)
-            if kv in (Gdk.KEY_n, Gdk.KEY_N):
-                self.new_workspace()
-                return True
-            if kv in (Gdk.KEY_q, Gdk.KEY_Q):
-                if ws is not None:
-                    self.close_workspace(ws)
-                return True
-            n = _digit_of(ev)  # Super+1..9 (0 = o 10º)
-            if n is not None:
-                self.select_workspace_index(9 if n == 0 else n - 1)
-                return True  # senão o dígito vaza pro filho
-        if alt:
-            n = _digit_of(ev)  # Alt+1..9 (0 = a 10ª aba)
-            if n is not None and ws is not None:
-                return ws.select_tab(9 if n == 0 else n - 1)
-        return False
+        # dígito vem do keycode físico: num layout não-QWERTY o acorde chega
+        # no mesmo número (a mesma decisão do Rust)
+        n = _digit_of(ev) if ("ctrl" in mods or "alt" in mods or "super" in mods) else None
+        if n is not None:
+            acao = self.bindings.get(str(n), mods)
+            if acao is not None:
+                return acao
+        for cand in (Gdk.keyval_name(kv) or "", chr(kv) if kv < 0x110000 else ""):
+            if not cand:
+                continue
+            acao = self.bindings.get(cand.lower(), mods)
+            if acao is not None:
+                return acao
+        return None
+
+    def run_action(self, acao, arg=None):
+        """Executa uma ação da tabela; False só quando não há onde aplicá-la (P95)."""
+        v, ws = self.view, self.current
+        if acao == "copy":
+            if v is not None:
+                v.copy()
+        elif acao == "paste":
+            if v is not None:
+                v.paste()
+        elif acao == "new_tab":
+            if ws is not None:
+                ws.new_tab()
+        elif acao == "close_tab":
+            if ws is not None:
+                ws.close_tab()
+        elif acao == "new_workspace":
+            self.new_workspace()
+        elif acao == "close_workspace":
+            if ws is not None:
+                self.close_workspace(ws)
+        elif acao == "open_config":
+            self.open_config()
+        elif acao == "search":
+            return bool(v is not None and v.start_search())
+        elif acao == "prev_prompt":
+            self.prompt_jump(True)
+        elif acao == "next_prompt":
+            self.prompt_jump(False)
+        elif acao == "select_tab":
+            return bool(ws is not None and ws.select_tab(arg - 1))
+        elif acao == "select_workspace":
+            self.select_workspace_index(arg - 1)  # consome mesmo sem o índice
+        elif acao in ("ws_prev", "ws_next"):
+            self.walk_workspace(-1 if acao == "ws_prev" else 1)
+        elif acao.startswith("scroll_"):
+            if v is None:
+                return False
+            rows = v.term.rows - 1
+            delta = {
+                "scroll_page_up": rows,
+                "scroll_page_down": -rows,
+                "scroll_top": len(v.term.scrollback),
+                "scroll_bottom": -len(v.term.scrollback),
+            }[acao]
+            v.scroll_view(delta)
+        return True
+
+    def walk_workspace(self, delta):
+        """Anda os workspaces de um em um, circulando (P95)."""
+        if not self.workspaces:
+            return
+        i = self.workspaces.index(self.current) if self.current else 0
+        self.select_workspace_index((i + delta) % len(self.workspaces))
+
+    def prompt_jump(self, back):
+        """Leva o prompt anterior (`back`) ou o seguinte à primeira fileira (P93)."""
+        v = self.view
+        if v is None:
+            return
+        t = v.term
+        topo = t.scrolled - v.view_off  # linha absoluta da primeira fileira
+        # subir olha estritamente acima; descer olha daqui, senão o prompt que
+        # já está no topo contaria como o "próximo"
+        line = t.prompt_line(topo - 1 if back else topo, back)
+        if line is not None:
+            v.go_to_line(line)
 
     def on_window_key(self, widget, ev):
         return self.handle_shortcut(ev)
@@ -1436,6 +1501,9 @@ class TorttyWindow(Gtk.Window):
             self._debugsock = None
         self._save_geometry()
         self._save_snapshots()  # antes do shutdown: o Term ainda está inteiro
+        if self._lock is not None:
+            self._lock.close()  # solta o flock: a próxima janela pode ser dona
+            self._lock = None
         self._closing = True
         for ws in list(self.workspaces):
             for v in list(ws.views):

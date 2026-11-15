@@ -99,13 +99,40 @@ can show different colours at the same time. Editing the file re-seeds the base
 from the configuration; what the program asked for stays on top until the
 program itself resets it (or the tab closes).
 
+### `map` and `unmap` — the shortcut table
+
+| key | default | meaning |
+|---|---|---|
+| `map` | the table below | `map CHORD ACTION [N]`: binds a chord to an action, and re-binds one already in use |
+| `unmap` | — | `unmap CHORD`: frees the chord, so the program sees the key again |
+
+These two are the only keys that **accumulate**: every line counts, in file
+order (every other key is "the last one wins"). The defaults are `map` lines in
+the embedded file itself, written in the same syntax, so a line of yours adds to
+them or overrides that one chord; deleting your line goes back to the default.
+
+`CHORD` is `modifier+...+key` with `ctrl`, `shift`, `alt`, `super` and the key
+as a GDK name (`page_up`, `f2`, `up`, `Return`) or one character. A digit under
+`ctrl`, `alt` or `super` is read from the physical key, so a non-QWERTY layout
+reaches the same number. The 19 actions:
+
+`copy`, `paste`, `new_tab`, `close_tab`, `new_workspace`, `close_workspace`,
+`prev_prompt`, `next_prompt`, `search`, `open_config`, `scroll_page_up`,
+`scroll_page_down`, `scroll_top`, `scroll_bottom`, `ws_prev`, `ws_next`,
+`select_tab N`, `select_workspace N` (both `N` in 1..10).
+
+The defaults: `Ctrl+Shift+C/V/T/W/N/Q`, `Ctrl+Shift+F` (search), `Ctrl+Shift+F2`
+(config), `Ctrl+Shift+Up/Down` (prompt walk), `Shift+PgUp/PgDn/Home/End` (scroll),
+`Alt+1`..`0` (tab), `Ctrl+Shift+1`..`0` and `Super+1`..`0` (workspace), `Super+N/Q`
+and `Super+Up/Down` (workspace walk). Editing the file applies on the next reload,
+with no restart.
+
 ## Not here (yet)
 
-- **Shortcuts are not remappable**: there is no `map`/`unmap`. The chord table
-  is in the code and the reason is in `docs/LIMITATIONS.md`;
-- **no `include`** of another file — one file, merged over the base;
-- **no per-option command line override**: the options of `tortty-python -h`
-  are the ones listed above, not one per key.
+- **No `include`**: there is only the user file over the embedded defaults.
+- **No per-key command line override**: only `--cmd`, `-c`, `--cols/--rows`,
+  `--quit-after`, `--dump-to`, `--debug-log`, `--debug-socket`, `--selftest`,
+  `--install-shortcut`, `--remove-shortcut` and `--version` are accepted.
 
 ## When this page is wrong
 

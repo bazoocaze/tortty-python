@@ -228,6 +228,23 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **A probe must not own the session state.** `state.lock` is a `flock`; the
+  window that holds it restores and writes, the others are scratch (P91). Use
+  `--cmd` for a probe: it never takes the lock, so the hot session's
+  `window.json` stays as it was.
+- **`keys` through the debug socket has no `string` unless it is filled.** A
+  synthetic `Gdk.Event` carries `keyval` and `state` but not the text, which is
+  what the encoder and the search bar read — `debug_keys` sets it from the
+  keyval (P94). The verb takes `data`, not `key`; a wrong key silently answers
+  an error and the probe looks like "the shortcut did nothing".
+- **A shortcut that no longer fires may have been `unmap`ped.** The whole table
+  is in the config now (P95): `state`/`dump` show the app, but the chord lives in
+  `config.map_lines`. Deleting a user line returns that chord to the default; it
+  does not free it.
+- **The search bar is drawn between the background pass and the text pass.**
+  Highlights go behind the glyphs (`_draw_search_hits` before the text loop) and
+  the bar itself on top of everything but the cursor; drawing the highlight after
+  the text hides the words (P94).
 - **The DCS head decides everything.** `DCS P1;P2;P3;q` is sixel; the body is
   buffered up to the cap and decoded at the terminator. Anything else
   (`>|XTVERSION`, `1$r...`) is spotted in the first 8 bytes (`_SIXEL_PREFIX`) and

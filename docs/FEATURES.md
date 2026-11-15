@@ -101,6 +101,11 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   redefines an entry **of that tab's own palette** (0..15), `OSC 10/11/12` set
   foreground, background and cursor, and `104`/`110`/`111`/`112` go back to the
   configured value.
+- **Shortcut table** (`map`/`unmap`, `P95`): nineteen actions bound to chords in
+  the configuration file, the defaults written as `map` lines in the embedded
+  file itself — `map ctrl+shift+y new_tab` re-binds, `unmap ctrl+shift+w` frees
+  the key for the program. A reload applies it with no restart. Details in
+  [CONFIG.md](CONFIG.md).
 - **Configuration file** (kitty key/value, in
   `$XDG_CONFIG_HOME/tortty-python/tortty-python.conf`, always merged over the
   default embedded in the package): font family and size (points), `ligatures`,
@@ -142,6 +147,10 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   with the text **including into the scrollback**: `Shift+PgUp`/wheel bring the image back on the right
   line (the placement lives in the grid and may have a negative line, as in kitty)
   and they are drawn on top of the cells.
+- **Image animation** (`a=f`/`a=a`, `P92`): `a=f` adds a frame to an existing
+  image (`z=` is its gap), `a=a` starts it (`s=` 1 stop / 2 run / 3 loop, `v=`
+  how many loops). Frames are whole bitmaps converted to ARGB32 once, and the
+  view runs one lazy timer only while something is animating.
 - **Sixel** (`DCS P1;P2;P3;q`, `tortty_python/graphics.py`): `decode_sixel`
   reads the stream into an ARGB32 bitmap — `#` colours (RGB in %, HLS), 6-row
   bands, `!` repetition, `$`/`-`, the `"` raster for the size. The bitmap enters
@@ -178,6 +187,11 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   shows `1  <name>` or, when never renamed, `1  <title>`; below it, the active
   tab, without the count. Closing the last
   tab closes the workspace; closing the last workspace closes the program.
+- **Prompt marks** (`OSC 133;A|B|C|D[;status]`, `P93`): the shell says where the
+  prompt starts, where the command does and where the output does, and the marks
+  live on absolute lines, so scrolling and output do not move them (capped at
+  512 per tab; one whose line left the history is dropped). `Ctrl+Shift+Up/Down`
+  puts the previous/next prompt on the first row.
 - **Notifications** (`OSC 9`, `777;notify`): on the tab in front it is an 8 s
   toast; on a background tab it is a **badge on the label** that has no timer
   (a bell flash would be gone before anyone looked) and a `•` on the workspace
@@ -203,6 +217,12 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   exist there. `--cols N`/`--rows N` pin the grid in columns and rows (the
   window is sized from the live cell metrics) and, like the measurement
   protocol, neither restore nor save the session.
+- **One owner of the state** (`P91`): the window that opens the session holds a
+  `flock` on `state.lock`, and that is the one that restores, applies the
+  remembered geometry and writes. A window that finds the lock taken is a
+  **scratch** window: one tab in the directory it was called from, the 980x640
+  default, and it never writes. `restore_state none`, `--cmd`, `--cols`/`--rows`
+  and `PYTERM_GEOM` never even try, so a probe leaves the hot session untouched.
 - **Session restore** (`restore_state layout`, the default): the workspaces with
   their names, the tabs in order and the cwd of each shell come back on the next
   run, with the workspace and the tab that were in front. `restore_state none`
@@ -219,6 +239,12 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   tab bar is also black: 1 px separates the tabs and the active one uses the same
   green as the active workspace, with the same text color in all tabs. The
   terminal cell palette is another thing and does not mix with this one.
+- **Scrollback search** (`Ctrl+Shift+F`, `P94`): a bar on the grid's last row
+  takes the query (`[find: query_]`), every match is highlighted in the
+  foreground tone and the current one stronger, and `[ 1/3 ]` (or
+  `[ no match ]`) sits on the right. `Enter`/`Shift+Enter` (or the arrows) walk
+  the matches, wrapping at both ends, and the view jumps so the match lands on
+  the first row. Plain text with ASCII case folding.
 - **Reflow on resize**: lines that wrapped softly are re-wrapped at the new
   width (a long line becomes several when narrowing, goes back to one when
   widening), the cursor stays on the same character and the scrollback is

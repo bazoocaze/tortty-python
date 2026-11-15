@@ -95,6 +95,7 @@ The tortty_python/ package installs the `tortty-python` command and also runs as
   workspaces, tabs, cwd) between runs (JSON in XDG_STATE_HOME), plus the ANSI
   photograph of each tab when `restore_state content` (P57)
 - tortty_python/config.py — configuration (kitty key/value); pure, merge w/ default
+- tortty_python/keymap.py — the shortcut table: `map`/`unmap`, chords, actions — pure
 - tortty_python/debugsock.py — Unix introspection socket (P35): pure dispatch + GLib
   glue; only with `--debug-socket`, verbs in docs/DEBUG.md
 - tortty_python/data/ — tortty-python.svg (icon) and tortty-python.conf (embedded

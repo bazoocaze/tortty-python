@@ -46,6 +46,7 @@ from .term import (
     _FG_MASK,
     DEFAULT_TITLE,
     CellAnchor,
+    Search,
     Term,
     link_allowed,
     row_link,
@@ -93,6 +94,8 @@ DRAG_SLOP = 3  # px de folga: abaixo disso o mouse não "arrastou"
 SB_W = 8  # largura da barra de rolagem, em px (o app testa o mesmo número)
 CLICK_MS = 400  # janela do duplo/triplo clique, em ms
 BLINK_MS = 530  # ritmo do cursor piscando (`cursor_blink`); não é opção
+SEARCH_HL_ALPHA = (0.18, 0.42)  # destaque dos achados: os outros, o atual
+ANIM_TICK_MS = 16  # P92: primeiro giro da animação; depois o `z=` manda
 CELL_BLINK_MS = 500  # ritmo do SGR 5/6 (P66): timer próprio, não o do cursor
 # P57: a marca que separa a foto restaurada da execução nova. Ela come uma
 # linha (pula a linha do cursor restaurado), escreve em cor apagada e deixa o
@@ -268,6 +271,7 @@ class TermView(Gtk.DrawingArea):
         self._hover_cell = (-1, -1)  # última célula visitada (só redesenha ao trocar)
         self._state = 0  # modificadores do último evento
         self.view_off = 0  # 0 = vivo; >0 = linhas de histórico
+        self.search = None  # P94: a busca aberta (query, achados, atual)
         self._anchor = 0  # linha absoluta no topo da visão quando no histórico
         self._hist_gen = 0  # geração do histórico que a visão já viu
         self._pin_off = 0  # distância do vivo a segurar depois de um `CSI 3J`
@@ -308,6 +312,7 @@ class TermView(Gtk.DrawingArea):
         self._blink_timer = 0
         self._cell_on = True  # fase do SGR 5/6: True = a célula aparece nela
         self._cell_timer = 0
+        self._anim_timer = 0  # P92: animação de imagem, um timer só enquanto roda
         self._metrics = None
         self._font_desc = None  # Pango.FontDescription (P9)
         self._attrs = [None] * 4  # Pango.AttrList por (negrito, itálico)
@@ -616,6 +621,7 @@ class TermView(Gtk.DrawingArea):
             self._progress = self.term.progress
             if self.on_progress:
                 self.on_progress(self, self._progress)
+        self._anim_ensure()  # P92: `a=a` acabou de ligar uma animação?
         if self.term.cwd != self._cwd:  # `OSC 7` (P47): o cwd do shell mudou
             self._cwd = self.term.cwd
             if self.on_title:  # o rótulo sem OSC 0/2 é o cwd
@@ -692,6 +698,9 @@ class TermView(Gtk.DrawingArea):
         if self._cell_timer:
             GLib.source_remove(self._cell_timer)
             self._cell_timer = 0
+        if self._anim_timer:
+            GLib.source_remove(self._anim_timer)
+            self._anim_timer = 0
         if self.pty_watch:
             GLib.source_remove(self.pty_watch)
             self.pty_watch = 0
@@ -957,6 +966,119 @@ class TermView(Gtk.DrawingArea):
                 self.back_to_live()  # P72: a uma linha do fim é o vivo
         return True
 
+    def start_search(self):
+        """`Ctrl+Shift+F`: abre a barra de busca na última linha (P94)."""
+        if self.term.alt_grid is not None:
+            return False  # um app em tela cheia desenha a tela toda
+        self.search = Search()
+        self.queue_draw()
+        return True
+
+    def close_search(self):
+        if self.search is not None:
+            self.search = None
+            self.queue_draw()
+
+    def search_key(self, ev):
+        """Teclas da barra: texto, Backspace, Enter/Shift+Enter, Esc (P94)."""
+        s = self.search
+        if s is None:
+            return False
+        kv = ev.keyval
+        shift = bool(ev.state & Gdk.ModifierType.SHIFT_MASK)
+        if kv == Gdk.KEY_Escape:
+            self.close_search()
+            return True
+        if kv in (Gdk.KEY_Return, Gdk.KEY_KP_Enter):
+            self.search_step(bool(shift))
+            return True
+        if kv in (Gdk.KEY_Up, Gdk.KEY_Down):
+            self.search_step(kv == Gdk.KEY_Up)
+            return True
+        if kv == Gdk.KEY_BackSpace:
+            s.query = s.query[:-1]
+            self._search_run()
+            return True
+        mods = Gdk.ModifierType.CONTROL_MASK | Gdk.ModifierType.MOD1_MASK
+        mods |= Gdk.ModifierType.SUPER_MASK
+        texto = ev.string if not (ev.state & mods) else None
+        if texto and texto.isprintable():
+            s.query += texto
+            self._search_run()
+            return True
+        return False
+
+    def _search_run(self):
+        """Refaz a busca e leva a visão ao achado mais novo (P94)."""
+        hit = self.search.run(self.term)
+        if hit is not None:
+            self.go_to_line(hit.line)
+        self.queue_draw()
+
+    def search_step(self, back):
+        """Anda pelos achados, circulando nas duas pontas (P94)."""
+        hit = self.search.step(back)
+        if hit is not None:
+            self.go_to_line(hit.line)
+        self.queue_draw()
+
+    def _draw_search_hits(self, cr, t, cw, ch):
+        """O destaque dos achados: vai atrás do texto, antes dele (P94)."""
+        s = self.search
+        if s is None:
+            return
+        fg = t.theme.rgb_f(DEF_FG)
+        topo = t.scrolled - self.view_off
+        for i, hit in enumerate(s.hits):
+            y = hit.line - topo
+            if y < 0 or y >= t.rows:
+                continue
+            cr.set_source_rgba(*fg, SEARCH_HL_ALPHA[1] if i == s.at else SEARCH_HL_ALPHA[0])
+            cr.rectangle(hit.col * cw, y * ch, hit.length * cw, ch)
+            cr.fill()
+
+    def _draw_search_bar(self, cr, t, cw, ch):
+        """A barra da busca por cima da última linha, opaca (P94)."""
+        s = self.search
+        if s is None:
+            return
+        fg = t.theme.rgb_f(DEF_FG)
+        bg = t.theme.rgb_f(DEF_BG)
+        y = (t.rows - 1) * ch
+        cr.set_source_rgba(*bg, 0.85)
+        cr.rectangle(0, y, t.cols * cw, ch)
+        cr.fill()
+        cr.set_source_rgba(*fg, 0.25)
+        cr.rectangle(0, y, t.cols * cw, 1)
+        cr.fill()
+        total = len(s.hits)
+        onde = f"{s.at + 1}/{total}" if total else "no match"
+        texto = f"[find: {s.query}_]"
+        cr.set_source_rgb(*fg)
+        lay = self.new_layout(cr)
+        lay.set_text(texto, -1)
+        cr.move_to(cw * 0.5, y + (ch - lay.get_size()[1] / Pango.SCALE) / 2)
+        PangoCairo.show_layout(cr, lay)
+        lay2 = self.new_layout(cr)
+        lay2.set_text(f"[ {onde} ]", -1)
+        larg = lay2.get_size()[0] / Pango.SCALE
+        cr.move_to(t.cols * cw - larg - cw * 0.5, y + (ch - lay2.get_size()[1] / Pango.SCALE) / 2)
+        PangoCairo.show_layout(cr, lay2)
+
+    def go_to_line(self, line):
+        """Põe a linha absoluta na primeira fileira da tela (P93)."""
+        t = self.term
+        if t.alt_grid is not None:
+            return False  # alt-screen não tem histórico para saltar
+        off = max(0, min(len(t.scrollback), t.scrolled - line))
+        if off == self.view_off:
+            return False
+        self.view_off = off
+        self._pin_off = 0  # escolha do usuário: a âncora dele manda
+        self._anchor = t.scrolled - off
+        self.queue_draw()
+        return True
+
     def _draw_links(self, cr, rows, cw, ch, row_lo, row_hi, col_lo, col_hi):
         """Sublinha a corrida com hyperlink: todas com Ctrl, só a do ponteiro sem ele."""
         t = self.term
@@ -1187,6 +1309,24 @@ class TermView(Gtk.DrawingArea):
         self._invalidate_cursor()
         return True
 
+    def _anim_ensure(self):
+        """Arma o timer da animação só quando alguma imagem está rodando (P92)."""
+        if self._anim_timer or not self.term.graphics.has_animation():
+            return
+        self._anim_timer = GLib.timeout_add(ANIM_TICK_MS, self._anim_tick)
+
+    def _anim_tick(self):
+        mudou, espera = self.term.graphics.anim_tick(time.monotonic() * 1000.0)
+        for ident in mudou:
+            self._img_cache.pop(ident, None)  # o frame novo vira outra surface
+        if mudou:
+            self.term.dirty_all = True  # como no blink: a imagem está fora do dano
+            self.request_draw()
+        self._anim_timer = 0
+        if espera is not None and self.get_mapped():
+            self._anim_timer = GLib.timeout_add(max(1, espera), self._anim_tick)
+        return False
+
     def _cell_tick(self):
         if not self.get_mapped() or not self._cell_blink_present():
             self._cell_timer = 0
@@ -1404,6 +1544,7 @@ class TermView(Gtk.DrawingArea):
                     rw = (og_w if j >= t.cols else j * cw) - x * cw
                     cr.rectangle(x * cw, ypx, rw, rh)
                     cr.fill()
+        self._draw_search_hits(cr, t, cw, ch)  # atrás do texto (P94)
         for row, ypx, _rh, runs in quadro:
             chs = row.ch
             congelada = type(chs) is str  # histórico: str fatiada é o texto do run
@@ -1501,6 +1642,7 @@ class TermView(Gtk.DrawingArea):
         # barra de rolagem sobre a última coluna: por cima do texto, abaixo do
         # cursor — e só existe quando há histórico
         self._draw_scrollbar(cr, t)
+        self._draw_search_bar(cr, t, cw, ch)  # P94: na frente de tudo, menos o cursor
 
         # cursor — só no vivo: no histórico o cursor do app não está ali
         forma = self._cursor_draw()
@@ -1825,32 +1967,18 @@ class TermView(Gtk.DrawingArea):
     # -- teclado -------------------------------------------------------
     def on_key(self, widget, ev):
         """Traduz e manda a tecla; a tradução em si está em keys.encode_key."""
+        if self.search is not None and self.search_key(ev):
+            return True  # P94: com a barra aberta, a tecla é da barra
         # atalhos da JANELA (abas/workspaces) antes do app: o filho nunca vê
         # Ctrl+Shift+T/W nem Alt+N, senão a tecla morre no app em tela cheia
         if self.shortcuts is not None and self.shortcuts(ev):
             return True
-        ctrl = bool(ev.state & Gdk.ModifierType.CONTROL_MASK)
-        shift = bool(ev.state & Gdk.ModifierType.SHIFT_MASK)
         kv = ev.keyval
         if kv in (Gdk.KEY_Control_L, Gdk.KEY_Control_R):
             self._set_ctrl(True)
-        # Ctrl+Shift+C/V são do terminal, não do app (senão Ctrl+Shift+C
-        # virava o mesmo ^C de Ctrl+C e matava o processo)
-        if ctrl and shift and kv in (Gdk.KEY_c, Gdk.KEY_C):
-            self.copy()
-            return True
-        if ctrl and shift and kv in (Gdk.KEY_v, Gdk.KEY_V):
-            self.paste()
-            return True
-        # Shift+PgUp/PgDn/Home/End olham o histórico (P2) sem falar com o app
-        if shift and kv == Gdk.KEY_Page_Up:
-            return self.scroll_view(self.term.rows - 1)
-        if shift and kv == Gdk.KEY_Page_Down:
-            return self.scroll_view(-(self.term.rows - 1))
-        if shift and kv == Gdk.KEY_Home and self.term.scrollback:
-            return self.scroll_view(len(self.term.scrollback))
-        if shift and kv == Gdk.KEY_End:
-            return self.scroll_view(-len(self.term.scrollback))
+        # Ctrl+Shift+C/V, Shift+PgUp/PgDn/Home/End e o resto da tabela vivem no
+        # `map` do config (P95): aqui só sobra o que não é atalho, senão um
+        # `unmap` não libertaria a tecla de verdade
         if self.view_off and not is_modifier(kv):
             # tecla de verdade volta pro vivo (a tecla também vai pro app);
             # só modificador não, senão o Shift do Shift+PgUp já resetava

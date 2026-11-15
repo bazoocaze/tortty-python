@@ -38,6 +38,8 @@ from .palette import (
 
 # Parser fast path (P20): end of the printable run and the escape -> colour cache.
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
+HITS_MAX = 5000  # teto de ocorrências da busca (P94)
+MARK_CAP = 512  # teto de marcas de prompt por aba (P93)
 _DCS_END = re.compile("[\x07\x1b]")  # BEL or ESC: where a DCS body stops
 _SIXEL_HEAD = re.compile("[0-9;]*q")  # `DCS P1;P2;P3;q` = DECSIXEL (P83)
 _SIXEL_PREFIX = re.compile("[0-9;]*q?")  # o que ainda pode virar um DECSIXEL
@@ -231,6 +233,59 @@ def _link_text(uri):
     return "".join(c for c in uri if not (ord(c) < 32 or ord(c) == 127))
 
 
+class Search:
+    """A busca aberta: a consulta, os achados e qual deles está na tela (P94)."""
+
+    __slots__ = ("query", "hits", "at")
+
+    def __init__(self, query=""):
+        self.query = query
+        self.hits = []
+        self.at = -1
+
+    def run(self, term):
+        """Refaz os achados e aponta o mais novo: é de onde a leitura vem (P94)."""
+        self.hits = find_hits(term, self.query) if self.query else []
+        self.at = len(self.hits) - 1
+        return self.current()
+
+    def current(self):
+        """O achado atual, ou None."""
+        return self.hits[self.at] if 0 <= self.at < len(self.hits) else None
+
+    def step(self, back):
+        """Anda um achado, circulando nas duas pontas; devolve o novo atual."""
+        if not self.hits:
+            return None
+        self.at = (self.at - 1 if back else self.at + 1) % len(self.hits)
+        return self.current()
+
+
+def find_hits(term, query, limit=HITS_MAX):
+    """Ocorrências de `query` no histórico e na tela, em linha absoluta (P94).
+
+    Texto puro com dobra de caixa ASCII (como o Rust): sem regex e sem
+    palavra inteira. O teto existe porque uma letra num histórico enorme
+    guardaria uma ocorrência por célula.
+    """
+    hits = []
+    want = query.lower()
+    if not want:
+        return hits
+    lo = term.scrolled - len(term.scrollback)
+    rows = [(lo + i, r) for i, r in enumerate(term.scrollback)]
+    rows += [(term.scrolled + i, r) for i, r in enumerate(term.grid)]
+    for line, row in rows:
+        texto = row_text(row).lower()
+        i = texto.find(want)
+        while i >= 0:
+            hits.append(Hit(line, i, len(want)))
+            if len(hits) >= limit:
+                return hits
+            i = texto.find(want, i + 1)
+    return hits
+
+
 def snapshot(term):
     """The whole tab (history and screen) in ANSI: feeding a Term rebuilds it (P57)."""
     alt = term.alt_grid is not None
@@ -370,6 +425,22 @@ def _vazia(row, i):
     )
 
 
+class Hit(NamedTuple):
+    """Uma ocorrência da busca: linha absoluta, coluna e comprimento (P94)."""
+
+    line: int
+    col: int
+    length: int
+
+
+class Mark(NamedTuple):
+    """Uma marca de prompt do `OSC 133`, em linha absoluta (P93)."""
+
+    line: int
+    kind: str  # `A` prompt, `B` comando, `C` saída, `D` fim
+    status: int | None  # só o `D` carrega o código de saída
+
+
 class CellAnchor(NamedTuple):
     """Célula em coordenada absoluta: não envelhece quando a tela rola."""
 
@@ -431,6 +502,7 @@ class Term:
         # absolute map generation: reflow (rows join/split) and clearing the
         # history (CSI 3J) invalidate old anchors. The cap trim does NOT: the
         # absolute row stays the same (as in P32).
+        self.marks = []  # `OSC 133`: marcas de prompt, em linha absoluta (P93)
         self.abs_gen = 0
         # `CSI 3J` wipes the history: whoever is scrolling has to know (B20)
         self.hist_gen = 0
@@ -1774,6 +1846,8 @@ class Term:
                 self.progress = None
             elif p[0] <= 4:
                 self.progress = p  # estado fora de 0..4: engolido, como sempre
+        elif o == "133" or o.startswith("133;"):
+            self._osc_mark(o[4:])
         elif o.startswith("777;"):
             self._osc_notify777(o[4:])
         elif o.startswith("1337;File="):
@@ -1865,6 +1939,40 @@ class Term:
         self.clip_text = raw.decode("utf-8", "replace")
         self.clip_sel = "primary" if sel in ("p", "s") else "clipboard"
         self.clip_seq += 1
+
+    def _osc_mark(self, rest):
+        """`OSC 133;A|B|C|D[;status]`: onde o prompt, o comando e a saída estão."""
+        kind = rest[:1]
+        if kind not in ("A", "B", "C", "D") or (len(rest) > 1 and rest[1] != ";"):
+            return  # forma desconhecida (`aid=`, `cl=`) não vira marca
+        status = None
+        if kind == "D" and len(rest) > 2:
+            num = rest[2:].split(";", 1)[0]
+            status = int(num) if num.isdigit() else None
+        line = self.scrolled + self.cy  # a linha de hoje vira absoluta e não anda
+        mark = Mark(line, kind, status)
+        if self.marks and self.marks[-1] == mark:
+            return  # o mesmo `A` repetido (redraw do prompt) não empilha
+        self.marks.append(mark)
+        if len(self.marks) > MARK_CAP:
+            del self.marks[0]
+        self._marks_prune()
+
+    def _marks_prune(self):
+        """Marca cuja linha saiu do histórico não volta (como no P32)."""
+        first = self.scrolled - len(self.scrollback)
+        while self.marks and self.marks[0].line < first:
+            del self.marks[0]
+
+    def prompt_line(self, start, back):
+        """Linha do prompt anterior (`back`) ou seguinte a `start` (P93)."""
+        self._marks_prune()
+        linhas = [m.line for m in self.marks if m.kind == "A"]
+        if back:
+            antes = [ln for ln in linhas if ln < start]
+            return max(antes) if antes else None
+        depois = [ln for ln in linhas if ln > start]
+        return min(depois) if depois else None
 
     def _notify(self, text):
         """Notificação do app (P44): texto limpo e contador.

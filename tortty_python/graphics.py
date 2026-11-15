@@ -142,12 +142,74 @@ def decode_sixel(data):
     return w, h, buf
 
 
+ANIM_GAP_MS = 40  # `z=` ausente: quanto um frame espera (default da kitty)
+ANIM_FRAMES_MAX = 512  # teto de frames por imagem: 320x160 RGBA são 200 KB cada
+
+
+def argb32(data, width, height, fmt):
+    """RGBA/RGB -> ARGB32 do cairo (BGRA premultiplicado) por slice (P92)."""
+    n = width * height
+    out = bytearray(n * 4)
+    if fmt == 24:
+        out[0::4], out[1::4], out[2::4] = data[2::3], data[1::3], data[0::3]
+        out[3::4] = b"\xff" * n
+    else:
+        out[0::4], out[1::4] = data[2::4], data[1::4]
+        out[2::4], out[3::4] = data[0::4], data[3::4]
+    if fmt == 32 and data[3::4] != b"\xff" * n:
+        for i in range(0, n * 4, 4):  # alpha parcial: premultiplica (raro)
+            a = out[i + 3]
+            if a == 0:
+                out[i : i + 3] = b"\x00\x00\x00"
+            elif a != 255:
+                out[i] = out[i] * a // 255
+                out[i + 1] = out[i + 1] * a // 255
+                out[i + 2] = out[i + 2] * a // 255
+    return out
+
+
+class Frame:
+    """Um frame de animação: o bitmap inteiro, o `z=` e o ARGB32 já montado."""
+
+    __slots__ = ("fmt", "data", "gap", "buf")
+
+    def __init__(self, fmt, data, gap=None):
+        self.fmt, self.data, self.gap, self.buf = fmt, data, gap, None
+
+
+class Anim:
+    """A metade sem relógio: qual frame está na tela e quando troca (P92)."""
+
+    __slots__ = ("current", "mode", "loops", "played", "due")
+
+    def __init__(self):
+        self.current = 1  # 1-based, como o `c=`
+        self.mode = 0  # 0 nunca controlada, 1 parada, 2 rodando, 3 em laço
+        self.loops = 1  # `v=`: quantas voltas (0 = para sempre)
+        self.played = 0  # quantas vezes chegou no fim
+        self.due = 0.0  # relógio (ms) da próxima troca; 0 = já
+
+
 class Image:
-    __slots__ = ("id", "width", "height", "fmt", "data")
+    __slots__ = ("id", "width", "height", "fmt", "data", "frames", "anim")
 
     def __init__(self, id_, width, height, fmt, data):
         self.id, self.width, self.height = id_, width, height
         self.fmt, self.data = fmt, data
+        self.frames = [Frame(fmt, data)]  # o frame 1 é o que veio na transmissão
+        self.anim = Anim()
+
+    def gap_ms(self, seat):
+        """Quanto o frame `seat` (1-based) fica na tela."""
+        gap = self.frames[seat - 1].gap
+        return ANIM_GAP_MS if gap is None else max(1, gap)
+
+    def show_frame(self, seat):
+        """Põe o frame na imagem: o view.py desenha fmt 101 sem cópia (P83)."""
+        frame = self.frames[seat - 1]
+        if frame.buf is None:
+            frame.buf = argb32(frame.data, self.width, self.height, frame.fmt)
+        self.fmt, self.data = 101, frame.buf
 
 
 def iterm_dim(spec, px, cell_len, total_px):
@@ -362,8 +424,12 @@ class Graphics:
         quiet = kv.get("q", "0") != "0"
         ident = int(kv["i"]) if kv.get("i") else 0
 
-        if action in ("f", "a", "c"):
-            return [], 0, False  # animação/controle: ignorado de propósito
+        if action == "f":
+            return self._frame(kv, data, quiet)
+        if action == "a":
+            return self._anim(kv, quiet)
+        if action == "c":
+            return ([] if quiet else ["G" + self._err(kv, "EINVAL:a=c")]), 0, False
         if action == "q":
             # `a=q` é sonda de CAPACIDADE, não consulta de imagem: o
             # `kitten icat` manda três (direto / arquivo / memória) e só segue
@@ -426,6 +492,96 @@ class Graphics:
             rows = self._place(img, kv, cursor, cell)
             move = kv.get("C") != "1"
         return ([] if quiet else [f"Gi={ident};OK"]), rows, move
+
+    def _frame(self, kv, data, quiet):
+        """`a=f`: mais um frame — um bitmap inteiro por frame (P92)."""
+        ident = int(kv.get("i", "0") or 0)
+        img = self.images.get(ident)
+        if img is None:
+            return ([] if quiet else ["G" + self._err(kv, "ENOENT:image")]), 0, False
+        w, h = int(kv.get("s", "0") or 0), int(kv.get("v", "0") or 0)
+        if (w and w != img.width) or (h and h != img.height) or kv.get("x") or kv.get("y"):
+            # só o frame inteiro: compor retângulo custaria um blend por pixel
+            return ([] if quiet else ["G" + self._err(kv, "EINVAL:frame rect")]), 0, False
+        fmt = int(kv.get("f", "32") or 32)
+        if fmt not in (24, 32) or len(data) < img.width * img.height * (3, 4)[fmt == 32]:
+            return ([] if quiet else ["G" + self._err(kv, "EINVAL:frame")]), 0, False
+        if len(img.frames) >= ANIM_FRAMES_MAX and not kv.get("r"):
+            return ([] if quiet else ["G" + self._err(kv, "ENOSPC:frames")]), 0, False
+        gap = int(kv["z"]) if kv.get("z") else None
+        frame = Frame(fmt, data, gap)
+        at = int(kv.get("r", "0") or 0)  # 1-based: substitui um frame existente
+        if 0 < at <= len(img.frames):
+            img.frames[at - 1] = frame
+        else:
+            img.frames.append(frame)
+        return ([] if quiet else ["Gi=%d;OK" % ident]), 0, False
+
+    def _anim(self, kv, quiet):
+        """`a=a`: `s=` 1 para / 2 roda / 3 roda em laço, `v=` quantas voltas."""
+        ident = int(kv.get("i", "0") or 0)
+        img = self.images.get(ident)
+        if img is None:
+            return ([] if quiet else ["G" + self._err(kv, "ENOENT:image")]), 0, False
+        if len(img.frames) < 2:
+            return ([] if quiet else ["Gi=%d;OK" % ident]), 0, False
+        modo = int(kv.get("s", "3") or 3)
+        a = img.anim
+        a.mode = modo if modo in (1, 2, 3) else 1
+        a.loops = max(0, int(kv.get("v", "1") or 1))
+        a.played = 0
+        a.due = 0.0  # já vence: o timer do view.py chama anim_tick agora
+        if a.mode >= 2:
+            a.current = 1
+            img.show_frame(1)
+        return ([] if quiet else ["Gi=%d;OK" % ident]), 0, False
+
+    def has_animation(self):
+        """Alguma imagem rodando? O view.py só arma o timer se sim (P92)."""
+        for img in self.images.values():
+            if img.anim.mode >= 2 and len(img.frames) > 1:
+                return True
+        return False
+
+    def anim_tick(self, now):
+        """Avança o que venceu: devolve (ids que mudaram, ms até o próximo)."""
+        mudou, espera = [], None
+        for ident, img in self.images.items():
+            a = img.anim
+            if a.mode < 2 or len(img.frames) < 2:
+                continue
+            for _ in range(1000):  # freio: um `z=0` não pode travar o laço
+                if now < a.due:
+                    break
+                if not self._next_frame(img, a):
+                    break
+                mudou.append(ident)
+                a.due = now + img.gap_ms(a.current)
+            if a.mode >= 2:
+                falta = max(1, int(a.due - now)) if a.due else 1
+                espera = falta if espera is None else min(espera, falta)
+        return mudou, espera
+
+    def _next_frame(self, img, a):
+        """Põe o próximo frame que vale mostrar; False quando a animação acabou."""
+        total = len(img.frames)
+        seat = a.current
+        for _ in range(total + 1):
+            seat += 1
+            if seat > total:
+                a.played += 1
+                if a.mode == 3 and (a.loops == 0 or a.played < a.loops):
+                    seat = 1
+                else:
+                    a.mode = 1
+                    return False
+            if (img.frames[seat - 1].gap or 0) < 0:
+                continue  # `z<0`: frame de base, nunca é mostrado
+            a.current = seat
+            img.show_frame(seat)
+            return True
+        a.mode = 1
+        return False
 
     @staticmethod
     def _err(kv, msg):
