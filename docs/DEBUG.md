@@ -280,9 +280,9 @@ when it opens, the window shows a security warning toast with the socket path.
   up with "Terminal does not support reporting screen sizes in pixels" if the
   answer is missing or late — on a cold start it can time out; run it again.
   `EINVAL:size` in reply to an `a=T` is the chunked-decode trap above.
-- **Sixel is not implemented** (P83): `chafa -f sixel` must leave the screen
-  clean, because a DCS is consumed and ignored (P81). Payload text on screen
-  means the parser lost the dcs state.
+- **Sixel payload on screen** means the parser lost the dcs state (P81), not
+  that the decoder is missing: `chafa -f sixel IMG` draws since P83. A sixel
+  that is consumed but does not draw is caught by the head sniff below.
 - A click on a tab label takes the keyboard focus away from the terminal: the
   `EventBox` of the label returns `False` on button 1 so the press reaches the
   notebook's default handler (which is what lets a tab be dragged), and that

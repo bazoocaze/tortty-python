@@ -143,17 +143,17 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   line (the placement lives in the grid and may have a negative line, as in kitty)
   and they are drawn on top of the cells.
 - **Sixel** (`DCS P1;P2;P3;q`, `tortty_python/graphics.py`): `decode_sixel`
-  decodifica em ARGB32 puro — cores `#` (RGB e HLS), bandas de 6 linhas, `!`
-  de repetição, `$` e `-`, e o raster `"` para o tamanho. O bitmap entra como
-  `fmt 101`, que o `view.py` entrega ao cairo **sem a cópia por pixel** do
-  caminho RGBA. `chafa -f sixel` desenha; pixel não pintado fica transparente.
+  reads the stream into an ARGB32 bitmap — `#` colours (RGB in %, HLS), 6-row
+  bands, `!` repetition, `$`/`-`, the `"` raster for the size. The bitmap enters
+  as `fmt 101`, which `view.py` hands to cairo **with no per-pixel copy** of the
+  RGBA path; a pixel the stream never sets stays transparent.
 - **iTerm2 inline images** (`OSC 1337;File=`, `tortty_python/graphics.py`):
-  `inline=1` desenha no cursor, `width`/`height` em células, `px` ou `%` do
-  tamanho da tela, `preserveAspectRatio` completa o lado que falta e o cursor
-  desce as linhas usadas. O payload pode ser PNG, TIFF ou JPEG — quem decodifica
-  é o `GdkPixbuf` (o `chafa -f iterm` manda TIFF), e sem `width`/`height` o
-  tamanho sai da própria imagem (o `imgcat` manda só o `File=`). A imagem é a mesma colocação
-  do kitty, então rola, some com o `ED`/`EL` e espera o alt screen igual.
+  `inline=1` draws at the cursor, `width`/`height` in cells, `px` or `%` of the
+  screen, `preserveAspectRatio` fills the missing side and the cursor moves down
+  the rows used. The payload may be PNG, TIFF or JPEG — `GdkPixbuf` decodes it
+  (`chafa -f iterm` sends TIFF), and without `width`/`height` the size comes from
+  the image itself (`imgcat` sends only the `File=`). It is the same placement as
+  kitty, so it scrolls, goes away with `ED`/`EL` and waits for the alt screen.
 - **Bracketed paste** (`?2004`): when the app asks, `Ctrl+Shift+V`/the middle
   button send the text between `ESC[200~` and `ESC[201~` — readline/vim know it
   is a paste and do not run each line. Pasting a line copied with the mouse no

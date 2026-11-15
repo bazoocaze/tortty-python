@@ -553,10 +553,9 @@ lines of the same `id` and left the unrelated link alone. Check `osc8_link_id`.
 
 The snapshot is ANSI (`term.snapshot`), so the reader is the parser already
 there: SGR, `OSC 8` and soft wraps go as bytes, and a photo taken wide reopens
-narrow reflowed by the resize code. One file per (workspace, tab) next to
-`window.json`, rewritten on the way out (a closed tab does not come back) and fed
-to the fresh `Term` **before** the shell exists. The marker the terminal writes is
-decoration (`row_chrome`), out of the next photo. Check `snapshot_restore`.
+narrow through the resize code. One file per (workspace, tab) next to
+`window.json`, fed to the fresh `Term` **before** the shell exists; the marker is
+`row_chrome`, out of the next photo. Check `snapshot_restore`.
 
 ### P77 — Cell layout: packed rows and the frozen history (2026-11-14)
 
@@ -599,10 +598,9 @@ not overlap the screen and lets the cairo clip cut the rest, as kitty does.
 
 Reported: `chafa -f kitty` drew the image, `mc` opened and the picture stayed on
 every cell `mc` left blank, because `ED`/`EL`/`ECH` erased the cells and kept the
-placement. `Graphics.erase` now drops what intersects the erased span, and
-`?1049` gives the alternate buffer its own set (`enter_alt`/`leave_alt`), so the
-main screen's pictures wait and come back on their lines. `ED 2` reaches the
-screen, not the history. Parity with the Rust TorTTY (B3, 1.0.85).
+placement. `Graphics.erase` drops what intersects the erased span and `?1049`
+gives the alternate buffer its own set; `ED 2` reaches the screen, not the
+history. Parity with the Rust TorTTY (B3, 1.0.85).
 
 ### P87 — The child reads the cell before the first resize (2026-11-14)
 
@@ -614,22 +612,19 @@ the fork — it loads the font, and that delay was what let the child read first
 
 ### P84 — iTerm2 inline images (2026-11-14)
 
-`OSC 1337;File=inline=1;width=…;height=…:<base64>` now draws at the cursor and
-the cursor goes below it. Same placement object as the kitty protocol, so
-scrolling, `ED`/`EL`, the alt screen and the history work with no extra code.
-Units are cells, `px` and `%`; `preserveAspectRatio` (the default) derives the
-missing side. Payload is decoded by `GdkPixbuf`, since `chafa -f iterm` sends
-TIFF and cairo only reads PNG. Verified with a PNG of four quadrants: 32x14
-cells land pixel-exact, 112 px per half.
+`OSC 1337;File=inline=1;width=…;height=…:<base64>` draws at the cursor and moves
+it below. It is the same placement object as kitty, so scrolling, `ED`/`EL`, the
+alt screen and the history come for free. Units are cells, `px` and `%`;
+`GdkPixbuf` decodes the payload, since `chafa -f iterm` sends TIFF and cairo
+reads only PNG. A four-quadrant PNG landed 32x14 cells pixel-exact.
 
 ### P89 — A big OSC was quadratic: the image took 25 s to appear (2026-11-14)
 
 User report: iTerm2 images did not work. They did arrive; `self.osc += ch` per
 character is O(n²), and chafa at a wide window sends ~1.3 MB of base64 — 25 s of
-main loop, the pty full and the app looking dead. `osc`/`apc` now collect chunks
-in a list and join at the terminator: 1.3 MB went from ~25 s to 172 ms, and the
-100→400 KB ratio from 18.5x to 4x. Check `huge_osc_is_linear` asserts the ratio,
-not a wall time, so a slow machine does not lie.
+main loop, the pty full, the app looking dead. `osc`/`apc` now collect chunks in
+a list and join at the terminator: 1.3 MB from ~25 s to 172 ms, the 100→400 KB
+ratio from 18.5x to 4x. `huge_osc_is_linear` asserts the ratio, not a wall time.
 
 ### P88 — A ceiling on the OSC/APC body (2026-11-14)
 
@@ -648,14 +643,11 @@ path — behaviour is exactly what it was.
 
 ### P83 — Sixel (2026-11-14)
 
-The last image format. `decode_sixel` in `graphics.py` reads the DECSIXEL
-stream into an ARGB32 bitmap: `#` colours (RGB in %, HLS), 6-row bands, `!`
-repetition, `$`/`-`, and the `"` raster for the real size. The parser stops
-dropping every DCS: a head matching `[0-9;]*q` is sixel, anything else
-(XTVERSION, DECRQSS) is discarded at the first non-matching byte, as before.
-The bitmap is `fmt 101`, so `view.py` hands it to cairo with no per-pixel copy —
-the RGBA path would cost a second per megapixel. `chafa -f sixel` draws, 32x14
-cells for a 224x224 image, cursor below it.
+The last image format: `decode_sixel` reads DECSIXEL into ARGB32 (`#` RGB/HLS,
+6-row bands, `!`, `$`/`-`, the `"` raster). The parser stopped dropping every
+DCS — a head matching `[0-9;]*q` is sixel, XTVERSION/DECRQSS die at the first
+non-matching byte. `fmt 101` skips the per-pixel RGBA copy. `chafa -f sixel`
+draws, cursor below.
 
 ## Bugs found and fixed (useful history)
 

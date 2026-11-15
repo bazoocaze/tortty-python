@@ -105,11 +105,11 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   (shared memory) are not read — the image has to come in the base64 escape.
 - **No optimized `f=100` beyond PNG**: PNG is read directly by cairo; raw RGBA
   goes through a copy because of the stride.
-- **Sixel draws, with two decisions**: kitty (APC `G`), iTerm2 (`OSC
-  1337;File=`, P84) and sixel (DECSIXEL, P83) all draw. In sixel, a pixel the
-  stream never sets stays transparent instead of taking the terminal background
-  (Ps2=0/2 is ignored), and a sixel printed before any `#` is black — the pure
-  decoder has no access to the theme.
+- **Sixel keeps two decisions**: kitty (APC `G`), iTerm2 (`OSC 1337;File=`,
+  P84) and sixel (DECSIXEL, P83) all draw, but in sixel a pixel the stream never
+  sets stays transparent instead of taking the terminal background (Ps2=0/2 is
+  ignored), and a sixel printed before any `#` is black — the pure decoder has
+  no access to the theme.
 
 ## Reflow and scrollback
 
