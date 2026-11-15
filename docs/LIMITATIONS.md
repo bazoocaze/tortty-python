@@ -105,7 +105,9 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   (shared memory) are not read — the image has to come in the base64 escape.
 - **No optimized `f=100` beyond PNG**: PNG is read directly by cairo; raw RGBA
   goes through a copy because of the stride.
-- **No sixel and no iTerm2 inline images**: only the kitty protocol.
+- **No sixel and no iTerm2 inline images**: only the kitty protocol draws;
+  a DCS is consumed and ignored, so a sixel image leaves the screen clean
+  instead of printing its payload (queued as P83 and P84).
 
 ## Reflow and scrollback
 

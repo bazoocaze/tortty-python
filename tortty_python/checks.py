@@ -157,6 +157,13 @@ def charset_and_replies():
     t.cell_size = (10, 21)
     t.feed("\x1b[16t")
     assert bytes(t.child_out) == b"\x1b[6;21;10t"
+    # P82: icat desiste de imagem sem a área em pixels (14) — e a 15/19 também
+    t.child_out = bytearray()
+    t.feed("\x1b[14t\x1b[15t\x1b[19t")
+    h, w = t.rows * 21, t.cols * 10
+    assert bytes(t.child_out) == (
+        f"\x1b[4;{h};{w}t\x1b[5;{h};{w}t\x1b[9;{t.rows};{t.cols}t".encode()
+    )
     t.child_out = bytearray()
     t.feed("\x1b]11;?\x07")
     assert bytes(t.child_out).startswith(b"\x1b]11;rgb:")
@@ -465,6 +472,42 @@ def graphics_image_and_offset():
     t.feed(f"\x1b_Ga=T,f=24,o=z,s=4,v=2,C=1,X=3;{b64}\x1b\\")
     pl = t.graphics.placements[0]
     assert (pl.dx, pl.cols, pl.rows) == (3, 1, 1)
+
+
+def graphics_chunked():
+    """P80: chunked transmission — each chunk is base64 on its own, `=` included."""
+    dados = bytes(range(64))
+    pedacos = [base64.b64encode(dados[:32]).decode(), base64.b64encode(dados[32:]).decode()]
+    assert all(p.endswith("=") for p in pedacos)
+    t = Term(cols=20, rows=4)
+    t.feed(f"\x1b_Ga=t,f=32,s=4,v=4,i=9,m=1;{pedacos[0]}\x1b\\")
+    assert not t.graphics.images  # not finished yet
+    t.feed(f"\x1b_Gm=0;{pedacos[1]}\x1b\\")
+    assert bytes(t.child_out) == b"\x1b_Gi=9;OK\x1b\\"
+    assert t.graphics.images[9].data == dados
+    # the other shape: the base64 cut at a multiple of 4, no `=` in the middle
+    b64 = base64.b64encode(dados).decode()
+    t = Term(cols=20, rows=4)
+    t.feed(f"\x1b_Ga=t,f=32,s=4,v=4,i=4,m=1;{b64[:32]}\x1b\\")
+    t.feed(f"\x1b_Gm=0;{b64[32:]}\x1b\\")
+    assert t.graphics.images[4].data == dados
+
+
+def dcs_is_consumed():
+    """P81: DCS leaves the screen alone — sixel and XTVERSION do not print."""
+    t = Term(cols=40, rows=3)
+    t.feed('\x1bP0;0;0q"1;1;4;4#0;2;0;0;0#1!4~$-#2~~\x1b\\fim')
+    assert _row_text(t.grid[0]).rstrip() == "fim"
+    assert t.child_out == bytearray()  # sixel still gets no answer
+    t = Term(cols=40, rows=3)
+    t.feed("\x1bP+q544e\x1b\\A")
+    assert _row_text(t.grid[0]).rstrip() == "A" and t.dcs == "+q544e"
+    t = Term(cols=40, rows=3)
+    t.feed("\x1bP1$qm\x07B")  # BEL also ends it
+    assert _row_text(t.grid[0]).rstrip() == "B"
+    t = Term(cols=40, rows=3)
+    t.feed("\x1bP" + "x" * 5000 + "\x1b\\C")
+    assert _row_text(t.grid[0]).rstrip() == "C" and len(t.dcs) == 256
 
 
 def graphics_follow_history():
@@ -1877,6 +1920,8 @@ ALL = (
     scrollback_and_bell,
     graphics_image_and_offset,
     graphics_follow_history,
+    graphics_chunked,
+    dcs_is_consumed,
     wrap_and_control,
     deccawm,
     sgr_faint_and_hidden,

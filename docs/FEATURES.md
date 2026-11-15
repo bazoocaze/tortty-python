@@ -132,10 +132,12 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   `a=t`/`a=T`/`a=p`/`a=d`/`a=q`, `f=24` (RGB), `f=32` (RGBA) and `f=100` (PNG),
   image in chunks (`m=1`), `i`/`c`/`r`/`C=1`/`q`, `o=z` compression (zlib) and
   the `X=`/`Y=` offsets in pixels inside the cell (that is how `icat`
-  centers and positions). `kitten icat` works entirely, including
-  `--place` and `--scale-up` (it detects through `a=q` + `DA`, transmits in stream or
-  compressed and draws). Images scroll along with the text **including into
-  the scrollback**: `Shift+PgUp`/wheel bring the image back on the right
+  centers and positions), each chunk decoded on its own (chafa and `icat` pad
+  every chunk). `kitten icat` works, including `--place` and `--scale-up`, and
+  so does `chafa -f kitty`; it detects through `a=q` + `DA` + `CSI 14 t` and
+  transmits in stream or compressed. An image that hangs off an edge is clipped
+  as in kitty (icat scrolls it past row 0 on purpose). Images scroll along with
+  the text **including into the scrollback**: `Shift+PgUp`/wheel bring the image back on the right
   line (the placement lives in the grid and may have a negative line, as in kitty)
   and they are drawn on top of the cells.
 - **Bracketed paste** (`?2004`): when the app asks, `Ctrl+Shift+V`/the middle

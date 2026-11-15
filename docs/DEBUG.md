@@ -228,6 +228,21 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **A chunked kitty image is base64 per chunk, padding included.** chafa and
+  `kitten icat` close every `m=1` chunk with `=`; decoding the joined string
+  makes `binascii` stop at the first padding, the image arrives short and the
+  terminal answers `EINVAL:size` (P80). Decode each chunk and add the bytes.
+  `chafa -f kitty --size 60x25 IMG` inside the app is the quick probe.
+- **An image may start above row 0.** `icat` places a tall image and scrolls the
+  grid to make room, so the placement lands negative; the draw must clip, never
+  skip on `row < 0`, or the picture disappears with the grid correct (P85).
+- **`icat` asks `CSI 14 t` (text area in pixels) before anything else** and gives
+  up with "Terminal does not support reporting screen sizes in pixels" if the
+  answer is missing or late — on a cold start it can time out; run it again.
+  `EINVAL:size` in reply to an `a=T` is the chunked-decode trap above.
+- **Sixel is not implemented** (P83): `chafa -f sixel` must leave the screen
+  clean, because a DCS is consumed and ignored (P81). Payload text on screen
+  means the parser lost the dcs state.
 - A click on a tab label takes the keyboard focus away from the terminal: the
   `EventBox` of the label returns `False` on button 1 so the press reaches the
   notebook's default handler (which is what lets a tab be dragged), and that

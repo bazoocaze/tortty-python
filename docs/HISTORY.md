@@ -566,6 +566,35 @@ memory of a 10000-row history: 78.7 MB to 10.2 MB in ASCII and 128 MB to 15.1 MB
 in CJK, while `feed` paid 10% and drawing got faster. Two shapes, so cold paths
 read through `row_text`/`cell`/`cell_abs`; numbers in [BENCHMARKS.md](BENCHMARKS.md).
 
+### P80 — Chunked kitty transmission decoded per chunk (2026-11-14)
+
+The base64 of `m=1` chunks was accumulated and decoded once, but chafa and
+`kitten icat` pad **every** chunk, so `binascii` stopped at the first `=`; a
+320x160 RGBA frame arrived as 512 bytes of 204800 and the terminal answered
+`EINVAL:size`. Now each chunk decodes on its own and the bytes add up. The
+battery had no chunked case — `graphics_chunked` covers both sender shapes.
+
+### P81 — DCS is consumed, not printed (2026-11-14)
+
+The parser had no dcs state: `ESC P` dropped the introducer and the body went to
+the screen, so a sixel image became rows of garbage and `XTVERSION`
+(`ESC P+q544e`) printed `+q544e`. DCS is now skipped by a find of the terminator
+(256 chars kept for debugging) and ends at BEL or ST. `dcs_is_consumed` feeds
+sixel, XTVERSION and a 5 KB body.
+
+### P82 — `CSI 14 t` answers the text area in pixels (2026-11-14)
+
+`kitten icat` asks it before transmitting and gave up with "Terminal does not
+support reporting screen sizes in pixels"; 16 and 18 were answered, 14 was not.
+Now 14/15 answer `4;h;w`/`5;h;w` and 19 answers `9;rows;cols`, from `cell_size`.
+
+### P85 — An image over the top edge is clipped, not skipped (2026-11-14)
+
+`icat` places a 38-row image on a 37-row screen and scrolls it to row -2; the
+draw loop skipped any placement with `vr < 0`, so the picture vanished even
+though the grid had 1 image and 1 placement. The loop now skips only what does
+not overlap the screen and lets the cairo clip cut the rest, as kitty does.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

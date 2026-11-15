@@ -118,21 +118,22 @@ class Graphics:
             if item:
                 k, _, v = item.partition("=")
                 cur[k] = v
-        # o control data do PRIMEIRO pedaço vale para a transmissão inteira;
-        # os seguintes só trazem m=1 (e é só do pedaço atual, não acumula —
-        # guardar o m no dict fazia a transmissão nunca terminar)
+        # the control data of the FIRST chunk covers the whole transmission
         if self._buf is None:
-            self._buf = {"b64": "", "kv": dict(cur)}
-        self._buf["b64"] += payload
-        if cur.get("m") == "1":
-            return [], 0, False  # ainda tem pedaço vindo
-
-        kv, b64 = self._buf["kv"], self._buf["b64"]
-        self._buf = None
+            self._buf = {"data": b"", "kv": dict(cur)}
+        # each chunk is base64 on its own, padding included (chafa and icat both
+        # do it): decoding the join would stop at the first `=`
         try:
-            data = base64.b64decode(b64 + "=" * (-len(b64) % 4)) if b64 else b""
+            self._buf["data"] += base64.b64decode(payload + "=" * (-len(payload) % 4))
         except Exception:
+            kv = self._buf["kv"]
+            self._buf = None
             return ["G" + self._err(kv, "EINVAL:base64")], 0, False
+        if cur.get("m") == "1":
+            return [], 0, False  # still more chunks to come
+
+        kv, data = self._buf["kv"], self._buf["data"]
+        self._buf = None
         if kv.get("o") == "z" and data:
             # `o=z`: o payload vem comprimido (o `icat --place` manda PNG
             # decodificado + zlib pra escalar no terminal sem reencodar)

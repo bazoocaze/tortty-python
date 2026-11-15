@@ -38,6 +38,8 @@ from .palette import (
 
 # Parser fast path (P20): end of the printable run and the escape -> colour cache.
 _CTRL = re.compile(r"[\x00-\x1f\x7f]")
+_DCS_END = re.compile("[\x07\x1b]")  # BEL or ESC: where a DCS body stops
+_DCS_KEEP = 256  # chars of the DCS body kept for debugging (P81)
 _ESC_CACHE = {}
 _ESC_MAX = 1024
 
@@ -514,6 +516,7 @@ class Term:
         self.csi = ""
         self.osc = ""
         self.apc = ""
+        self.dcs = ""  # kept only to the cap; DCS is consumed and ignored (P81)
         # answer to a size query (icat asks; only the basics here)
         self.respond_size = False
 
@@ -1428,14 +1431,20 @@ class Term:
             st = self.mode_state(ps, private)
             self.child_out += f"\x1b[{'?' if private else ''}{ps};{st}$y".encode()
         elif final == "t" and params:
-            # 16 = tamanho da célula em px; 18 = área de texto em chars. Apps
-            # de TUI (pi, neovim) perguntam para calcular layout em pixels e
-            # ficam esperando a resposta; sem ela o startup arrasta.
-            if params[0] == 16:
-                cw, ch = self.cell_size
+            # 14/15 = area in pixels, 16 = cell in pixels, 18/19 = area in chars.
+            # TUI apps (pi, neovim) and `kitten icat` ask and wait; 14 missing
+            # made icat give up on images (P82).
+            cw, ch = self.cell_size
+            if params[0] == 14:
+                self.child_out += f"\x1b[4;{self.rows * ch};{self.cols * cw}t".encode()
+            elif params[0] == 15:
+                self.child_out += f"\x1b[5;{self.rows * ch};{self.cols * cw}t".encode()
+            elif params[0] == 16:
                 self.child_out += f"\x1b[6;{ch};{cw}t".encode()
             elif params[0] == 18:
                 self.child_out += f"\x1b[8;{self.rows};{self.cols}t".encode()
+            elif params[0] == 19:
+                self.child_out += f"\x1b[9;{self.rows};{self.cols}t".encode()
             elif params[0] in (22, 23) and get(1, 0) <= 2:
                 # 22 salva, 23 devolve (xterm); Ps 1/2 são os ícones, que não
                 # existem aqui — o título de janela é o mesmo
@@ -1582,6 +1591,8 @@ class Term:
                     self.state, self.osc = "osc", ""
                 elif ch == "_":
                     self.state, self.apc = "apc", ""
+                elif ch == "P":
+                    self.state, self.dcs = "dcs", ""
                 elif ch == "(":
                     self.state = "charset"
                 elif ch == "M":
@@ -1650,6 +1661,24 @@ class Term:
                     self._apc_done()
                 else:
                     self.state = "ground"
+            elif st == "dcs":
+                # DCS (sixel, DECRQSS, XTVERSION): consumed, never decoded, so
+                # the payload cannot leak to the screen as text (P81). Skipping
+                # by find keeps a megabyte of sixel off the per-char loop.
+                m = _DCS_END.search(text, i)
+                j = m.start() if m else n
+                if len(self.dcs) < _DCS_KEEP:
+                    self.dcs += text[i:j][: _DCS_KEEP - len(self.dcs)]
+                if not m:
+                    i = n
+                    continue
+                self.state = "ground" if text[j] == "\x07" else "dcs-esc"
+                i = j + 1
+                continue
+            elif st == "dcs-esc":
+                self.state = "ground" if ch == "\\" else "dcs"
+                if self.state == "dcs":
+                    self.dcs = ""
             elif st == "charset":
                 self.charset_dec = ch == "0"
                 self.state = "ground"

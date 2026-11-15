@@ -1431,12 +1431,20 @@ class TermView(Gtk.DrawingArea):
         # do cursor — é onde o kitty põe
         for pl in t.graphics.placements:
             img = t.graphics.images.get(pl.image_id)
+            if img is None:
+                continue
             # No histórico a tela deslizou `view_off` linhas pra dentro do
             # scrollback: a colocação vive em coordenadas da GRADE, então a
             # linha na tela é `row + view_off` (sem isso a imagem ficava
             # parada enquanto o texto rolava por baixo dela).
             vr = pl.row + self.view_off
-            if img is None or pl.col >= t.cols or vr < 0 or vr >= t.rows:
+            w = max(1, pl.cols) * cw
+            h = max(1, pl.rows) * ch
+            x0 = pl.col * cw + pl.dx  # X=/Y=: offset em pixels (centralização)
+            y0 = vr * ch + pl.dy
+            # P85: hanging off an edge means clipped, not skipped — `icat`
+            # scrolls the image up past row 0 and it used to vanish entirely
+            if y0 + h <= 0 or x0 + w <= 0 or y0 >= t.rows * ch or x0 >= t.cols * cw:
                 continue
             entry = self._img_cache.get(pl.image_id)
             if entry is None:
@@ -1446,10 +1454,6 @@ class TermView(Gtk.DrawingArea):
                     continue
                 self._img_cache[pl.image_id] = entry
             surf = entry[0]
-            w = max(1, pl.cols) * cw
-            h = max(1, pl.rows) * ch
-            x0 = pl.col * cw + pl.dx  # X=/Y=: offset em pixels (centralização)
-            y0 = vr * ch + pl.dy
             cr.save()
             cr.rectangle(x0, y0, w, h)
             cr.clip()
