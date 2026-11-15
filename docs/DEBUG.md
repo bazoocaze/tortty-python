@@ -228,6 +228,12 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **A child reads the cell size once, at startup** (`TIOCGWINSZ`, what chafa
+  uses): a fresh pty reports 0x0 px and the fallback is an 8x8 cell, so the
+  picture comes out squashed. The winsize is sent right after `pty.fork` and
+  `metrics()` is called before the fork, because loading the font there is what
+  used to let the child read first (P87). Probe: run chafa with no `sleep` and
+  measure the image width against the placement `cols * cw`.
 - **The image is drawn above the text, so a stale placement survives every
   repaint.** An app that paints over without the alternate screen (`mc`) leaves
   the picture visible in each blank cell unless `ED`/`EL`/`ECH` drop the

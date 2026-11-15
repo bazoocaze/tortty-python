@@ -604,6 +604,14 @@ placement. `Graphics.erase` now drops what intersects the erased span, and
 main screen's pictures wait and come back on their lines. `ED 2` reaches the
 screen, not the history. Parity with the Rust TorTTY (B3, 1.0.85).
 
+### P87 — The child reads the cell before the first resize (2026-11-14)
+
+`chafa -f kitty` right after the tab opened drew the image squashed (196 px wide
+of the 224 asked): a fresh pty says 0x0 px, so chafa fell back to an 8x8 cell.
+The winsize now goes out right after `pty.fork`, and `metrics()` runs **before**
+the fork — it loads the font, and that delay was what let the child read first.
+6 of 6 runs correct afterwards, 3 of 6 before.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

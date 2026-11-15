@@ -311,6 +311,9 @@ class TermView(Gtk.DrawingArea):
         self.spawn(cmd, cwd)
 
     def spawn(self, cmd, cwd=None):
+        # P87: the metrics cost a font load; computing them BEFORE the fork keeps
+        # the child from reading a pty still saying 0x0 px (chafa draws squashed)
+        self.metrics()
         pid, fd = pty.fork()
         if pid == 0:
             # Herança de disposição de sinal é uma armadilha: o debug.sh sobe
@@ -346,6 +349,10 @@ class TermView(Gtk.DrawingArea):
         self.child_pid = pid
         self.master = fd
         os.set_blocking(fd, False)
+        # P87: the child reads the cell from TIOCGWINSZ at startup (chafa does),
+        # and a fresh pty says 0x0 px — set it before anything else, otherwise
+        # the picture comes out with the wrong aspect until the first resize.
+        self._send_winsize(self.term.cols, self.term.rows)
         # Prioridade DEFAULT_IDLE (200), não DEFAULT (0): o redraw do GDK roda
         # em GDK_PRIORITY_REDRAW (120) e um pty sempre pronto em prioridade 0
         # ganhava a disputa sempre — com despejo contínuo a tela congelava no
