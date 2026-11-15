@@ -196,30 +196,14 @@ def argv_parsing():
     """--help sai sem abrir janela; opção inválida é erro de uso (exit 2)."""
     from . import cli
 
-    assert cli.parse_args(["tortty_python"]) == (
-        None,
-        0,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-    )
-    assert cli.parse_args(["tortty_python", "--cmd", "mc", "--quit-after", "2"]) == (
-        "mc",
-        2,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
-        None,
+    vazio = cli.Args()  # sem argumento nenhum: tudo no padrão
+    assert cli.parse_args(["tortty_python"]) == vazio
+    assert cli.parse_args(["tortty_python", "--cmd", "mc", "--quit-after", "2"]) == vazio._replace(
+        cmd="mc", quit_after=2
     )
     # --cols/--rows (P63): trava a grade; zero e não-número são erro de uso
-    assert cli.parse_args(["tortty_python", "--cols", "80", "--rows", "24"])[7:] == (80, 24)
+    grade = cli.parse_args(["tortty_python", "--cols", "80", "--rows", "24"])
+    assert (grade.cols, grade.rows) == (80, 24)
     assert cli.parse_args(["tortty_python", "--cols", "0"])[6] == "--cols"
     assert cli.parse_args(["tortty_python", "--rows", "x"])[6] == "--rows"
     assert cli.parse_args(["tortty_python", "--cols"])[6] == "--cols"
@@ -231,6 +215,12 @@ def argv_parsing():
     # socket de introspecção: valor obrigatório, `auto` resolvido depois
     assert cli.parse_args(["tortty_python", "--debug-socket", "auto"])[5] == "auto"
     assert cli.parse_args(["tortty_python", "--debug-socket", "/tmp/b.sock"])[5] == "/tmp/b.sock"
+    # P98: opção de configuração na linha de comando (vence o arquivo)
+    over = cli.parse_args(
+        ["x", "--font-family", "Fira Code", "--font-size", "11.5", "--scrollback", "200"]
+    )
+    assert over.over == {"font_family": "Fira Code", "font_size": "11.5", "scrollback": "200"}
+    assert over.erro is None and cli.parse_args(["x", "--font-size"]).erro == "--font-size"
     assert cli.parse_args(["tortty_python", "--cmd"])[6] == "--cmd"
     assert cli.parse_args(["tortty_python", "--nada"])[6] == "--nada"
     out, err = io.StringIO(), io.StringIO()
@@ -348,6 +338,16 @@ def config_options():
     # sem arquivo do usuário valem os padrões, chave a chave
     cfg = config.load(os.path.join(d, "nao-existe.conf"))
     assert (cfg.font_family, cfg.font_size) == ("Monospace", 12.0)
+    # P98: a linha de comando vence o arquivo, e um valor ruim é recusado
+    assert config.check_over({"font_size": "11.5", "scrollback": "200"}) is None
+    assert "out of range" in config.check_over({"font_size": "99"})
+    assert config.check_over({"font_family": "Fira Code"}) is None
+    cfg = config.load(os.path.join(d, "nao-existe.conf"), {"font_size": "11.5", "scrollback": "7"})
+    assert (cfg.font_size, cfg.scrollback, cfg.ok) == (11.5, 7, True), (cfg.font_size, cfg.ok)
+    with open(p, "w") as f:
+        f.write("font_size 20\n")
+    cfg = config.load(p, {"font_size": "9"})  # o argv ganha do arquivo
+    assert cfg.font_size == 9.0, cfg.font_size
     assert (cfg.cursor_shape, cfg.cursor_blink) == ("block", False)
     assert (cfg.scrollback, cfg.padding) == (1000, 0)
     assert (cfg.bell, cfg.copy_on_select) == ("none", False)
@@ -1752,6 +1752,90 @@ def snapshot_restore():
                 os.environ["XDG_STATE_HOME"] = old
 
 
+def media_transmission():
+    """P96: `t=f`/`t=t`/`t=s` — o payload é um caminho, e quem lê é o gancho."""
+    import base64 as b64
+
+    from . import media
+
+    # um PNG 2x2 de verdade, montado aqui (nada de arquivo no repositório)
+    def png(w, h, px):
+        import struct
+        import zlib
+
+        raw = b"".join(b"\x00" + bytes(px(i, x)) for i in range(h) for x in range(w))
+
+        def chunk(t, d):
+            return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d))
+
+        ihdr = struct.pack(">IIBBBBB", w, h, 8, 6, 0, 0, 0)
+        return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw))
+
+    data = png(4, 2, lambda r, x: (r * 60, x * 60, 0, 255))
+    d = tempfile.mkdtemp()
+
+    def escritor(nome, corpo=data):
+        p = os.path.join(d, nome)
+        with open(p, "wb") as f:
+            f.write(corpo)
+        return p
+
+    def abre(p, delete=False):
+        return media.load(p, delete)
+
+    def termo(load):
+        t = Term(20, 6)
+        t.cell_size = (7, 16)
+        t.graphics.load = load
+        return t
+
+    def apc(corpo, path):
+        return "\x1b_G%s;%s\x1b\\" % (corpo, b64.b64encode(path.encode()).decode())
+
+    foto = escritor("foto.png")
+    # sem gancho (camada pura sozinha) o arquivo não é lido: ENOENT, tela limpa
+    t = termo(None)
+    t.feed(apc("a=T,f=100,t=f,i=7,c=2,r=1", foto))
+    assert (len(t.graphics.images), len(t.graphics.placements)) == (0, 0)
+    assert bytes(t.child_out) == b"\x1b_Gi=7;ENOENT:file\x1b\\"
+    # com o gancho: lido, guardado como PNG (f=100 pelo magic) e colocado
+    t = termo(abre)
+    t.feed(apc("a=T,f=100,t=f,i=7,c=2,r=1", foto))
+    img = t.graphics.images[7]
+    assert (img.width, img.height, img.fmt) == (4, 2, 100), (img.width, img.height, img.fmt)
+    assert bytes(t.child_out) == b"\x1b_Gi=7;OK\x1b\\"
+    assert (t.cx, t.cy) == (0, 1)  # o cursor desceu uma linha, como no `t=d`
+    # `t=t` apaga o temporário; `t=s` lê /dev/shm e NÃO apaga
+    tmp = escritor("tmp.png")
+    t = termo(abre)
+    t.feed(apc("a=t,f=100,t=t,i=8", tmp))
+    assert 8 in t.graphics.images and not os.path.exists(tmp), "t=t deve apagar"
+    nome = "tortty-check-%d" % os.getpid()
+    shm = "/dev/shm/" + nome
+    with open(shm, "wb") as f:
+        f.write(data)
+    try:
+        t = termo(abre)
+        t.feed(apc("a=t,f=100,t=s,i=9", nome))
+        assert 9 in t.graphics.images and os.path.exists(shm), "t=s não apaga"
+    finally:
+        if os.path.exists(shm):
+            os.unlink(shm)
+    sonda = escritor("sonda.png")
+    # `a=q` com arquivo: OK é a resposta que faz o cliente mandar por ali
+    t = termo(abre)
+    t.feed(apc("a=q,f=100,t=f,i=1", sonda))
+    assert bytes(t.child_out) == b"\x1b_Gi=1;OK\x1b\\", bytes(t.child_out)
+    # caminho que não existe: nem sonda nem transmissão passam
+    t = termo(abre)
+    t.feed(apc("a=T,f=100,t=f,i=2", os.path.join(d, "nao-existe.png")))
+    assert not t.graphics.images and b"ENOENT:file" in bytes(t.child_out)
+    # teto: um arquivo acima de MEDIA_MAX é recusado, não carregado
+    gordo = escritor("gordo.png", data + b"\x00" * (media.MEDIA_MAX + 1))
+    assert media.load(gordo) is None
+    os.unlink(gordo)
+
+
 def shortcut_table():
     """P95: acorde, ação e a tabela do config — `unmap` liberta de verdade."""
     from . import keymap
@@ -1779,6 +1863,9 @@ def shortcut_table():
     assert b.get("t", ["ctrl", "shift"]) == ("new_workspace", None)  # re-ligado
     assert b.get("w", ["ctrl", "shift"]) is None  # libertado
     assert b.get("1", ["alt"]) == ("select_tab", 1)  # o resto intacto
+    # P97: carregar o workspace é ação da tabela, como andar por eles
+    assert b.get("up", ["super", "shift"]) == ("ws_move_up", None)
+    assert b.get("down", ["super", "shift"]) == ("ws_move_down", None)
     # e o config: `map` acumula sobre os defaults, `unmap` normalizado na tabela
     from . import config
 
@@ -2368,6 +2455,7 @@ ALL = (
     session_restore,
     snapshot_restore,
     shortcut_table,
+    media_transmission,
     search_scrollback,
     prompt_marks,
     state_owner_lock,

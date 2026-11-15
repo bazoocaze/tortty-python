@@ -688,6 +688,29 @@ ctrl+shift+w`. `map` is the only accumulating key (`unmap` is normalized into
 it). The view stopped handling Ctrl+Shift+C/V and Shift+PgUp/PgDn/Home/End, or
 `unmap` would not free the key.
 
+### P96 — A picture by file or shared memory (2026-11-15)
+
+`t=f`, `t=t` and `t=s` were refused: only the base64 escape worked, so anything
+that already had the bytes on disk paid the round trip or fell back. The payload
+is now a path (`t=s` becomes `/dev/shm/<name>`) read through a `Graphics.load`
+hook that `view.py` fills with `media.load`; `t=t` is deleted once read, `a=q`
+answers OK only after a real read, and 32 MB is the ceiling.
+
+### P97 — Carrying the workspace up and down the sidebar (2026-11-15)
+
+`ws_move_up`/`ws_move_down` (`Super+Shift+Up/Down`) reorder `self.workspaces`
+and the `Gtk.ListBox` rows together, so the sidebar order is the session order —
+and the order `restore_state` brings back. Two homes, one move: the check on the
+list plus the highlighted card moving one slot is what proves the pair.
+
+### P98 — The command line wins over the file (2026-11-15)
+
+`--font-family`, `--font-size` and `--scrollback` now override the configuration
+file, with the same precedence the Rust has (CLI > file > defaults). They go
+through the same `CHECKS` as the file, so a value out of range is a usage error
+(exit 2) instead of a silent default, and `cli.parse_args` returns a named
+`Args` instead of a nine-tuple.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

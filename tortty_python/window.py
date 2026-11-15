@@ -500,12 +500,15 @@ class TorttyWindow(Gtk.Window):
         debug_socket=None,
         cols=None,
         rows=None,
+        over=None,
     ):
         super().__init__(title="TorTTY (Python)")
         # O comando dado na linha de comando é replicado em cada aba nova
         # (decisão do P11): `run.sh --cmd ...` e os testes continuam
         # previsíveis. Sem `--cmd`, cada aba nasce com o `shell` da configuração.
-        self.config = config_mod.load(config_path)
+        # P98: a linha de comando vence o arquivo, como no Rust
+        self._over = dict(over or {})
+        self.config = config_mod.load(config_path, self._over)
         self._cmd_fixo = cmd is not None  # --cmd não é sobrescrito pela config
         # bruto: vazio herda o $SHELL do ambiente, e quem resolve é a view
         self.shell = self.config.shell
@@ -711,6 +714,8 @@ class TorttyWindow(Gtk.Window):
             "scrollback": len(t.scrollback) if t else 0,
             "tabs": len(self.views),
             "workspaces": len(self.workspaces),
+            # a ORDEM importa: é o que prova o `ws_move_up`/`ws_move_down` (P97)
+            "workspace_names": [w.name or self._stack_name(w) for w in self.workspaces],
             "config": str(self.config.path),
             "errors": list(self.config.errors),
             "focus": self._focus_name(),
@@ -1255,6 +1260,8 @@ class TorttyWindow(Gtk.Window):
             self.select_workspace_index(arg - 1)  # consome mesmo sem o índice
         elif acao in ("ws_prev", "ws_next"):
             self.walk_workspace(-1 if acao == "ws_prev" else 1)
+        elif acao in ("ws_move_up", "ws_move_down"):
+            self.move_workspace(-1 if acao == "ws_move_up" else 1)
         elif acao.startswith("scroll_"):
             if v is None:
                 return False
@@ -1266,6 +1273,20 @@ class TorttyWindow(Gtk.Window):
                 "scroll_bottom": -len(v.term.scrollback),
             }[acao]
             v.scroll_view(delta)
+        return True
+
+    def move_workspace(self, delta):
+        """Carrega o workspace atual um cartão para cima/baixo (P97)."""
+        ws = self.current
+        if ws is None:
+            return False
+        i = self.workspaces.index(ws)
+        j = i + delta
+        if not 0 <= j < len(self.workspaces):
+            return False
+        self.workspaces[i], self.workspaces[j] = self.workspaces[j], self.workspaces[i]
+        self.sidebar.remove(ws.row)  # ordem da lista é a do Gtk.ListBox
+        self.sidebar.insert(ws.row, j)
         return True
 
     def walk_workspace(self, delta):

@@ -1,8 +1,10 @@
 """Command line: `tortty-python [--cmd CMD] [--quit-after SEG] ...`."""
 
 import sys
+from typing import NamedTuple
 
 from . import __version__, shortcut
+from . import config as config_mod
 from .selftest import selftest
 
 USAGE = """\
@@ -13,6 +15,9 @@ usage: tortty-python [options]
                      ~/.config/tortty-python/tortty-python.conf)
   --cols N           grid width in columns, pinned (skips session restore)
   --rows N           grid height in rows, pinned (skips session restore)
+  --font-family NAME font family, over the configuration file
+  --font-size PT     font size in points (4..30), over the configuration file
+  --scrollback N     history lines (1..10000), over the configuration file
   --quit-after SEG   closes by itself after SEG seconds
   --dump-to FILE     saves the visible grid on exit
   --debug-log FILE   JSONL debug log of ?2026 x scroll (default: the option
@@ -27,15 +32,38 @@ usage: tortty-python [options]
   -h, --help         prints this help and exits"""
 
 
-def parse_args(argv):
-    """Só leitura de argv — separado para poder testar sem Gtk.
+class Args(NamedTuple):
+    """O que a linha de comando deu (`erro` = opção desconhecida ou sem valor)."""
 
-    Devolve (cmd, quit_after, dump_to, config, debug_log, debug_socket, erro),
-    onde erro é a primeira opção desconhecida (ou sem valor) e None quando está
-    tudo certo.
-    """
+    cmd: object = None
+    quit_after: int = 0
+    dump_to: object = None
+    config: object = None
+    debug_log: object = None
+    debug_socket: object = None
+    erro: object = None
+    cols: object = None
+    rows: object = None
+    over: dict = {}
+
+
+# Opções que só sobrescrevem a configuração (P98): valor livre, validado lá
+OVER_OPTS = {
+    "--font-family": "font_family",
+    "--font-size": "font_size",
+    "--scrollback": "scrollback",
+}
+
+
+def parse_args(argv):
+    """Só leitura de argv — separado para poder testar sem Gtk."""
     cmd, quit_after, dump_to, conf, dlog, dsock = None, 0, None, None, None, None
     cols = rows = None
+    over = {}
+
+    def erro(a):
+        return Args(cmd, quit_after, dump_to, conf, dlog, dsock, a, cols, rows, over)
+
     args = list(argv[1:])
     while args:
         a = args.pop(0)
@@ -44,9 +72,9 @@ def parse_args(argv):
             try:
                 n = int(args.pop(0))
             except ValueError:
-                return cmd, quit_after, dump_to, conf, dlog, dsock, a, cols, rows
+                return erro(a)
             if n <= 0:
-                return cmd, quit_after, dump_to, conf, dlog, dsock, a, cols, rows
+                return erro(a)
             if a == "--cols":
                 cols = n
             else:
@@ -63,9 +91,11 @@ def parse_args(argv):
             dlog = args.pop(0)
         elif a == "--debug-socket" and args:
             dsock = args.pop(0)
+        elif a in OVER_OPTS and args:
+            over[OVER_OPTS[a]] = args.pop(0)
         else:
-            return cmd, quit_after, dump_to, conf, dlog, dsock, a, cols, rows
-    return cmd, quit_after, dump_to, conf, dlog, dsock, None, cols, rows
+            return erro(a)
+    return Args(cmd, quit_after, dump_to, conf, dlog, dsock, None, cols, rows, over)
 
 
 def run():
@@ -107,9 +137,14 @@ def main(argv=None):
         return selftest()
     if "--install-shortcut" in argv or "--remove-shortcut" in argv:
         return _shortcut("--install-shortcut" in argv)
-    cmd, quit_after, dump_to, conf, dlog, dsock, erro, cols, rows = parse_args(argv)
-    if erro:
-        print(f"tortty-python: invalid option: {erro}\n\n{USAGE}", file=sys.stderr)
+    args = parse_args(argv)
+    if args.erro:
+        print(f"tortty-python: invalid option: {args.erro}\n\n{USAGE}", file=sys.stderr)
+        return 2
+    # opção de configuração na linha de comando: ou vale, ou é erro de uso
+    erro_over = config_mod.check_over(args.over)
+    if erro_over:
+        print(f"tortty-python: invalid option: {erro_over}\n\n{USAGE}", file=sys.stderr)
         return 2
     # import tardio: --selftest e --help rodam sem tocar em Gtk/PyGObject
     try:
@@ -135,18 +170,19 @@ def main(argv=None):
     Gdk.set_program_class(shortcut.WMCLASS)
 
     win = TorttyWindow(
-        cmd=cmd,
-        quit_after=quit_after,
-        dump_to=dump_to,
-        config_path=conf,
-        debug_log=dlog,
-        debug_socket=dsock,
-        cols=cols,
-        rows=rows,
+        cmd=args.cmd,
+        quit_after=args.quit_after,
+        dump_to=args.dump_to,
+        config_path=args.config,
+        debug_log=args.debug_log,
+        debug_socket=args.debug_socket,
+        cols=args.cols,
+        rows=args.rows,
+        over=args.over,
     )
     win.show_all()
     # depois do show: a medida da barra/lateral vem da alocação viva (P63)
-    win.pin_grid(cols, rows)
+    win.pin_grid(args.cols, args.rows)
     # O Marco (MATE) nega present() com timestamp 0 (GDK_CURRENT_TIME): é
     # preciso o timestamp ATUAL do servidor X, como fazem os apps Qt.
     gdkwin = win.get_window()

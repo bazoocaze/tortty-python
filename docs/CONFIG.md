@@ -10,6 +10,11 @@ and not a comment. A repeated key: the last one wins.
 tortty-python -c /tmp/my.conf                  # another file
 ```
 
+**Precedence is command line > your file > built-in defaults**, and only
+`--font-family`, `--font-size` and `--scrollback` are allowed on the command
+line; anything else lives in the file. A value out of range there is a usage
+error (exit 2), never a silent fallback.
+
 You do not need to create it: **the defaults are built in** in
 `tortty_python/data/tortty-python.conf` (shipped inside the package, readable as
 any configuration) and your file goes on top of it, key by key — `-c` only
@@ -130,9 +135,9 @@ with no restart.
 ## Not here (yet)
 
 - **No `include`**: there is only the user file over the embedded defaults.
-- **No per-key command line override**: only `--cmd`, `-c`, `--cols/--rows`,
-  `--quit-after`, `--dump-to`, `--debug-log`, `--debug-socket`, `--selftest`,
-  `--install-shortcut`, `--remove-shortcut` and `--version` are accepted.
+- **No override for every key**: the command line wins over the file only for
+  `--font-family`, `--font-size` and `--scrollback` (`--cols`/`--rows` pin the
+  grid instead, and skip session restore). Everything else is the file's.
 
 ## When this page is wrong
 

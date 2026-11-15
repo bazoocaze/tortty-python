@@ -27,6 +27,8 @@ ACTIONS = {
     "scroll_bottom": None,
     "ws_prev": None,
     "ws_next": None,
+    "ws_move_up": None,
+    "ws_move_down": None,
     "select_tab": int,
     "select_workspace": int,
 }
@@ -51,6 +53,8 @@ DEFAULTS = [
     "map super+q close_workspace",
     "map super+up ws_prev",
     "map super+down ws_next",
+    "map super+shift+up ws_move_up",
+    "map super+shift+down ws_move_down",
 ]
 DEFAULTS += ["map alt+%d select_tab %d" % (n, 10 if n == 0 else n) for n in range(10)]
 DEFAULTS += ["map ctrl+shift+%d select_workspace %d" % (n, 10 if n == 0 else n) for n in range(10)]

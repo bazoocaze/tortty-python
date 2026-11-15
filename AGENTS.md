@@ -94,6 +94,7 @@ The tortty_python/ package installs the `tortty-python` command and also runs as
 - tortty_python/state.py — window geometry and the session layout (P50:
   workspaces, tabs, cwd) between runs (JSON in XDG_STATE_HOME), plus the ANSI
   photograph of each tab when `restore_state content` (P57)
+- tortty_python/media.py — the file/shared memory a kitty transmission names (`t=f`/`t=s`)
 - tortty_python/config.py — configuration (kitty key/value); pure, merge w/ default
 - tortty_python/keymap.py — the shortcut table: `map`/`unmap`, chords, actions — pure
 - tortty_python/debugsock.py — Unix introspection socket (P35): pure dispatch + GLib

@@ -106,8 +106,11 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   rectangle of the image (`x=`/`y=`/`s=`/`v=`) and a PNG frame are refused, and
   `a=c` (frame composition) is not implemented. The image goes in arrival order,
   above the text and below the cursor.
-- **No external data source**: `t=f` (file), `t=t` (temp file) and `t=s`
-  (shared memory) are not read — the image has to come in the base64 escape.
+- **The path in a `t=f`/`t=t`/`t=s` is taken at its word**: the terminal opens
+  what the child named, which is a power the child already had (it can read that
+  file itself), with a 32 MB ceiling and nothing else — no format check before
+  reading, no allowlist of directories. `~` is expanded by the terminal;
+  everything else is the raw path.
 - **No optimized `f=100` beyond PNG**: PNG is read directly by cairo; raw RGBA
   goes through a copy because of the stride.
 - **Sixel keeps two decisions**: kitty (APC `G`), iTerm2 (`OSC 1337;File=`,

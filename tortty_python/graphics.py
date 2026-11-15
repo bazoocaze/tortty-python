@@ -28,6 +28,8 @@ import math
 import struct
 import zlib
 
+from .media import MEDIA_MAX
+
 SIXEL_MAX_PX = 16 << 20  # teto do bitmap: 16 MP (P83)
 SIXEL_MAX_SIDE = 8192  # e nenhum lado passa disso
 
@@ -246,6 +248,7 @@ class Graphics:
         self._next_id = 1
         self._buf = None  # chunks de uma transmissão em curso (m=1)
         self.measure = None  # set by the GUI layer; the pure layer needs no decoder
+        self.load = None  # set by the GUI layer; P96 reads the file/memory the child names
 
     # -- utilidades ---------------------------------------------------
     def clear(self):
@@ -306,6 +309,29 @@ class Graphics:
     def drop_above(self, floor):
         """Descarta o que saiu de vez do scrollback (as linhas mais antigas)."""
         self.placements = [p for p in self.placements if p.row >= floor]
+
+    def _media(self, kv, payload):
+        """Os bytes de uma transmissão por arquivo/memória, ou None (P96).
+
+        `t=f` e `t=t` mandam um CAMINHO no lugar dos pixels, `t=s` manda o nome
+        de uma memória POSIX (que mora em /dev/shm). Quem abre o arquivo é o
+        `view.py` pelo gancho `load`; aqui só se confere o teto.
+        """
+        kind = kv.get("t", "d")
+        if kind == "d" or self.load is None:
+            return None
+        path = payload.decode("utf-8", "replace").strip()
+        if not path:
+            return None
+        if kind == "s":
+            path = "/dev/shm/" + path.lstrip("/")
+        try:
+            data = self.load(path, kind == "t")  # `t=t` é temporário: apaga
+        except Exception:
+            return None
+        if not data or len(data) > MEDIA_MAX:
+            return None
+        return data
 
     def _place(self, img, kv, cursor, cell):
         cw, ch = cell
@@ -412,6 +438,13 @@ class Graphics:
 
         kv, data = self._buf["kv"], self._buf["data"]
         self._buf = None
+        from_media = kv.get("t", "d") != "d"
+        if from_media:
+            # the payload was a PATH: the bytes come from the reader hook
+            data = self._media(kv, data)
+            if data is None:
+                ident = int(kv["i"]) if kv.get("i") else 0
+                return ([] if kv.get("q", "0") != "0" else [f"Gi={ident};ENOENT:file"]), 0, False
         if kv.get("o") == "z" and data:
             # `o=z`: o payload vem comprimido (o `icat --place` manda PNG
             # decodificado + zlib pra escalar no terminal sem reencodar)
@@ -438,7 +471,10 @@ class Graphics:
             # support the graphics protocol".
             medium = kv.get("t", "d")
             fmt = int(kv.get("f", "32"))
-            ok = medium == "d" and fmt in (24, 32, 100)
+            if medium == "d":
+                ok = fmt in (24, 32, 100)
+            else:
+                ok = from_media  # a sonda já leu o caminho acima: OK = "eu leio"
             name = "OK" if ok else "EINVAL:unsupported transmission"
             return ([f"Gi={ident};{name}"] if ident else []), 0, False
         if action == "d":

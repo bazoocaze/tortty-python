@@ -472,8 +472,36 @@ def _validated(vals, base):
     return out, errors, warnings
 
 
-def load(path=None):
-    """Config mesclada (embutido <- usuário). Nunca levanta exceção."""
+def check_over(over):
+    """O erro da primeira opção de linha de comando inválida, ou None (P98)."""
+    for k, v in (over or {}).items():
+        if v is not None and k in CHECKS:
+            err = CHECKS[k](str(v))
+            if err:
+                return "%s: %s" % (k, err)
+    return None
+
+
+def _overridden(values, over):
+    """CLI > arquivo > padrão: aplica só as opções que vieram (P98).
+
+    `over` já vem como texto do argv, então passa pelo mesmo CHECKS do arquivo:
+    um valor ruim vira erro de uso, nunca um float inválido mais adiante.
+    """
+    out, errors = dict(values), []
+    for k, v in over.items():
+        if v is None or k not in FALLBACK:
+            continue
+        err = CHECKS[k](str(v))
+        if err:
+            errors.append("%s: %s" % (k, err))
+        else:
+            out[k] = str(v)
+    return out, errors
+
+
+def load(path=None, over=None):
+    """Config mesclada (embutido <- usuário <- linha de comando)."""
     path = Path(path) if path else default_path()
     base = dict(FALLBACK)
     emb = _read(DATA)
@@ -483,11 +511,13 @@ def load(path=None):
         base, errors, _ = _validated(parse(emb), base)
     txt = _read(path)
     if txt is None:
-        return Config(base, path, errors)
+        values, over_errors = _overridden(base, over or {})
+        return Config(values, path, errors + over_errors)
     values, user_errors, warnings = _validated(parse(txt), base)
+    values, over_errors = _overridden(values, over or {})
     # chave inválida fica no padrão e o resto do arquivo VALE (carga inicial);
     # no reload quem chama olha `ok` e mantém a configuração anterior
-    return Config(values, path, errors + user_errors, warnings, exists=True)
+    return Config(values, path, errors + user_errors + over_errors, warnings, exists=True)
 
 
 def watch(func, path=None):

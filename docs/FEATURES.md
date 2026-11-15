@@ -106,6 +106,10 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   file itself — `map ctrl+shift+y new_tab` re-binds, `unmap ctrl+shift+w` frees
   the key for the program. A reload applies it with no restart. Details in
   [CONFIG.md](CONFIG.md).
+- **Command line over the file** (`P98`): `--font-family`, `--font-size` and
+  `--scrollback` win over the configuration file and the built-in defaults, and
+  `--cols`/`--rows` keep pinning the grid; a value out of range is a usage error
+  (exit 2), not a silent default.
 - **Configuration file** (kitty key/value, in
   `$XDG_CONFIG_HOME/tortty-python/tortty-python.conf`, always merged over the
   default embedded in the package): font family and size (points), `ligatures`,
@@ -151,6 +155,12 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   image (`z=` is its gap), `a=a` starts it (`s=` 1 stop / 2 run / 3 loop, `v=`
   how many loops). Frames are whole bitmaps converted to ARGB32 once, and the
   view runs one lazy timer only while something is animating.
+- **A picture by file or shared memory** (`t=f`/`t=t`/`t=s`, `P96`): the payload
+  is a path, not pixels, so `icat --place` and anything that already has the
+  bytes on disk skip the base64 round trip. `t=s` resolves to `/dev/shm/<name>`,
+  `t=t` is the terminal's to delete once read, `a=q` only answers OK after the
+  file was really read, and the ceiling is 32 MB. The pure layer never opens a
+  file: `view.py` hands it a reader, the same shape as the `measure` hook.
 - **Sixel** (`DCS P1;P2;P3;q`, `tortty_python/graphics.py`): `decode_sixel`
   reads the stream into an ARGB32 bitmap — `#` colours (RGB in %, HLS), 6-row
   bands, `!` repetition, `$`/`-`, the `"` raster for the size. The bitmap enters
@@ -181,6 +191,8 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   creates, `Ctrl+Shift+1`…`9`/`Super+1`…`9` selects, `Ctrl+Shift+Q`/`Super+Q`
   closes the current workspace with all tabs (or middle click on the card);
   **double click** on the card renames it (empty = back to showing the title).
+  `Super+Shift+Up/Down` carries the current workspace up or down that sidebar
+  (`P97`), so the order you work in is the order the session keeps.
   `Super+q` on
   the last workspace quits the program. If your WM uses `Super+digit` (on GNOME
   the dash does), use the `Ctrl+Shift` variant. The card

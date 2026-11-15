@@ -19,7 +19,7 @@ import sys
 import termios
 import time
 
-from . import mouse
+from . import media, mouse
 from .config import tab_command
 from .gui import Gdk, GLib, Gtk, Pango, PangoCairo, cairo
 from .keys import encode_key, is_modifier
@@ -241,6 +241,7 @@ class TermView(Gtk.DrawingArea):
         self.dead_mark = 0  # dead key pendente (marca combinante)
         self.term = Term()
         self.term.graphics.measure = measure_image  # P90: inline images without a size
+        self.term.graphics.load = media.load  # P96: `t=f`/`t=t`/`t=s` transmission
         self.term.set_scrollback(scrollback)
         self.term.theme.apply_colors(colors or {})  # P49: as 19 chaves
         if restore:

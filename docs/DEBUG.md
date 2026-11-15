@@ -228,6 +228,16 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **A `t=f`/`t=t`/`t=s` image needs the reader hook.** The pure layer parses the
+  request and calls `Graphics.load`, which `TermView.__init__` sets to
+  `media.load` (P96) — the same shape as the `measure` hook. A probe that builds
+  a bare `Term` gets `ENOENT:file` and nothing on screen, which is correct, not a
+  bug: set `term.graphics.load` yourself.
+- **The workspace order has two homes.** `self.workspaces` and the
+  `Gtk.ListBox` rows (P97): moving one without the other leaves the card in a
+  place that selects the wrong workspace. The socket's `state` now reports
+  `workspace_names` in list order, so a move can be checked without pixels; the
+  highlighted card is the current one, which is the cheap visual proof.
 - **A probe must not own the session state.** `state.lock` is a `flock`; the
   window that holds it restores and writes, the others are scratch (P91). Use
   `--cmd` for a probe: it never takes the lock, so the hot session's
