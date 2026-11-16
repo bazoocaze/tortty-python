@@ -660,9 +660,12 @@ class Term:
             self._reflow(cols, rows)
         else:
             self._resize_crop(cols, rows)
-        # tabs (P53): like the Rust, the resize re-seeds them every 8 instead of
-        # preserving the ones the app set — new width, default stops again
-        self.tabstops = [x % 8 == 0 for x in range(self.cols)]
+        # tabs (P53): the resize KEEPS the stops the app set with HTS/TBC and
+        # only gives the new columns the default every 8 — reseeding threw away
+        # the layout the app had tuned with HT
+        if len(self.tabstops) != self.cols:
+            novos = [x % 8 == 0 for x in range(len(self.tabstops), self.cols)]
+            self.tabstops = (self.tabstops + novos)[: self.cols]
 
     def _resize_crop(self, cols, rows):
         """Alt-screen: crops the screen and reflows the saved main buffer.
@@ -1806,7 +1809,9 @@ class Term:
         if m is None:
             return
         cw, ch = self.cell_size
-        used, move = self.graphics.sixel(body[m.end() :], (self.cx, self.cy), (cw, ch))
+        used, move = self.graphics.sixel(
+            body[m.end() :], (self.cx, self.cy), (cw, ch), self.theme.bg
+        )
         if move and used:
             for _ in range(used):
                 self.newline()

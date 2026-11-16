@@ -629,6 +629,19 @@ def sixel_decoded():
     assert px(0, 7) == (0, 255, 0, 255) and px(1, 7) == (0, 255, 0, 255)
     assert px(2, 7) == (0, 0, 0, 0)  # fora da repetição
     assert px(0, 6) == (0, 0, 0, 0)  # entre as bandas
+    # P101: com o fundo do tema, o que o stream não seta fica opaco nessa cor e
+    # a cor antes do primeiro `#` deixa de ser preto
+    w2, h2, buf2 = decode_sixel(corpo, (30, 40, 50))
+
+    def px2(x, y):
+        i = (y * w2 + x) * 4
+        return tuple(buf2[i : i + 4])
+
+    assert px2(0, 6) == (50, 40, 30, 255)  # entre as bandas: o bg, BGRA
+    assert px2(2, 7) == (50, 40, 30, 255)
+    assert px2(0, 0) == (0, 0, 255, 255)  # o vermelho do stream não muda
+    antes = decode_sixel("~", (30, 40, 50))[2]
+    assert tuple(antes[:4]) == (50, 40, 30, 255)  # sem `#`: cor do fundo
     # HLS (`Pu=1`) e um bitmap largo demais
     assert tuple(decode_sixel("#0;1;0;50;100#0~")[2][:4]) == (0, 0, 255, 255)
     assert decode_sixel("#0;2;0;0;0" + "~" * 9000)[0] == 0
@@ -642,6 +655,12 @@ def sixel_decoded():
         assert (pl.cols, pl.rows, pl.col, pl.row) == (1, 1, 0, 0)
         assert t.graphics.images[pl.image_id].fmt == 101  # ARGB32 pronto
         assert (t.cx, t.cy) == (0, 1)  # o cursor desceu a imagem
+        # o Term passa o fundo da aba: o buraco entre as bandas não é transparente
+        img = t.graphics.images[pl.image_id]
+        assert tuple(img.data[(6 * 3 + 0) * 4 : (6 * 3 + 0) * 4 + 4]) != (0, 0, 0, 0)
+        assert tuple(img.data[(6 * 3 + 0) * 4 : (6 * 3 + 0) * 4 + 4]) == tuple(
+            reversed(t.theme.bg)
+        ) + (255,)
     # DCS que não é sixel continua consumido e descartado (XTVERSION)
     t = Term(cols=20, rows=6)
     t.cell_size = (7, 16)
@@ -704,13 +723,22 @@ def image_animation():
     assert g.handle(corpo("a=t", bytes([255, 0, 0, 255])))[0] == ["Gi=1;OK"]
     assert g.handle(corpo("a=f", bytes([0, 255, 0, 255]), ",z=30"))[0] == ["Gi=1;OK"]
     assert g.handle(corpo("a=f", bytes([0, 0, 255, 255])))[0] == ["Gi=1;OK"]
-    # um frame de retângulo é recusado: compor custaria um blend por pixel
-    ruim = f"Ga=f,f=32,s=1,v=1,x=1,y=0,i=1;{base64.b64encode(bytes([1, 2, 3, 255])).decode()}"
-    assert "EINVAL" in g.handle(ruim)[0][0]
+    # frame retangular: compõe um pedaço sobre o frame anterior (P102)
+    pedaco = base64.b64encode(bytes([9, 8, 7, 255])).decode()  # 1x1
+    assert g.handle(f"Ga=f,f=32,s=1,v=1,x=1,y=0,i=1;{pedaco}")[0] == ["Gi=1;OK"]
+    assert len(g.images[1].frames) == 4
+    # fora da imagem é recusado (o recorte não pode crescer o bitmap)
+    fora = base64.b64encode(bytes([1, 2, 3, 255])).decode()
+    assert "EINVAL" in g.handle(f"Ga=f,f=32,s=2,v=1,x=1,y=0,i=1;{fora}")[0][0]
     assert "ENOENT" in g.handle(corpo("a=f", bytes([0, 0, 0, 255]), ",i=9"))[0][0]
 
     img = g.images[1]
-    assert len(img.frames) == 3
+    assert len(img.frames) == 4  # os 3 inteiros + o retangular
+    # memória do ARGB32 é B,G,R,A: o pedaço RGB(9,8,7) cai em (1,0)
+    assert img.argb(4)[4:8] == bytes([7, 8, 9, 255])
+    assert img.argb(4)[:4] == img.argb(3)[:4]  # o resto veio do frame anterior
+    assert img.argb(4)[8:] == img.argb(3)[8:]
+    g.images[1].frames.pop()  # o retangular era só prova: o resto do check é de 3
 
     def rgb():
         return tuple(img.data[2::-1])  # ARGB32 é BGRA na memória
@@ -741,6 +769,43 @@ def image_animation():
     # alpha parcial é premultiplicado para o cairo
     meio = argb32(bytes([200, 100, 50, 128]), 1, 1, 32)
     assert tuple(meio) == (25, 50, 100, 128), tuple(meio)  # B,G,R já multiplicados
+
+
+def image_z_and_compose():
+    """P99/P102: `z=` manda no empilhamento (negativo atrás do texto), `a=c` compõe."""
+    from .graphics import Graphics
+
+    g = Graphics()
+
+    def transmite(ident, cor, extra=""):
+        dados = base64.b64encode(cor * 4).decode()  # 2x2
+        return g.handle(f"Ga=T,f=32,s=2,v=2,i={ident}{extra};{dados}")[0]
+
+    assert transmite(1, bytes([255, 0, 0, 255])) == ["Gi=1;OK"]
+    assert transmite(2, bytes([0, 255, 0, 255]), ",z=5") == ["Gi=2;OK"]
+    assert transmite(3, bytes([0, 0, 255, 255]), ",z=-3") == ["Gi=3;OK"]
+    assert transmite(4, bytes([9, 9, 9, 255]), ",z=5") == ["Gi=4;OK"]
+    # atrás do texto: só o negativo; na frente: em ordem de z, empate = chegada
+    assert [p.image_id for p in g.paint_order(behind=True)] == [3]
+    assert [p.image_id for p in g.paint_order(behind=False)] == [1, 2, 4]
+
+    # `a=c`: compõe o retângulo no bitmap da imagem, sem criar frame
+    antes = g.images[1].stamp
+    pedaco = base64.b64encode(bytes([5, 6, 7, 255])).decode()  # 1x1
+    assert g.handle(f"Ga=c,f=32,s=1,v=1,x=1,y=1,i=1;{pedaco}")[0] == ["Gi=1;OK"]
+    img = g.images[1]
+    assert len(img.frames) == 1  # `a=c` não é frame novo
+    assert img.stamp != antes  # o view larga a surface velha por isto
+    # memória BGRA, 2x2: (1,1) é o pedaço, (0,0) continua vermelho
+    assert img.data[12:16] == bytes([7, 6, 5, 255]) and img.data[0:4] == bytes([0, 0, 255, 255])
+    # fora da imagem e id desconhecido são recusados
+    fora = base64.b64encode(bytes([1, 2, 3, 255])).decode()
+    assert "EINVAL" in g.handle(f"Ga=c,f=32,s=2,v=2,x=1,y=1,i=1;{fora}")[0][0]
+    assert "ENOENT" in g.handle(f"Ga=c,f=32,s=1,v=1,i=77;{pedaco}")[0][0]
+    # uma transmissão nova com o mesmo id é outro bitmap: serial diferente
+    velho = g.images[1].stamp
+    transmite(1, bytes([1, 2, 3, 255]))
+    assert g.images[1].stamp != velho
 
 
 def erasing_takes_the_picture():
@@ -2028,11 +2093,20 @@ def tab_stops():
     t = Term(cols=40, rows=3)
     t.feed("\x1b[3g\r\t")
     assert t.cx == 39, t.cx  # sem parada nenhuma, HT vai à última coluna
-    # o resize re-semeia a cada 8 (decisão do Rust), não preserva as do app
+    # P100: o resize PRESERVA a parada posta pelo app; a coluna nova ganha a de 8
     t = Term(cols=40, rows=3)
     t.feed("\x1b[4G\x1bH")
     t.resize(41, 3)
-    assert t.tabstops[3] is False and t.tabstops[8] is True
+    assert t.tabstops[3] is True and len(t.tabstops) == 41
+    assert t.tabstops[40] is True and t.tabstops[39] is False  # 40 % 8 == 0
+    t.feed("\x1b[3g")  # `3g` tira todas; o resize seguinte não inventa nenhuma
+    t.resize(49, 3)
+    assert t.tabstops[3] is False and t.tabstops[48] is True  # só as novas de 8
+    # encolher corta a lista e mantém o que sobrou
+    t = Term(cols=40, rows=3)
+    t.feed("\x1b[4G\x1bH")
+    t.resize(20, 3)
+    assert len(t.tabstops) == 20 and t.tabstops[3] is True
     # tabulação com espaço e texto continua alinhando na célula
     t = Term(cols=40, rows=3)
     t.feed("a\tb")
@@ -2420,6 +2494,7 @@ ALL = (
     huge_osc_is_linear,
     dcs_is_consumed,
     image_animation,
+    image_z_and_compose,
     erasing_takes_the_picture,
     wrap_and_control,
     deccawm,

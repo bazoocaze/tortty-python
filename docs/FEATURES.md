@@ -42,7 +42,8 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   comes back to where it was instead of staying on the app's title.
 - **Real tab stops** (`HTS`/`ESC H` sets, `TBC`/`CSI g` clears one or all,
   `CHT`/`CSI I` and `CBT`/`CSI Z` walk `n` of them): `HT` follows the stops
-  instead of a fixed step of 8. The resize re-seeds them every 8.
+  instead of a fixed step of 8, and a **resize keeps them** (`P100`): the new
+  columns get the default every 8, the ones the app set stay where they are.
 - **Screen scroll** (`CSI S`/`CSI T`, SU/SD) and `REP` (`CSI b`, repeats the
   last printed character); `DECKPAM`/`DECKPNM` and the `?66` query are answered.
 - **`LNM`** (`CSI 20 h`/`l`): with it a `LF` also returns to column 0, which is
@@ -152,9 +153,16 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   line (the placement lives in the grid and may have a negative line, as in kitty)
   and they are drawn on top of the cells.
 - **Image animation** (`a=f`/`a=a`, `P92`): `a=f` adds a frame to an existing
-  image (`z=` is its gap), `a=a` starts it (`s=` 1 stop / 2 run / 3 loop, `v=`
-  how many loops). Frames are whole bitmaps converted to ARGB32 once, and the
-  view runs one lazy timer only while something is animating.
+  image (`z=` is its gap, and `x=`/`y=`/`s=`/`v=` makes it a rectangle composed
+  over the previous frame — `P102`), `a=a` starts it (`s=` 1 stop / 2 run / 3
+  loop, `v=` how many loops). `a=c` composes a rectangle straight into the image
+  bitmap, the way an app that draws into a buffer expects. Frames are converted
+  to ARGB32 once, the view runs one lazy timer only while something is
+  animating, and a change on the bitmap (new frame, `a=c`, a new transmission)
+  bumps a serial the view uses to drop the cached surface.
+- **Stacking order** (`z=`, `P99`): larger `z` in front, equal `z` in arrival
+  order, and a **negative** `z` puts the image behind the text — two passes over
+  the placements, before and after the glyphs, instead of one list drawn on top.
 - **A picture by file or shared memory** (`t=f`/`t=t`/`t=s`, `P96`): the payload
   is a path, not pixels, so `icat --place` and anything that already has the
   bytes on disk skip the base64 round trip. `t=s` resolves to `/dev/shm/<name>`,
@@ -165,7 +173,9 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   reads the stream into an ARGB32 bitmap — `#` colours (RGB in %, HLS), 6-row
   bands, `!` repetition, `$`/`-`, the `"` raster for the size. The bitmap enters
   as `fmt 101`, which `view.py` hands to cairo **with no per-pixel copy** of the
-  RGBA path; a pixel the stream never sets stays transparent.
+  RGBA path; a pixel the stream never sets takes the tab's background, and so
+  does the colour before the first `#` (`P101`), which is what a sixel app
+  expects to sit on.
 - **iTerm2 inline images** (`OSC 1337;File=`, `tortty_python/graphics.py`):
   `inline=1` draws at the cursor, `width`/`height` in cells, `px` or `%` of the
   screen, `preserveAspectRatio` fills the missing side and the cursor moves down

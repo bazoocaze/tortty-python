@@ -51,9 +51,10 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   implement 58/59 (underline color, which the Rust draws).
 - **No special margins**: `DECSTBM` (scroll region) and `? 6` (origin mode)
   work, but `? 3` (80/132) and `DECDHL`/`DECDWL` (double line) do not.
-- **Tab stops are re-seeded on resize**: `HTS`, `TBC`, `CHT` and `CBT` are
-  real, but a resize puts the stops back every 8 instead of preserving what the
-  app set — the Rust choice too.
+- **A resize keeps the tab stops but not their history**: `HTS`, `TBC`, `CHT`
+  and `CBT` are real and the stops survive the resize (P100; the new columns get
+  the default every 8), but there is no per-line stop: one list per terminal,
+  as in xterm.
 - **The keypad application mode is state only**: `DECKPAM`/`DECKPNM` (`ESC =` /
   `ESC >`) and the `?66` query are answered, but the keypad keys send the same
   bytes either way — same decision as the Rust.
@@ -79,8 +80,10 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 - **A block does not survive a resize by its columns**: the corners are
   carried like a linear selection, so a reflow moves the rectangle with the
   characters instead of re-deriving the column range.
-- **Selection does not survive a resize nor a reflow**: anchor and tip are
-  grid coordinates.
+- **Selection does not survive a reflow**: the ends are absolute cells with a
+  generation (`CellAnchor`, so scrolling and new output leave them alone), but a
+  reflow bumps the generation and the selection is dropped instead of being
+  re-derived from the logical line it was on.
 - **The search is plain text**: ASCII case folding, no regex and no whole-word
   mode; a query in a huge history stops at 5000 matches (P94).
 
@@ -101,11 +104,13 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 
 ## Graphics (image protocol)
 
-- **No z-index, and the animation is one whole bitmap per frame**: `a=f` adds a
-  frame, `a=a` runs it and `z=` is the gap, but a frame that covers only a
-  rectangle of the image (`x=`/`y=`/`s=`/`v=`) and a PNG frame are refused, and
-  `a=c` (frame composition) is not implemented. The image goes in arrival order,
-  above the text and below the cursor.
+- **An animated image is one whole bitmap per frame in memory**: `a=f` accepts
+  the whole bitmap and the rectangle (`x=`/`y=`/`s=`/`v=`, composed over the
+  previous frame) and `a=c` composes in place, but every frame still costs
+  `w*h*4` bytes (512 frames at 320x160 are ~100 MB, and `ANIM_FRAMES_MAX` is the
+  only guard), and a PNG frame (`f=100`) is refused — the pure layer cannot
+  decode PNG. `z=` orders images among themselves and against the text, but
+  there is no alpha blending: an image is painted as it is, over what is below.
 - **The path in a `t=f`/`t=t`/`t=s` is taken at its word**: the terminal opens
   what the child named, which is a power the child already had (it can read that
   file itself), with a 32 MB ceiling and nothing else — no format check before
@@ -113,11 +118,12 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   everything else is the raw path.
 - **No optimized `f=100` beyond PNG**: PNG is read directly by cairo; raw RGBA
   goes through a copy because of the stride.
-- **Sixel keeps two decisions**: kitty (APC `G`), iTerm2 (`OSC 1337;File=`,
-  P84) and sixel (DECSIXEL, P83) all draw, but in sixel a pixel the stream never
-  sets stays transparent instead of taking the terminal background (Ps2=0/2 is
-  ignored), and a sixel printed before any `#` is black — the pure decoder has
-  no access to the theme.
+- **Sixel always fills with the background**: kitty (APC `G`), iTerm2
+  (`OSC 1337;File=`, P84) and sixel (DECSIXEL, P83) all draw; in sixel a pixel
+  the stream never sets takes the tab's background and so does the colour before
+  the first `#` (P101). `Ps2=1` ("leave unset pixels as they are") is not
+  honoured: the payload cannot ask for transparency, and there is no
+  `Ps1`/aspect-ratio handling beyond the `"` raster.
 
 ## Reflow and scrollback
 

@@ -228,6 +228,18 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **An image that does not repaint is the surface cache, not the protocol.** The
+  view keeps one cairo surface per image id, so every bitmap change bumps
+  `Image.stamp` (`P102`) and the cache compares it; forget the `touch()` in a new
+  path and the screen keeps the old picture while the pure layer is right.
+- **`z` splits the drawing in two passes** (`P99`): negative behind the glyphs,
+  the rest after them. An image that covers the text is a `z` that came out >= 0,
+  not a drawing bug — and the same order means an image can never be clipped by
+  the row loop.
+- **Do not verify an image by exact colour counting.** A 2x2 test bitmap scaled
+  over 20 cells is bilinear-blended and the text is antialiased, so
+  `conta:r,g,b` finds almost nothing even when the picture is right; look at the
+  capture (`tools/pixel.py --find`) or count "light pixels" in a region instead.
 - **A tab has two orders and only one matters.** `Gtk.Notebook` reorders the
   pages when you drag a tab; `Workspace.views` is a separate list, and before
   B37 it stayed in creation order — so page 1 showed one tab while the focus,

@@ -719,6 +719,34 @@ focus, `Ctrl+Shift+C` and the saved layout used another. `self.view` now reads
 the page widget, the `page-reordered` signal rebuilds the list and
 `on_switch_page` uses the view the signal carries, not `views[page_num]`.
 
+### P99 — Stacking order for images (2026-11-15)
+
+`z=` was accepted and thrown away, so an image always went over everything, in
+arrival order. Now larger `z` is in front, equal `z` keeps arrival order and a
+negative `z` goes **behind the text**: the drawing does two passes over the
+placements, one before the glyphs and one after.
+
+### P100 — Tab stops survive the resize (2026-11-15)
+
+A resize re-seeded the stops every 8 and threw away what the app had set with
+`HTS`/`TBC`, so a `	` layout broke on every window resize. The list is kept and
+extended now: the new columns get the default, the app's stops stay.
+
+### P101 — Sixel sits on the tab background (2026-11-15)
+
+A pixel the sixel stream never set came out transparent and the colour before
+the first `#` was black, because the pure decoder had no access to the theme.
+`decode_sixel` takes the background now and `Term` passes `theme.bg`, so the
+image covers the cells behind it instead of showing them through.
+
+### P102 — Rectangle frames and `a=c` in the image protocol (2026-11-15)
+
+`a=f` refused any frame that did not cover the whole image and `a=c` answered
+`EINVAL`. Both are a blit now: the previous frame (or the image bitmap) copied
+and the rectangle pasted over it, through the same `blit`/`argb` pair. The
+bitmap also got a serial, so the view drops its cached surface when an image
+changes — before, a second transmission with the same id kept the old picture.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

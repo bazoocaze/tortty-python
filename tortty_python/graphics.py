@@ -16,14 +16,19 @@ Supported (enough for `kitten icat`):
     f=24 RGB  f=32 RGBA  f=100 PNG   (m=1 for a chunked image)
     i=<id>  c=<columns>  r=<rows>  C=1 (do not move the cursor)  q=<silence>
 
-Out: animation (`a=f`/`a=a`), z-index and transmission by file/shared-memory
-(`t=f`/`t=t`/`t=s`). Compression `o=z` is supported (zlib). The iTerm2 form
+    a=f frame (`z=` gap, `x=`/`y=`/`s=`/`v=` rect)   a=c compose a rect
+    a=a animate (`s=` 1 stop / 2 run / 3 loop)        z=<n> (`<0`: behind text)
+
+Compression `o=z` is supported (zlib), transmission by file/shared memory
+(`t=f`/`t=t`/`t=s`) reads the path the child names, and an image carries a
+serial (`Image.stamp`) so the view knows a bitmap changed. The iTerm2 form
 (`OSC 1337;File=`, P84) also lands here: `inline()` paints at the cursor, and
 DECSIXEL (P83) is decoded by `decode_sixel` into ARGB32 (fmt 101).
 """
 
 import base64
 import colorsys
+import itertools
 import math
 import struct
 import zlib
@@ -69,15 +74,17 @@ def _sixel_color(mode, vals):
     return tuple(min(255, round(v * 255 / 100)) for v in vals[:3])
 
 
-def decode_sixel(data):
+def decode_sixel(data, bg=None):
     """DECSIXEL -> (width, height, ARGB32 rows) or (0, 0, None) (P83). Pure.
 
     Sixel draws six vertical pixels per character, one band at a time; the
-    canvas grows as the stream asks for it. Unset pixels stay transparent — the
-    background colour of the terminal does not enter the pure layer.
+    canvas grows as the stream asks for it. `bg` (an (r, g, b) tuple, normally
+    the terminal background, `Ps2`=0/2) fills the pixels the stream never sets
+    and is the colour before the first `#`; without it the canvas stays
+    transparent, which is what the checks use.
     """
     colors = {}
-    rgb = (0, 0, 0)
+    rgb = (0, 0, 0) if bg is None else bg
     rows = []  # one bytearray per pixel row, ARGB32 (=BGRA bytes)
     x = top = 0
     w = h = 0
@@ -137,7 +144,10 @@ def decode_sixel(data):
     h = max(h, len(rows))  # `h` já traz o Ph;Pv do raster, quando veio
     if not w or not h or w > SIXEL_MAX_SIDE or w * h > SIXEL_MAX_PX:
         return 0, 0, None
-    buf = bytearray(w * h * 4)
+    if bg is None:
+        buf = bytearray(w * h * 4)
+    else:  # fundo do tema: opaco, sem buraco entre as bandas
+        buf = bytearray(bytes((bg[2], bg[1], bg[0], 255)) * (w * h))
     for y, row in enumerate(rows):
         if row:
             buf[y * w * 4 : y * w * 4 + len(row)] = row
@@ -170,6 +180,21 @@ def argb32(data, width, height, fmt):
     return out
 
 
+_SERIAL = itertools.count(1)  # muda a cada bitmap novo: a chave do cache do view
+
+
+def blit(dst, dw, dh, src, sw, sh, ox, oy):
+    """Copia o bitmap ARGB32 `src` (sw x sh) sobre `dst` (dw x dh) em (ox, oy)."""
+    x0, x1 = max(0, ox), min(dw, ox + sw)
+    if x1 <= x0:
+        return
+    n = (x1 - x0) * 4
+    for y in range(max(0, oy), min(dh, oy + sh)):
+        s = (y - oy) * sw * 4 + (x0 - ox) * 4
+        d = (y * dw + x0) * 4
+        dst[d : d + n] = src[s : s + n]
+
+
 class Frame:
     """Um frame de animação: o bitmap inteiro, o `z=` e o ARGB32 já montado."""
 
@@ -193,13 +218,30 @@ class Anim:
 
 
 class Image:
-    __slots__ = ("id", "width", "height", "fmt", "data", "frames", "anim")
+    __slots__ = ("id", "width", "height", "fmt", "data", "frames", "anim", "stamp")
 
     def __init__(self, id_, width, height, fmt, data):
         self.id, self.width, self.height = id_, width, height
         self.fmt, self.data = fmt, data
         self.frames = [Frame(fmt, data)]  # o frame 1 é o que veio na transmissão
         self.anim = Anim()
+        self.stamp = next(_SERIAL)
+
+    def touch(self):
+        """O bitmap mudou: o cache de surface do view tem de largar o antigo."""
+        self.stamp = next(_SERIAL)
+        return self
+
+    def argb(self, seat):
+        """ARGB32 do frame `seat` (1-based), convertido uma vez e guardado."""
+        frame = self.frames[seat - 1]
+        if frame.buf is None:
+            frame.buf = (
+                frame.data
+                if frame.fmt == 101
+                else argb32(frame.data, self.width, self.height, frame.fmt)
+            )
+        return frame.buf
 
     def gap_ms(self, seat):
         """Quanto o frame `seat` (1-based) fica na tela."""
@@ -208,10 +250,8 @@ class Image:
 
     def show_frame(self, seat):
         """Põe o frame na imagem: o view.py desenha fmt 101 sem cópia (P83)."""
-        frame = self.frames[seat - 1]
-        if frame.buf is None:
-            frame.buf = argb32(frame.data, self.width, self.height, frame.fmt)
-        self.fmt, self.data = 101, frame.buf
+        self.fmt, self.data = 101, self.argb(seat)
+        self.touch()
 
 
 def iterm_dim(spec, px, cell_len, total_px):
@@ -229,11 +269,13 @@ def iterm_dim(spec, px, cell_len, total_px):
 
 
 class Placement:
-    __slots__ = ("image_id", "col", "row", "cols", "rows", "dx", "dy")
+    __slots__ = ("image_id", "col", "row", "cols", "rows", "dx", "dy", "z")
 
-    def __init__(self, image_id, col, row, cols, rows, dx=0, dy=0):
+    def __init__(self, image_id, col, row, cols, rows, dx=0, dy=0, z=0):
         self.image_id, self.col, self.row = image_id, col, row
         self.cols, self.rows = cols, rows
+        # `z=`: maior fica na frente; negativo vai ATRÁS do texto (como no kitty)
+        self.z = z
         # `X=`/`Y=`: deslocamento em PIXELS da imagem dentro da primeira
         # célula. É assim que o `icat` centraliza (ele move o cursor por
         # células inteiras e deixe o resto no offset).
@@ -333,6 +375,14 @@ class Graphics:
             return None
         return data
 
+    def paint_order(self, behind):
+        """As colocações de um lado do texto, em ordem de `z` (kitty, P99).
+
+        `behind` é o lado: `z` negativo vai atrás do texto (e o desenho precisa
+        disso antes das letras); empate em `z` mantém a ordem de chegada.
+        """
+        return sorted((p for p in self.placements if (p.z < 0) == behind), key=lambda p: p.z)
+
     def _place(self, img, kv, cursor, cell):
         cw, ch = cell
         cols = int(kv["c"]) if kv.get("c") else max(1, math.ceil(img.width / cw))
@@ -340,7 +390,8 @@ class Graphics:
         col, row = cursor
         dx = int(kv.get("X") or 0)
         dy = int(kv.get("Y") or 0)
-        self.placements.append(Placement(img.id, col, row, cols, rows, dx, dy))
+        z = int(kv.get("z") or 0)
+        self.placements.append(Placement(img.id, col, row, cols, rows, dx, dy, z))
         return rows
 
     def inline(self, body, cursor=(0, 0), cell=(10, 19), screen=(0, 0)):
@@ -390,9 +441,9 @@ class Graphics:
         self.placements.append(Placement(ident, cursor[0], cursor[1], cols, rows))
         return rows, True
 
-    def sixel(self, data, cursor=(0, 0), cell=(10, 19)):
+    def sixel(self, data, cursor=(0, 0), cell=(10, 19), bg=None):
         """DECSIXEL (P83): decodifica e coloca no cursor, como o iTerm2 faz."""
-        w, h, buf = decode_sixel(data)
+        w, h, buf = decode_sixel(data, bg)
         if not w or not h:
             return 0, False
         cw, ch = cell
@@ -462,7 +513,7 @@ class Graphics:
         if action == "a":
             return self._anim(kv, quiet)
         if action == "c":
-            return ([] if quiet else ["G" + self._err(kv, "EINVAL:a=c")]), 0, False
+            return self._compose(kv, data, quiet)
         if action == "q":
             # `a=q` é sonda de CAPACIDADE, não consulta de imagem: o
             # `kitten icat` manda três (direto / arquivo / memória) e só segue
@@ -530,27 +581,69 @@ class Graphics:
         return ([] if quiet else [f"Gi={ident};OK"]), rows, move
 
     def _frame(self, kv, data, quiet):
-        """`a=f`: mais um frame — um bitmap inteiro por frame (P92)."""
+        """`a=f`: mais um frame; `x=`/`y=`/`s=`/`v=` compõe só um retângulo (P92)."""
         ident = int(kv.get("i", "0") or 0)
         img = self.images.get(ident)
         if img is None:
             return ([] if quiet else ["G" + self._err(kv, "ENOENT:image")]), 0, False
         w, h = int(kv.get("s", "0") or 0), int(kv.get("v", "0") or 0)
-        if (w and w != img.width) or (h and h != img.height) or kv.get("x") or kv.get("y"):
-            # só o frame inteiro: compor retângulo custaria um blend por pixel
-            return ([] if quiet else ["G" + self._err(kv, "EINVAL:frame rect")]), 0, False
-        fmt = int(kv.get("f", "32") or 32)
-        if fmt not in (24, 32) or len(data) < img.width * img.height * (3, 4)[fmt == 32]:
-            return ([] if quiet else ["G" + self._err(kv, "EINVAL:frame")]), 0, False
-        if len(img.frames) >= ANIM_FRAMES_MAX and not kv.get("r"):
-            return ([] if quiet else ["G" + self._err(kv, "ENOSPC:frames")]), 0, False
-        gap = int(kv["z"]) if kv.get("z") else None
-        frame = Frame(fmt, data, gap)
+        x, y = int(kv.get("x", "0") or 0), int(kv.get("y", "0") or 0)
         at = int(kv.get("r", "0") or 0)  # 1-based: substitui um frame existente
+        gap = int(kv["z"]) if kv.get("z") else None
+        if x or y or (w and w != img.width) or (h and h != img.height):
+            frame = self._rect_frame(img, kv, data, x, y, w, h, at, gap)
+            if frame is None:
+                return ([] if quiet else ["G" + self._err(kv, "EINVAL:frame rect")]), 0, False
+        else:
+            fmt = int(kv.get("f", "32") or 32)
+            if fmt not in (24, 32) or len(data) < img.width * img.height * (3, 4)[fmt == 32]:
+                return ([] if quiet else ["G" + self._err(kv, "EINVAL:frame")]), 0, False
+            frame = Frame(fmt, data, gap)
+        if len(img.frames) >= ANIM_FRAMES_MAX and not (0 < at <= len(img.frames)):
+            return ([] if quiet else ["G" + self._err(kv, "ENOSPC:frames")]), 0, False
         if 0 < at <= len(img.frames):
             img.frames[at - 1] = frame
         else:
             img.frames.append(frame)
+        img.touch()
+        return ([] if quiet else ["Gi=%d;OK" % ident]), 0, False
+
+    def _rect_frame(self, img, kv, data, x, y, w, h, at, gap):
+        """O frame retangular: o anterior copiado, o retângulo por cima, ARGB32."""
+        w = w or img.width - x
+        h = h or img.height - y
+        if w <= 0 or h <= 0 or x < 0 or y < 0 or x + w > img.width or y + h > img.height:
+            return None
+        fmt = int(kv.get("f", "32") or 32)
+        if fmt not in (24, 32) or len(data) < w * h * (3, 4)[fmt == 32]:
+            return None
+        # base: o frame que este substitui (r=) ou o último — frames se empilham
+        base = img.frames[at - 1] if 0 < at <= len(img.frames) else img.frames[-1]
+        buf = bytearray(img.argb(img.frames.index(base) + 1))
+        blit(buf, img.width, img.height, argb32(data, w, h, fmt), w, h, x, y)
+        return Frame(101, buf, gap)
+
+    def _compose(self, kv, data, quiet):
+        """`a=c`: compõe um retângulo no bitmap da imagem, sem criar frame."""
+        ident = int(kv.get("i", "0") or 0)
+        img = self.images.get(ident)
+        if img is None:
+            return ([] if quiet else ["G" + self._err(kv, "ENOENT:image")]), 0, False
+        x, y = int(kv.get("x", "0") or 0), int(kv.get("y", "0") or 0)
+        w, h = int(kv.get("s", "0") or 0), int(kv.get("v", "0") or 0)
+        w = w or img.width - x
+        h = h or img.height - y
+        if w <= 0 or h <= 0 or x < 0 or y < 0 or x + w > img.width or y + h > img.height:
+            return ([] if quiet else ["G" + self._err(kv, "EINVAL:rect")]), 0, False
+        fmt = int(kv.get("f", "32") or 32)
+        if fmt not in (24, 32) or len(data) < w * h * (3, 4)[fmt == 32]:
+            return ([] if quiet else ["G" + self._err(kv, "EINVAL:data")]), 0, False
+        buf = bytearray(img.argb(1))  # frame 1 = o dado da imagem
+        blit(buf, img.width, img.height, argb32(data, w, h, fmt), w, h, x, y)
+        img.frames[0] = Frame(101, buf)
+        if img.anim.current == 1:  # parada no frame 1: o novo bitmap é o visível
+            img.fmt, img.data = 101, buf
+        img.touch()
         return ([] if quiet else ["Gi=%d;OK" % ident]), 0, False
 
     def _anim(self, kv, quiet):

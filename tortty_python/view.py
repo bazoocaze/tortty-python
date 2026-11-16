@@ -1080,6 +1080,45 @@ class TermView(Gtk.DrawingArea):
         self.queue_draw()
         return True
 
+    def _draw_images(self, cr, cw, ch, behind):
+        """Pinta as colocações de um lado do texto, em ordem de `z` (kitty)."""
+        t = self.term
+        for pl in t.graphics.paint_order(behind):
+            img = t.graphics.images.get(pl.image_id)
+            if img is None:
+                continue
+            # No histórico a tela deslizou `view_off` linhas pra dentro do
+            # scrollback: a colocação vive em coordenadas da GRADE, então a
+            # linha na tela é `row + view_off` (sem isso a imagem ficava
+            # parada enquanto o texto rolava por baixo dela).
+            vr = pl.row + self.view_off
+            w = max(1, pl.cols) * cw
+            h = max(1, pl.rows) * ch
+            x0 = pl.col * cw + pl.dx  # X=/Y=: offset em pixels (centralização)
+            y0 = vr * ch + pl.dy
+            # P85: hanging off an edge means clipped, not skipped — `icat`
+            # scrolls the image up past row 0 and it used to vanish entirely
+            if y0 + h <= 0 or x0 + w <= 0 or y0 >= t.rows * ch or x0 >= t.cols * cw:
+                continue
+            entry = self._img_cache.get(pl.image_id)
+            # o serial: transmissão nova, frame novo ou `a=c` mudam o bitmap e
+            # a surface guardada deixava de valer (o cache é por id)
+            if entry is None or entry[2] != img.stamp:
+                try:
+                    entry = surface_from_image(img, cairo) + (img.stamp,)
+                except Exception:
+                    continue
+                self._img_cache[pl.image_id] = entry
+            surf = entry[0]
+            cr.save()
+            cr.rectangle(x0, y0, w, h)
+            cr.clip()
+            cr.translate(x0, y0)
+            cr.scale(w / max(1, surf.get_width()), h / max(1, surf.get_height()))
+            cr.set_source_surface(surf, 0, 0)
+            cr.paint()
+            cr.restore()
+
     def _draw_links(self, cr, rows, cw, ch, row_lo, row_hi, col_lo, col_hi):
         """Sublinha a corrida com hyperlink: todas com Ctrl, só a do ponteiro sem ele."""
         t = self.term
@@ -1318,8 +1357,6 @@ class TermView(Gtk.DrawingArea):
 
     def _anim_tick(self):
         mudou, espera = self.term.graphics.anim_tick(time.monotonic() * 1000.0)
-        for ident in mudou:
-            self._img_cache.pop(ident, None)  # o frame novo vira outra surface
         if mudou:
             self.term.dirty_all = True  # como no blink: a imagem está fora do dano
             self.request_draw()
@@ -1464,6 +1501,7 @@ class TermView(Gtk.DrawingArea):
         blink_seen = False  # presença do BLINK só na área do dano: prova barata (P66)
         # limites do dano já em linha/coluna: comparar inteiro em vez de
         # multiplicar por célula em todo run (P37)
+        self._draw_images(cr, cw, ch, behind=True)  # `z<0`: atrás do texto
         row_lo = max(0, int(clip_y0 // ch))
         row_hi = min(last_y, int(clip_y1 // ch))
         col_lo = max(0, int(clip_x0 // cw))
@@ -1605,40 +1643,8 @@ class TermView(Gtk.DrawingArea):
         if self._ctrl or self._hover_link:
             self._draw_links(cr, rows, cw, ch, row_lo, row_hi, col_lo, col_hi)
         # imagens do protocolo de gráficos (P6), por cima do texto e abaixo
-        # do cursor — é onde o kitty põe
-        for pl in t.graphics.placements:
-            img = t.graphics.images.get(pl.image_id)
-            if img is None:
-                continue
-            # No histórico a tela deslizou `view_off` linhas pra dentro do
-            # scrollback: a colocação vive em coordenadas da GRADE, então a
-            # linha na tela é `row + view_off` (sem isso a imagem ficava
-            # parada enquanto o texto rolava por baixo dela).
-            vr = pl.row + self.view_off
-            w = max(1, pl.cols) * cw
-            h = max(1, pl.rows) * ch
-            x0 = pl.col * cw + pl.dx  # X=/Y=: offset em pixels (centralização)
-            y0 = vr * ch + pl.dy
-            # P85: hanging off an edge means clipped, not skipped — `icat`
-            # scrolls the image up past row 0 and it used to vanish entirely
-            if y0 + h <= 0 or x0 + w <= 0 or y0 >= t.rows * ch or x0 >= t.cols * cw:
-                continue
-            entry = self._img_cache.get(pl.image_id)
-            if entry is None:
-                try:
-                    entry = surface_from_image(img, cairo)
-                except Exception:
-                    continue
-                self._img_cache[pl.image_id] = entry
-            surf = entry[0]
-            cr.save()
-            cr.rectangle(x0, y0, w, h)
-            cr.clip()
-            cr.translate(x0, y0)
-            cr.scale(w / max(1, surf.get_width()), h / max(1, surf.get_height()))
-            cr.set_source_surface(surf, 0, 0)
-            cr.paint()
-            cr.restore()
+        # do cursor — e as de `z` negativo já foram, atrás do texto
+        self._draw_images(cr, cw, ch, behind=False)
 
         # barra de rolagem sobre a última coluna: por cima do texto, abaixo do
         # cursor — e só existe quando há histórico
