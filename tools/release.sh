@@ -111,6 +111,6 @@ else
 fi
 
 say
-say "released $TAG"
+if [ "$DRY" = 1 ]; then say "dry run: nothing published (would be $TAG)"; else say "released $TAG"; fi
 say "  install:  curl -fsSL https://github.com/bazoocaze/$PKG/releases/latest/download/install.sh | bash"
 say "  check:    curl -fsSL https://github.com/bazoocaze/$PKG/releases/latest/download/install.sh | bash -s -- --check"
