@@ -154,7 +154,11 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 - **The shortcut table has no sequences**: `map`/`unmap` bind one chord to one
   action (P95), so `ctrl+x ctrl+s` style sequences and a per-program table do not
   exist.
-- **No copy/scrollback mode**: no text editor over the scrollback.
+- **Copy mode is a cursor, not an editor**: `Ctrl+Shift+Space` walks the
+  scrollback and yanks a cell-by-cell selection (P104), but there is no
+  line-wise mode, no word motion (`w`/`b`), no search from inside the mode (the
+  `Ctrl+Shift+F` bar is another thing) and no editing of what was copied.
+
 
 ## Scope (decision, not lack)
 

@@ -1529,6 +1529,10 @@ def selection():
     t.feed("abc\r\ndef\r\nghi")
     assert t.selection_text((0, 1), (1, 1)) == "bc\nde"
     assert t.selection_text((0, 0), (0, 2)) == "abc"
+    # a coluna 0 da linha de baixo fecha a seleção: nada da linha entra, só o
+    # newline que separa (o caso do arrasto que termina no começo da linha)
+    assert t.selection_text((0, 0), (1, 0)) == "abc\n"
+    assert t.selection_text((0, 0), (0, 0)) == "a"  # dentro de uma linha, inclusiva
     assert t.selection_text((1, 1), (0, 1)) == "bc\nde"
 
 
@@ -2036,6 +2040,45 @@ def prompt_status():
     t2 = Term(cols=20, rows=5)
     t2.feed("\x1b]133;D;2\x07\x1b[3J")
     assert t2.cmd_status == 2, t2.cmd_status
+
+
+def copy_mode():
+    """P104: o cursor do modo cópia anda preso ao que existe e copia o trecho."""
+    t = Term(cols=12, rows=4)
+    t.feed("um\r\ndois\r\ntres\r\nquatro\r\ncinco\r\nseis\r\n")
+    assert t.scrolled == 3 and len(t.scrollback) == 3, (t.scrolled, len(t.scrollback))
+    # começa onde o olho está, não no fim do mundo
+    cur = t.anchor_at(0, 0, 0)  # primeira fileira da visão viva
+    assert cur.line == t.scrolled, cur
+    # andar para trás entra no histórico e para na primeira linha que existe
+    c = t.copy_cursor(cur.line, 0, -1, 0)
+    assert c.line == t.scrolled - 1, c
+    c = t.copy_cursor(c.line, 0, -100, 0)
+    assert c.line == t.scrolled - len(t.scrollback) == 0, c  # nem mais para trás
+    # para frente para na última linha do vivo (a barra do modo é outra coisa)
+    c = t.copy_cursor(cur.line, 0, 100, 0)
+    assert c.line == t.scrolled + t.rows - 1, c
+    # coluna presa à largura da grade
+    assert t.copy_cursor(cur.line, 0, 0, -5).col == 0
+    assert t.copy_cursor(cur.line, 0, 0, 999).col == t.cols - 1
+    # a geração vem junto: reflow invalida o cursor antigo (a seleção morre)
+    velho = t.copy_cursor(0, 0, 0, 0)
+    t.resize(20, 4)
+    assert not t.anchor_alive(velho), velho
+    # o que o `y` copia: da marca ao cursor, mesmo fora da tela
+    t2 = Term(cols=12, rows=3)
+    t2.feed("linha1\r\nlinha2\r\nlinha3\r\nlinha4\r\nlinha5\r\n")
+    topo = t2.scrolled - len(t2.scrollback)
+    a = t2.copy_cursor(topo, 0, 0, 0)  # topo do histórico
+    b = t2.copy_cursor(topo, 0, 2, 0)  # duas linhas abaixo
+    # parar na coluna 0 da terceira linha entrega as duas de cima e o "\n"
+    # delas: a coluna 0 é o fim da seleção, não o começo da linha
+    assert t2.anchor_text(a, b).split("\n") == ["linha1", "linha2", ""], t2.anchor_text(a, b)
+    # parando na última coluna da terceira linha, a linha vem inteira
+    b = t2.copy_cursor(topo, 0, 2, 99)
+    assert t2.anchor_text(a, b).split("\n") == ["linha1", "linha2", "linha3"], t2.anchor_text(a, b)
+    # marca "ao contrário" devolve o mesmo texto (a ordem é normalizada)
+    assert t2.anchor_text(b, a) == t2.anchor_text(a, b)
 
 
 def state_owner_lock():
@@ -2575,6 +2618,7 @@ ALL = (
     search_scrollback,
     prompt_marks,
     prompt_status,
+    copy_mode,
     state_owner_lock,
     title_stack,
     lnm_and_soft_reset,

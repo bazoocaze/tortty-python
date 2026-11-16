@@ -1315,6 +1315,11 @@ class TorttyWindow(Gtk.Window):
             self.open_config()
         elif acao == "search":
             return bool(v is not None and v.start_search())
+        elif acao == "copy_mode":
+            # o modo recusa em tela cheia, mas a tecla é nossa: não vaza pro app
+            if v is not None:
+                v.toggle_copy_mode()
+            return v is not None
         elif acao == "prev_prompt":
             self.prompt_jump(True)
         elif acao == "next_prompt":

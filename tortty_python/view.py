@@ -95,6 +95,18 @@ SB_W = 8  # largura da barra de rolagem, em px (o app testa o mesmo número)
 CLICK_MS = 400  # janela do duplo/triplo clique, em ms
 BLINK_MS = 530  # ritmo do cursor piscando (`cursor_blink`); não é opção
 SEARCH_HL_ALPHA = (0.18, 0.42)  # destaque dos achados: os outros, o atual
+# P104: o movimento do modo cópia. hjkl e as setas fazem o mesmo; `dcol` anda a
+# coluna (a última fileira é a barra, então o limite vertical é `rows-2`).
+CM_MOVES = {
+    Gdk.KEY_h: (0, -1),
+    Gdk.KEY_Left: (0, -1),
+    Gdk.KEY_l: (0, 1),
+    Gdk.KEY_Right: (0, 1),
+    Gdk.KEY_k: (-1, 0),
+    Gdk.KEY_Up: (-1, 0),
+    Gdk.KEY_j: (1, 0),
+    Gdk.KEY_Down: (1, 0),
+}
 ANIM_TICK_MS = 16  # P92: primeiro giro da animação; depois o `z=` manda
 CELL_BLINK_MS = 500  # ritmo do SGR 5/6 (P66): timer próprio, não o do cursor
 # P57: a marca que separa a foto restaurada da execução nova. Ela come uma
@@ -276,6 +288,8 @@ class TermView(Gtk.DrawingArea):
         self._state = 0  # modificadores do último evento
         self.view_off = 0  # 0 = vivo; >0 = linhas de histórico
         self.search = None  # P94: a busca aberta (query, achados, atual)
+        self.cm_cur = None  # P104: cursor do modo cópia (None = desligado)
+        self.cm_mark = None  # P104: onde a marcação começou (None = só cursor)
         self._anchor = 0  # linha absoluta no topo da visão quando no histórico
         self._hist_gen = 0  # geração do histórico que a visão já viu
         self._pin_off = 0  # distância do vivo a segurar depois de um `CSI 3J`
@@ -598,9 +612,11 @@ class TermView(Gtk.DrawingArea):
                 self._anchor = self.term.scrolled - off
                 if off >= self._pin_off:
                     self._pin_off = 0  # chegou na distância: volta ao modo âncora
-            elif self.view_off:
+            elif self.view_off or self.cm_cur is not None:
+                # P104: no modo cópia a âncora vale mesmo com `view_off` 0 — é
+                # ela que impede o output de arrastar o texto debaixo do cursor
                 off = self.term.anchored_view_off(self._anchor)
-                if off <= 1:
+                if off <= 1 and self.cm_cur is None:
                     self.back_to_live()  # P72: grudou no fim: segue o vivo
                 else:
                     self.view_off = off
@@ -982,6 +998,128 @@ class TermView(Gtk.DrawingArea):
         self.queue_draw()
         return True
 
+    def toggle_copy_mode(self):
+        """`Ctrl+Shift+Space`: teclado sobre o histórico (P104)."""
+        if self.cm_cur is not None:
+            self.exit_copy_mode()
+            return True
+        return self.enter_copy_mode()
+
+    def enter_copy_mode(self):
+        """Entra no modo cópia: cursor no prompt anterior visível (P104)."""
+        t = self.term
+        if t.alt_grid is not None:
+            return False  # app em tela cheia desenha a tela toda
+        topo = t.scrolled - self.view_off
+        linha = t.prompt_line(topo + 1, back=True)  # onde o olho já está
+        self.cm_cur = CellAnchor(min(topo, linha if linha is not None else topo), 0, t.abs_gen)
+        self.cm_mark = None
+        self.clear_selection()
+        # o texto sob o cursor não pode fugir: a âncora prende a visão mesmo
+        # com o cursor no vivo (o `on_pty` respeita o modo, ver `cm_cur`)
+        self._anchor = topo
+        self.queue_draw()
+        return True
+
+    def exit_copy_mode(self):
+        """Sai do modo cópia; a seleção feita ali fica (dá para copiar depois)."""
+        self.cm_cur = None
+        self.cm_mark = None
+        self.queue_draw()
+
+    def copy_key(self, ev):
+        """Teclas do modo cópia: mover, marcar, copiar, sair (P104).
+
+        Tudo é engolido (nada vaza para o app): é um modo, não um atalho. Os
+        atalhos da janela continuam valendo, senão `Ctrl+Shift+Space` não
+        conseguiria sair do próprio modo.
+        """
+        if self.cm_cur is None:
+            return False
+        if self.shortcuts is not None and self.shortcuts(ev):
+            return True
+        kv = ev.keyval
+        shift = bool(ev.state & Gdk.ModifierType.SHIFT_MASK)
+        if kv in (Gdk.KEY_Escape, Gdk.KEY_q):
+            self.exit_copy_mode()
+            return True
+        if kv in (Gdk.KEY_Return, Gdk.KEY_KP_Enter, Gdk.KEY_y):
+            self._cm_yank()
+            return True
+        if kv in (Gdk.KEY_v, Gdk.KEY_space):
+            self._cm_toggle_mark()
+            return True
+        if kv == Gdk.KEY_G:  # Shift+G: fim do vivo
+            self._cm_move(10**9, 0)
+            return True
+        if kv == Gdk.KEY_g:  # topo do histórico
+            self._cm_move(-(10**9), 0)
+            return True
+        if kv in (Gdk.KEY_Page_Up, Gdk.KEY_Page_Down):
+            passo = max(1, self.term.rows - 2)
+            if shift:
+                self._cm_ensure_mark()
+            self._cm_move(-passo if kv == Gdk.KEY_Page_Up else passo, 0)
+            return True
+        if kv in (Gdk.KEY_Home, Gdk.KEY_End):
+            self._cm_move(0, -(10**6) if kv == Gdk.KEY_Home else 10**6)
+            return True
+        mov = CM_MOVES.get(kv)
+        if mov is not None:
+            if shift:
+                self._cm_ensure_mark()
+            self._cm_move(*mov)
+            return True
+        return True  # modo cópia: tecla desconhecida não vai para o app
+
+    def _cm_ensure_mark(self):
+        """Shift+movimento começa a marcar (se ainda não estava)."""
+        if self.cm_mark is None:
+            self._cm_toggle_mark()
+
+    def _cm_toggle_mark(self):
+        if self.cm_mark is None:
+            self.cm_mark = self.cm_cur
+            self.sel_start = self.cm_cur
+            self.sel_end = self.cm_cur
+        else:
+            self.cm_mark = None
+            self.clear_selection()
+        self.queue_draw()
+
+    def _cm_move(self, dline, dcol):
+        """Anda com o cursor e arrasta a visão se ele sair da tela (P104)."""
+        t = self.term
+        cur = self.cm_cur
+        if cur is None:
+            return
+        if not t.anchor_alive(cur):  # reflow (P57) trocou o mapa: recomeça
+            self.cm_cur = t.anchor_at(self.view_off, 0, 0)
+            self.cm_mark = None
+            self.clear_selection()
+            return
+        self.cm_cur = t.copy_cursor(cur.line, cur.col, dline, dcol)
+        if self.cm_mark is not None:
+            self.sel_start, self.sel_end = self.cm_mark, self.cm_cur
+        # a última fileira é a barra do modo: o cursor nunca fica embaixo dela
+        limite = max(0, t.rows - 2)
+        y = t.anchor_row(self.cm_cur, self.view_off)
+        if y < 0:
+            self.scroll_view(-y)
+        elif y > limite:
+            self.scroll_view(limite - y)
+        # `scroll_view` pode ter chamado `back_to_live`, que zera a âncora: em
+        # modo cópia ela é o que segura a visão contra o output, então a
+        # invariante (`_anchor` = linha do topo) é reescrita aqui
+        self._anchor = t.scrolled - self.view_off
+        self.queue_draw()
+
+    def _cm_yank(self):
+        """Copia a marcação (se houver) e sai do modo (P104)."""
+        if self.sel_span() is not None:
+            self.copy()
+        self.exit_copy_mode()
+
     def close_search(self):
         if self.search is not None:
             self.search = None
@@ -1071,6 +1209,45 @@ class TermView(Gtk.DrawingArea):
         lay2.set_text(f"[ {onde} ]", -1)
         larg = lay2.get_size()[0] / Pango.SCALE
         cr.move_to(t.cols * cw - larg - cw * 0.5, y + (ch - lay2.get_size()[1] / Pango.SCALE) / 2)
+        PangoCairo.show_layout(cr, lay2)
+
+    def _draw_copy(self, cr, t, cw, ch):
+        """O cursor do modo cópia (retângulo vazado) e a barra dele (P104)."""
+        cur = self.cm_cur
+        if cur is None:
+            return
+        fg = t.theme.rgb_f(DEF_FG)
+        bg = t.theme.rgb_f(DEF_BG)
+        y = t.anchor_row(cur, self.view_off)
+        if 0 <= y < t.rows - 1:  # a última fileira é da barra
+            cr.set_source_rgba(*fg, 0.9)
+            cr.set_line_width(2)
+            cr.rectangle(cur.col * cw + 1, y * ch + 1, cw - 2, ch - 2)
+            cr.stroke()
+        # a barra: posição, tamanho da marcação e as teclas
+        yb = (t.rows - 1) * ch
+        cr.set_source_rgba(*bg, 0.85)
+        cr.rectangle(0, yb, t.cols * cw, ch)
+        cr.fill()
+        cr.set_source_rgba(*fg, 0.25)
+        cr.rectangle(0, yb, t.cols * cw, 1)
+        cr.fill()
+        onde = f"{cur.line}:{cur.col}"
+        if self.cm_mark is not None:
+            n = abs(cur.line - self.cm_mark.line) + 1
+            texto = f"[copy {onde} · {n} line{'s' if n > 1 else ''}]"
+        else:
+            texto = f"[copy {onde}]"
+        cr.set_source_rgb(*fg)
+        lay = self.new_layout(cr)
+        lay.set_text(texto, -1)
+        cr.move_to(cw * 0.5, yb + (ch - lay.get_size()[1] / Pango.SCALE) / 2)
+        PangoCairo.show_layout(cr, lay)
+        dica = "v marks · y copies · Esc leaves"
+        lay2 = self.new_layout(cr)
+        lay2.set_text(dica, -1)
+        larg = lay2.get_size()[0] / Pango.SCALE
+        cr.move_to(t.cols * cw - larg - cw * 0.5, yb + (ch - lay2.get_size()[1] / Pango.SCALE) / 2)
         PangoCairo.show_layout(cr, lay2)
 
     def go_to_line(self, line):
@@ -1657,6 +1834,7 @@ class TermView(Gtk.DrawingArea):
         # cursor — e só existe quando há histórico
         self._draw_scrollbar(cr, t)
         self._draw_search_bar(cr, t, cw, ch)  # P94: na frente de tudo, menos o cursor
+        self._draw_copy(cr, t, cw, ch)  # P104: o cursor e a barra do modo cópia
 
         # cursor — só no vivo: no histórico o cursor do app não está ali
         forma = self._cursor_draw()
@@ -1981,6 +2159,8 @@ class TermView(Gtk.DrawingArea):
     # -- teclado -------------------------------------------------------
     def on_key(self, widget, ev):
         """Traduz e manda a tecla; a tradução em si está em keys.encode_key."""
+        if self.cm_cur is not None and self.copy_key(ev):
+            return True  # P104: no modo cópia a tecla não vai para o app
         if self.search is not None and self.search_key(ev):
             return True  # P94: com a barra aberta, a tecla é da barra
         # atalhos da JANELA (abas/workspaces) antes do app: o filho nunca vê

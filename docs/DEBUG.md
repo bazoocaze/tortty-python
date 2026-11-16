@@ -228,6 +228,10 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **Copy mode swallows every key**: while `view.cm_cur` is set, `on_key` gives
+  the key to `copy_key` and nothing reaches the child (that is the point of a
+  mode). A probe that types and sees nothing arrive should check whether the
+  mode is still on — `Ctrl+Shift+Space` toggles it, `Esc` leaves.
 - **`OSC 133` needs a shell that speaks it**: to see the status on the tab, the
   child has to print the sequences itself. The shortest way to test by hand is a
   `--cmd` that prints them (P103): `133;A`, then `133;C`, then `133;D;<n>` — the

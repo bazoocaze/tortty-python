@@ -2181,6 +2181,17 @@ class Term:
             return False
         return self.abs_row(anchor.line) is not None
 
+    def copy_cursor(self, line, col, dline, dcol):
+        """Cursor do modo cópia andando `dline`/`dcol`, preso ao que existe (P104).
+
+        A linha é absoluta (histórico incluído) e o limite é a última linha do
+        vivo; a coluna para em `cols-1` (não existe "além da linha" na grade).
+        """
+        first = self.scrolled - len(self.scrollback)
+        last = self.scrolled + self.rows - 1
+        linha = max(first, min(last, line + dline))
+        return CellAnchor(linha, max(0, min(self.cols - 1, col + dcol)), self.abs_gen)
+
     def anchor_text(self, start, end):
         """Texto entre duas âncoras, mesmo fora da visão (a seleção não some)."""
         if (start.line, start.col) > (end.line, end.col):
@@ -2236,7 +2247,12 @@ class Term:
         return self._span_text(rows, start, end)
 
     def _span_text(self, rows, start, end):
-        """Texto entre duas células de `rows` (pontas inclusivas, sem espaço à direita)."""
+        """Texto entre duas células de `rows` (pontas inclusivas, sem espaço à direita).
+
+        A coluna 0 da última linha é o fim da seleção, não o começo dela: parar
+        ali entrega as linhas de cima inteiras e o "\n" que as fecha (era o que
+        a cópia já supunha; antes vinha o primeiro caractere junto).
+        """
         (r1, c1), (r2, c2) = start, end
         if (r1, c1) > (r2, c2):
             (r1, c1), (r2, c2) = (r2, c2), (r1, c1)
@@ -2246,7 +2262,12 @@ class Term:
         out = []
         for y in range(r1, r2 + 1):
             a = c1 if y == r1 else 0
-            b = (c2 + 1) if y == r2 else self.cols
+            if y != r2:
+                b = self.cols
+            elif c2 == 0 and r2 > r1:
+                b = 0  # coluna 0 da linha seguinte: ela não entra
+            else:
+                b = c2 + 1
             row = rows[y]
             out.append(row_text(row, a, b).rstrip())
         return "\n".join(out)

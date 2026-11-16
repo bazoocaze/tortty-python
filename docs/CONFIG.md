@@ -119,15 +119,17 @@ them or overrides that one chord; deleting your line goes back to the default.
 `CHORD` is `modifier+...+key` with `ctrl`, `shift`, `alt`, `super` and the key
 as a GDK name (`page_up`, `f2`, `up`, `Return`) or one character. A digit under
 `ctrl`, `alt` or `super` is read from the physical key, so a non-QWERTY layout
-reaches the same number. The 19 actions:
+reaches the same number. The 21 actions:
 
 `copy`, `paste`, `new_tab`, `close_tab`, `new_workspace`, `close_workspace`,
-`prev_prompt`, `next_prompt`, `search`, `open_config`, `scroll_page_up`,
-`scroll_page_down`, `scroll_top`, `scroll_bottom`, `ws_prev`, `ws_next`,
-`select_tab N`, `select_workspace N` (both `N` in 1..10).
+`prev_prompt`, `next_prompt`, `search`, `copy_mode`, `open_config`,
+`scroll_page_up`, `scroll_page_down`, `scroll_top`, `scroll_bottom`, `ws_prev`,
+`ws_next`, `ws_move_up`, `ws_move_down`, `select_tab N`, `select_workspace N`
+(both `N` in 1..10).
 
-The defaults: `Ctrl+Shift+C/V/T/W/N/Q`, `Ctrl+Shift+F` (search), `Ctrl+Shift+F2`
-(config), `Ctrl+Shift+Up/Down` (prompt walk), `Shift+PgUp/PgDn/Home/End` (scroll),
+The defaults: `Ctrl+Shift+C/V/T/W/N/Q`, `Ctrl+Shift+F` (search),
+`Ctrl+Shift+Space` (copy mode), `Ctrl+Shift+F2` (config), `Ctrl+Shift+Up/Down`
+(prompt walk), `Shift+PgUp/PgDn/Home/End` (scroll),
 `Alt+1`..`0` (tab), `Ctrl+Shift+1`..`0` and `Super+1`..`0` (workspace), `Super+N/Q`
 and `Super+Up/Down` (workspace walk). Editing the file applies on the next reload,
 with no restart.

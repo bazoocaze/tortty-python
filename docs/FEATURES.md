@@ -221,6 +221,14 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   red `✗N` for anything else — and it stays there through the next prompt, so a
   failure on a background tab is visible without switching to it. `D` without a
   number says "the command ended" and keeps the previous status.
+- **Copy mode** (`Ctrl+Shift+Space`, `P104`): a keyboard cursor over the
+  scrollback, for when the mouse is not the tool you want. `hjkl`/arrows move,
+  `PgUp`/`PgDn`/`g`/`G`/`Home`/`End` cover the jumps, `v` (or Space, or
+  Shift+arrow) starts a selection, `y`/Enter copies it and leaves, `Esc` leaves.
+  The view follows the cursor, output stops dragging the text under it, and the
+  last row holds a bar with the absolute line, the size of the selection and the
+  keys. It works in the main buffer only (a full-screen app draws its own
+  screen), and the selection is cell by cell, the same one the mouse makes.
 - **Notifications** (`OSC 9`, `777;notify`): on the tab in front it is an 8 s
   toast; on a background tab it is a **badge on the label** that has no timer
   (a bell flash would be gone before anyone looked) and a `•` on the workspace

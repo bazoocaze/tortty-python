@@ -755,6 +755,14 @@ lands on the tab label as a mark (`✓` zero, `✗n` anything else), colored fro
 background tab without switching to it. `D` with no number keeps the old value;
 `RIS` clears it. It needs a shell that emits `OSC 133`.
 
+### P104 — Copy mode: the keyboard over the scrollback (2026-11-15)
+
+Copying history needed the mouse and a drag that could not leave the screen. Now
+`Ctrl+Shift+Space` puts a `CellAnchor` cursor on the scrollback (`hjkl`/arrows
+move, `v` marks, `y` copies, `Esc` leaves), the view follows it and the output
+stops dragging the text away. It also fixed the copy path: a selection ending at
+column 0 of a line brought that line's first character, not just the newline.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth
