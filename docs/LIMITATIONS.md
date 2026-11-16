@@ -67,8 +67,10 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
 - **`OSC 7` is a fallback, not the source**: the cwd of a new tab comes from
   `/proc` (last descendant) and only then from the sequence, which needs a
   shell that emits it — the app does not ship shell integration. `OSC 133`
-  marks are read (P93) but nothing else consumes them yet: the command's output
-  as a range and the command in the tab label are not done.
+  marks are read (P93) and the exit status of the last command reaches the tab
+  label (P103), but the **output** of a command as a selectable range is not
+  done, and the command line itself never reaches the label:
+  `133;B`/`C;cmdline=` carry it and the terminal ignores what they say.
 - **Notifications go to the daemon only when the window is behind**: `OSC 9`
   and `777;notify` reach `org.freedesktop.Notifications` when the window is not
   active (and stay silent when there is no daemon); there is no per-app

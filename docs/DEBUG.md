@@ -228,6 +228,11 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **`OSC 133` needs a shell that speaks it**: to see the status on the tab, the
+  child has to print the sequences itself. The shortest way to test by hand is a
+  `--cmd` that prints them (P103): `133;A`, then `133;C`, then `133;D;<n>` — the
+  prefix on the label reads `✓` for 0 and `✗<n>` for the rest. Without the
+  sequence, `Term.cmd_status` stays None and the label is clean.
 - **An image that does not repaint is the surface cache, not the protocol.** The
   view keeps one cairo surface per image id, so every bitmap change bumps
   `Image.stamp` (`P102`) and the cache compares it; forget the `touch()` in a new

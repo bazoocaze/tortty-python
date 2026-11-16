@@ -21,6 +21,11 @@ TAB_ACTIVE_BG = "#1f4d2e"  # aba ativa: mesmo verde do workspace ativo
 BELL_BG = "#5c4a12"  # `bell visual`: flash da aba (mesmo tom do aviso)
 NOTIF_BG = "#1f3a5c"  # badge de atenção na aba (`OSC 9`/`777`, P44)
 TAB_SEP = "#333333"  # linha de 1 px entre as abas
+# `OSC 133;D` no rótulo da aba (P103): these two live on the tab bar, which is
+# black, the active green, the bell flash and the notification badge — so they
+# are light enough to keep 4.5:1 on all four (the darker green/red would not).
+TAB_OK_FG = "#8adfa6"  # the command exited 0
+TAB_ERR_FG = "#ffb8b8"  # the command exited non-zero
 TOAST_BG = "#1f4d2e"  # fundo do toast de aviso (mesmo verde do cartão ativo)
 TOAST_FG = "#ffffff"  # título do toast
 TOAST_DETAIL_FG = "#dddddd"  # segunda linha do toast

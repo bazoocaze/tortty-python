@@ -119,6 +119,25 @@ def _progress_prefix(p):
     return "… · "  # 3 indeterminado, 4 pausado sem %, 1 sem %
 
 
+def _status_markup(status):
+    """`OSC 133;D` como marca colorida no rótulo da aba (P103), ou ""."""
+    if status is None:
+        return ""
+    if status == 0:
+        return f'<span foreground="{style.TAB_OK_FG}">✓</span> · '
+    # o número só quando cabe: 127, 130 e 137 são os que dizem alguma coisa
+    return f'<span foreground="{style.TAB_ERR_FG}">✗{status}</span> · '
+
+
+def _progress_markup(p):
+    """O progresso do `OSC 9;4` como markup: a cor do prefixo é do style."""
+    texto = _progress_prefix(p)
+    if not texto:
+        return ""
+    cor = style.TAB_ERR_FG if p[0] == 2 else style.CARD_FG
+    return f'<span foreground="{cor}">{GLib.markup_escape_text(texto)}</span>'
+
+
 class Workspace:
     """Um conjunto de abas + o cartão dele na lateral."""
 
@@ -198,6 +217,7 @@ class Workspace:
             on_exit=self.on_view_exit,
             on_title=self.on_view_title,
             on_progress=self.on_view_progress,
+            on_status=self.on_view_status,
             on_context=self.on_view_context,
             on_bell=self.win.on_view_bell,
             on_notify=self.win.on_view_notify,
@@ -208,11 +228,11 @@ class Workspace:
         self.views.append(v)
         # mesmo motivo do cartão (P14): sem limite o título longo vira largura
         # mínima e a janela inteira estica (o notebook se recusa a encolher)
-        label = Gtk.Label(label=self.label_text(v, progress=True))
+        label = Gtk.Label()
         label.set_ellipsize(Pango.EllipsizeMode.END)
         label.set_width_chars(TAB_TITLE_CHARS)
         label.set_max_width_chars(TAB_TITLE_CHARS)
-        label.set_tooltip_text(self.label_text(v))
+        self.set_tab_label(v, label)
         box = Gtk.EventBox()
         box.set_name("tablabel")  # alvo do CSS e do flash do bell (style.py)
         box.add_events(
@@ -340,22 +360,34 @@ class Workspace:
         v.grab_focus()
         return False
 
+    def set_tab_label(self, view, label=None):
+        """Rótulo da aba: prefixo colorido (P103/P65) + título, e o tooltip.
+
+        `set_tab_label_text` TROCARIA o widget do rótulo (e com ele o EventBox do
+        clique do meio), então mexe no Label guardado. O prefixo vai em markup
+        porque a cor vem do `style.py`; o título é escapado, nunca é markup.
+        """
+        label = label if label is not None else getattr(view, "tab_label", None)
+        if label is None:
+            return
+        prefixo = _status_markup(view.term.cmd_status)
+        prefixo += _progress_markup(view.term.progress)
+        label.set_markup(prefixo + GLib.markup_escape_text(self.label_text(view)))
+        label.set_tooltip_text(self.label_text(view, progress=True))
+
     def on_view_title(self, view, title):
-        # set_tab_label_text TROCARIA o widget do rótulo (e com ele o
-        # EventBox do clique do meio), então mexe no texto do Label guardado
-        label = getattr(view, "tab_label", None)
-        if label is not None:
-            label.set_text(self.label_text(view, progress=True))
-            label.set_tooltip_text(self.label_text(view))
+        self.set_tab_label(view)
         self.update_card()
         if view is self.view:
             self.win.sync_title()
 
     def on_view_progress(self, view, progress):
-        """`OSC 9;4`: o prefixo de progresso entra no rótulo da aba (P65)."""
-        label = getattr(view, "tab_label", None)
-        if label is not None:
-            label.set_text(self.label_text(view, progress=True))
+        """`OSC 9;4`: o progresso entra no rótulo da aba (P65)."""
+        self.set_tab_label(view)
+
+    def on_view_status(self, view, status):
+        """`OSC 133;D`: o status do último comando da aba (P103)."""
+        self.set_tab_label(view)
 
     def on_view_context(self, view, ev):
         """Botão direito na sessão: o menu da janela (P71)."""
@@ -425,9 +457,13 @@ class Workspace:
             # diretório com que a sessão nasceu
             cwd = view.term.cwd or view.start_cwd
             text = os.path.basename(cwd or "") or "TorTTY (Python)"
-        # o prefixo de progresso (P65) só nos dois sites do RÓTULO da aba:
-        # título da janela, tooltip, cartão e dump ficam limpos
-        return _progress_prefix(view.term.progress) + text if progress else text
+        # os prefixos (status P103, progresso P65) só no rótulo da aba e no
+        # tooltip: título da janela, cartão e dump ficam limpos
+        if not progress:
+            return text
+        st = view.term.cmd_status
+        marca = "" if st is None else ("✓ · " if st == 0 else f"✗{st} · ")
+        return marca + _progress_prefix(view.term.progress) + text
 
     # -- cartão da lateral ---------------------------------------------
     def update_card(self, v=None):

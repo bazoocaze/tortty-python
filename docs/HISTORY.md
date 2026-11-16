@@ -747,6 +747,14 @@ and the rectangle pasted over it, through the same `blit`/`argb` pair. The
 bitmap also got a serial, so the view drops its cached surface when an image
 changes — before, a second transmission with the same id kept the old picture.
 
+### P103 — The exit status of the last command on the tab (2026-11-15)
+
+`OSC 133;D;n` was parsed into the mark and then nobody read it. The status now
+lands on the tab label as a mark (`✓` zero, `✗n` anything else), colored from
+`style.py`, and it survives the next prompt — the point is to see a failure on a
+background tab without switching to it. `D` with no number keeps the old value;
+`RIS` clears it. It needs a shell that emits `OSC 133`.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

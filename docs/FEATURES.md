@@ -216,6 +216,11 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   live on absolute lines, so scrolling and output do not move them (capped at
   512 per tab; one whose line left the history is dropped). `Ctrl+Shift+Up/Down`
   puts the previous/next prompt on the first row.
+- **Command status on the tab** (`OSC 133;D`, `P103`): the exit status of the
+  last command of each tab becomes a mark on its label — a green `✓` for zero, a
+  red `✗N` for anything else — and it stays there through the next prompt, so a
+  failure on a background tab is visible without switching to it. `D` without a
+  number says "the command ended" and keeps the previous status.
 - **Notifications** (`OSC 9`, `777;notify`): on the tab in front it is an 8 s
   toast; on a background tab it is a **badge on the label** that has no timer
   (a bell flash would be gone before anyone looked) and a `•` on the workspace

@@ -503,6 +503,9 @@ class Term:
         # history (CSI 3J) invalidate old anchors. The cap trim does NOT: the
         # absolute row stays the same (as in P32).
         self.marks = []  # `OSC 133`: marcas de prompt, em linha absoluta (P93)
+        # `OSC 133;D[;n]`: the exit status of the last command in this tab, or
+        # None while the shell never said (P103). The window shows it on the tab.
+        self.cmd_status = None
         self.abs_gen = 0
         # `CSI 3J` wipes the history: whoever is scrolling has to know (B20)
         self.hist_gen = 0
@@ -1954,6 +1957,10 @@ class Term:
         if kind == "D" and len(rest) > 2:
             num = rest[2:].split(";", 1)[0]
             status = int(num) if num.isdigit() else None
+            # the D without a number says "the command ended" and nothing about
+            # how: keep what the previous D said instead of wiping the tab
+            if status is not None:
+                self.cmd_status = status
         line = self.scrolled + self.cy  # a linha de hoje vira absoluta e não anda
         mark = Mark(line, kind, status)
         if self.marks and self.marks[-1] == mark:

@@ -2008,6 +2008,36 @@ def prompt_marks():
     assert len(t2.marks) == MARK_CAP, len(t2.marks)
 
 
+def prompt_status():
+    """P103: `OSC 133;D` vira o status do último comando da aba (e não some)."""
+    t = Term(cols=20, rows=5)
+    assert t.cmd_status is None  # sem shell integration não há o que mostrar
+    t.feed("\x1b]133;A\x07$ false\r\n\x1b]133;C\x07\x1b]133;D;1\x07")
+    assert t.cmd_status == 1, t.cmd_status
+    # o prompt seguinte não apaga o que o último comando disse: é isso que a
+    # aba tem para mostrar enquanto o usuário digita o próximo
+    t.feed("\x1b]133;A\x07$ true\r\n\x1b]133;B\x07\x1b]133;C\x07")
+    assert t.cmd_status == 1, t.cmd_status
+    t.feed("\x1b]133;D;0\x07")
+    assert t.cmd_status == 0, t.cmd_status
+    # `D` sem número diz "acabou", não "falhou": o status anterior fica
+    t.feed("\x1b]133;D\x07")
+    assert t.cmd_status == 0, t.cmd_status
+    # status grande (128+sinal) passa inteiro, e o histórico rolando não mexe
+    t.feed("\x1b]133;D;137\x07\r\n" * 4)
+    assert t.cmd_status == 137 and t.scrolled > 0, (t.cmd_status, t.scrolled)
+    # forma inválida não inventa status
+    t.feed("\x1b]133;D;abc\x07")
+    assert t.cmd_status == 137, t.cmd_status
+    # RIS volta ao começo: sem marca, sem status
+    t.feed("\x1bc")
+    assert t.cmd_status is None, t.cmd_status
+    # `CSI 3J` leva o histórico, não a verdade sobre o último comando
+    t2 = Term(cols=20, rows=5)
+    t2.feed("\x1b]133;D;2\x07\x1b[3J")
+    assert t2.cmd_status == 2, t2.cmd_status
+
+
 def state_owner_lock():
     """P91: one owner of the state — a second window gets None and stays scratch."""
     from . import state
@@ -2245,6 +2275,17 @@ def style_contrast():
         (style.CARD_FG, style.TAB_BAR_BG),
         (style.CARD_FG, style.TAB_ACTIVE_BG),
         (style.CARD_FG, style.BELL_BG),
+        # o status da aba (P103) fica em quatro fundos diferentes
+        *[
+            (fg, bg)
+            for fg in (style.TAB_OK_FG, style.TAB_ERR_FG)
+            for bg in (
+                style.TAB_BAR_BG,
+                style.TAB_ACTIVE_BG,
+                style.BELL_BG,
+                style.NOTIF_BG,
+            )
+        ],
         (style.TOAST_FG, style.TOAST_BG),
         (style.TOAST_DETAIL_FG, style.TOAST_BG),
         (style.TOAST_WARN_FG, style.TOAST_WARN_BG),
@@ -2533,6 +2574,7 @@ ALL = (
     media_transmission,
     search_scrollback,
     prompt_marks,
+    prompt_status,
     state_owner_lock,
     title_stack,
     lnm_and_soft_reset,

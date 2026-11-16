@@ -218,6 +218,7 @@ class TermView(Gtk.DrawingArea):
         on_bell=None,
         on_notify=None,
         on_progress=None,
+        on_status=None,
         on_context=None,
         shortcuts=None,
     ):
@@ -227,11 +228,13 @@ class TermView(Gtk.DrawingArea):
         self.on_bell = on_bell  # chamada quando o app manda BEL (P34)
         self.on_notify = on_notify  # chamada no `OSC 9`/`777` (P44)
         self.on_progress = on_progress  # chamada no `OSC 9;4` (P65)
+        self.on_status = on_status  # chamada no `OSC 133;D` da aba (P103)
         self.on_context = on_context  # botão direito: menu do window (P71)
         self.shortcuts = shortcuts  # atalhos da janela (prioridade)
         self.font_features = font_features  # liga/calt do Pango (P45)
         self._notifs = 0  # `OSC 9`/`777` já entregues ao host (P44)
         self._progress = None  # último `OSC 9;4` já entregue ao host (P65)
+        self._status = None  # último status de comando já entregue (P103)
         self._clip_seq = 0  # `OSC 52` já entregue ao clipboard (P64)
         self._cwd = None  # último `OSC 7` já refletido no rótulo (P47)
         self._title = DEFAULT_TITLE
@@ -622,6 +625,10 @@ class TermView(Gtk.DrawingArea):
             self._progress = self.term.progress
             if self.on_progress:
                 self.on_progress(self, self._progress)
+        if self.term.cmd_status != self._status:  # `OSC 133;D` (P103)
+            self._status = self.term.cmd_status
+            if self.on_status:
+                self.on_status(self, self._status)
         self._anim_ensure()  # P92: `a=a` acabou de ligar uma animação?
         if self.term.cwd != self._cwd:  # `OSC 7` (P47): o cwd do shell mudou
             self._cwd = self.term.cwd
