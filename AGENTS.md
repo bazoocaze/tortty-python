@@ -222,7 +222,9 @@ copied here. What the code needs to know:
 Usage, options and the reason for each script are in its header — read before
 running. Only which one to use fits here.
 
-- ./install.sh — Linux installer: distro deps, pipx, --selftest at the end.
+- ./install.sh — Linux installer, never with sudo: checks the system, installs
+  through pipx, runs --selftest; a missing distro package prints the command to
+  run (--check is the inventory alone).
 - ./run.sh — runs the app here, in the foreground; picks the python (uv venv
   when it sees gi, otherwise the system one).
 - ./run-tests.sh — lint + selftest + pytest, no display.
@@ -240,7 +242,38 @@ running. Only which one to use fits here.
   the strikethrough cuts the cell at half height.
 - tortty-python, python3 -m tortty_python, uv run python -m tortty_python — the app (options:
   tortty-python -h).
+- tools/release.sh — the release, owner-only: gate, build, fixed assets, tag,
+  gh release. What it guarantees is in `## Release`, not in the header alone.
 - uv run pytest -q, uv run ruff check ., uv run ruff format . — battery and lint
   through the uv venv.
 
 Manual test and verification with a window: docs/DEBUG.md.
+
+## Release
+
+The owner says "make release". Nobody else cuts a release, and no flag replaces
+the gate. `tools/release.sh` is the whole process: it runs the battery
+(`./run-tests.sh`), builds with `uv build`, publishes fixed asset names, creates
+the annotated tag and the GitHub release through `gh`.
+
+It derives the tag from `__version__` — never typed, so tag and package cannot
+diverge — and refuses to run on a dirty tree, on HEAD other than `origin/main`,
+or on a version that already has a tag. That last refusal is the rule: a release
+publishes the `__version__` in the tree, so a version already out means a
+version bump (closing an item), not a flag.
+
+The asset names are fixed on purpose, because the install URL has to survive
+every release:
+
+    https://github.com/bazoocaze/tortty-python/releases/latest/download/install.sh
+
+`/releases/latest/download/<asset>` is stable (newest release) and immutable
+(the asset of that release), so the README never changes and what the user gets
+is not main. A pin is the same path with `/releases/download/v<version>/`. The
+published `install.sh` has `@VERSION@` replaced by its tag, so the script
+downloaded from /latest/ installs exactly the release it came from, and it
+verifies the wheel against `SHA256SUMS` before the wheel reaches a venv.
+
+The installer never uses sudo: a missing distro package prints the command for
+the distro it detected and exits 3, because the PyGObject the app needs is not
+something pip installs.

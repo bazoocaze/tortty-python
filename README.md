@@ -31,19 +31,33 @@ python3 -m tortty_python --version    # version (the same one in tortty_python/_
 
 `tortty-python` uses the system
 PyGObject, so the isolated venv needs to **see** the distro's Gtk3 — that is
-what `install.sh` solves (distro dependencies, the `python3` that sees
-`gi`, pipx and the installation). The installed command is `tortty-python`; the
-name `tortty` stays with the Rust version of the project.
+what `install.sh` navigates (the `python3` that sees `gi`, pipx and the
+installation, never the distro packages themselves). The installed command is
+`tortty-python`; the name `tortty` stays with the Rust version of the project.
+
+No clone needed — the URL is stable and its content is the release's:
 
 ```sh
-./install.sh               # from the clone: installs, verifies and says what to do
+curl -fsSL https://github.com/bazoocaze/tortty-python/releases/latest/download/install.sh | bash
+curl -fsSL https://github.com/bazoocaze/tortty-python/releases/latest/download/install.sh \
+    | bash -s -- --check                          # inventory only, changes nothing
+```
+
+From a clone, the same script installs the tree you have:
+
+```sh
+./install.sh               # installs, verifies and says what to do
+./install.sh --check       # what is here, what is missing
 ./install.sh --dry-run     # shows each command without running it
 ./install.sh --uninstall   # removes it through pipx
 ```
 
-If `pipx` is not installed, the script uses `uvx pipx` instead of asking for
-`sudo apt install` (the tool's venv is created with the system python, so
-`gi` stays visible).
+The script **never uses sudo**. It does the part that needs no privilege, and
+when a distro package is missing (PyGObject, GTK 3) it prints the command for
+the distro it detected and exits 3 — you run that one yourself, then run the
+installer again. If `pipx` is not installed it uses `uvx pipx`, so nothing is
+installed system-wide (the venv is created with the system python, which keeps
+`gi` visible).
 
 The installer also creates the shortcut in the system menu (`~/.local/share/applications`
 + icon under `hicolor`, respecting `XDG_DATA_HOME`): `--no-shortcut` skips that
@@ -54,29 +68,19 @@ version. The window's `WM_CLASS` is fixed at startup (`tortty-python`), so the
 shortcut
 finds the window both when installed and through `python3 -m tortty_python`.
 
-Without cloning — the repository is **private**, so the classic `curl | bash`
-does not work yet (raw gives 404 without authentication). The authenticated
-equivalent is:
-
-```sh
-gh api -H "Accept: application/vnd.github.raw" \
-    /repos/bazoocaze/tortty-python/contents/install.sh | bash
-```
-
-Once the repository is public, the classic one starts to apply:
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/bazoocaze/tortty-python/main/install.sh | bash
-```
-
 And the step by step by hand, which is what the script does underneath:
 
 ```sh
-sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0   # Linux (deb)
-pipx install --system-site-packages \
-    "git+ssh://git@github.com:bazoocaze/tortty-python.git"           # command `tortty-python`
+sudo apt install python3-gi python3-gi-cairo gir1.2-gtk-3.0   # Linux (deb); you run this, not the script
+pipx install --system-site-packages --force \
+    https://github.com/bazoocaze/tortty-python/releases/latest/download/tortty-python.whl
 tortty-python --selftest && tortty-python                                   # checks and opens
 ```
+
+Every release publishes `tortty-python.whl`, `SHA256SUMS` and `install.sh` under
+fixed names, so those URLs never change; a pin is the same path with
+`/releases/download/v0.0.40/`. The installer checks the wheel against
+`SHA256SUMS` before it reaches a venv.
 
 The repository is private, which is why the URL is `git+ssh` (it uses your key;
 `https` would require a token). The version in pyproject is pinned, so a new
