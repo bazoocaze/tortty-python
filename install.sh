@@ -40,7 +40,7 @@ VERSION="${TORTTY_VERSION:-@VERSION@}"
 
 say()  { printf '%s\n' "$*"; }
 warn() { printf '%s\n' "$*" >&2; }
-die()  { warn "tortty-python: $*"; exit "${2:-1}"; }
+die()  { local msg=$1; local code=${2:-1}; warn "tortty-python: $msg"; exit "$code"; }
 # Piped in, there is no file to point at: bash reports "" / "bash" / "main".
 self_name() {
     local s="${BASH_SOURCE[0]:-}"
