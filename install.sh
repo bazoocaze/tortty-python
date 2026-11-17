@@ -217,14 +217,35 @@ release_base() {
     esac
 }
 
-fetch() {  # fetch URL DEST
+# A private repository answers 404 to an anonymous request for its assets. The
+# token comes from $TORTTY_TOKEN or from gh, and it only ever goes to github.com.
+release_token() {
+    if [ -n "${TORTTY_TOKEN:-}" ]; then printf '%s' "$TORTTY_TOKEN"; return 0; fi
+    command -v gh >/dev/null 2>&1 || return 0
+    gh auth token 2>/dev/null || true
+}
+
+_dl() {  # _dl URL DEST [TOKEN]
     if command -v curl >/dev/null 2>&1; then
-        curl -fsSL --retry 3 -o "$2" "$1"
+        if [ -n "${3:-}" ]; then curl -fsSL --retry 3 -H "Authorization: Bearer $3" -o "$2" "$1"
+        else curl -fsSL --retry 3 -o "$2" "$1"; fi
     elif command -v wget >/dev/null 2>&1; then
-        wget -qO "$2" "$1"
+        if [ -n "${3:-}" ]; then wget -qO "$2" --header="Authorization: Bearer $3" "$1"
+        else wget -qO "$2" "$1"; fi
     else
         die "curl or wget is needed to download the release" 6
     fi
+}
+
+fetch() {  # fetch URL DEST
+    _dl "$1" "$2" && return 0
+    local tok
+    tok=$(release_token)
+    [ -n "$tok" ] || die "cannot download $1 (private release? set TORTTY_TOKEN or log in with gh)" 6
+    case "$1" in
+        https://github.com/*) _dl "$1" "$2" "$tok" ;;
+        *) die "cannot download $1" 6 ;;
+    esac
 }
 
 # Downloads the wheel into $1, checks it against the release's SHA256SUMS and
@@ -235,8 +256,10 @@ download_wheel() {
     local dir=$1 base sums want got
     base=$(release_base)
     say "== release: $base"
-    fetch "$base/SHA256SUMS" "$dir/SHA256SUMS" || die "cannot download $base/SHA256SUMS" 6
-    fetch "$base/$PKG.whl" "$dir/$PKG.whl" || die "cannot download $base/$PKG.whl" 6
+    fetch "$base/SHA256SUMS" "$dir/SHA256SUMS" \
+        || die "cannot download $base/SHA256SUMS (private release? TORTTY_TOKEN or gh login)" 6
+    fetch "$base/$PKG.whl" "$dir/$PKG.whl" \
+        || die "cannot download $base/$PKG.whl (private release? TORTTY_TOKEN or gh login)" 6
     want=$(awk -v f="$PKG.whl" '$2==f || $2=="*"f {print $1}' "$dir/SHA256SUMS")
     [ -n "$want" ] || die "SHA256SUMS has no entry for $PKG.whl" 6
     if command -v sha256sum >/dev/null 2>&1; then
