@@ -56,7 +56,7 @@ fi
 # Cada script imprime o próprio cabeçalho no --help. Já quebrou quando o $0 era
 # relativo: depois do cd, o awk não achava o arquivo (tools/release.sh --help).
 echo "== help dos scripts (lê o próprio cabeçalho)"
-for s in install.sh tools/bench.sh tools/debug.sh tools/release.sh; do
+for s in install.sh tools/bench.sh tools/debug.sh tools/release.sh tools/release-check.sh; do
     n=$(./"$s" --help 2>/dev/null | wc -l)
     if [ ! -x "$s" ] || [ "$n" -lt 3 ]; then
         echo "help quebrado: $s ($n linhas)" >&2

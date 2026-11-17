@@ -244,6 +244,10 @@ running. Only which one to use fits here.
   tortty-python -h).
 - tools/release.sh — the release, owner-only: gate, build, fixed assets, tag,
   gh release. What it guarantees is in `## Release`, not in the header alone.
+- tools/release-check.sh — the release through its own channel in a container:
+  assets, diagnosis, two installs, window under Xvfb, socket, uninstall. `--dist`
+  runs it on the artifacts just built (before the tag), `--tag` on the published
+  ones; the two images are cached, so a rerun spends no apt. Needs docker.
 - uv run pytest -q, uv run ruff check ., uv run ruff format . — battery and lint
   through the uv venv.
 
@@ -255,6 +259,14 @@ The owner says "make release". Nobody else cuts a release, and no flag replaces
 the gate. `tools/release.sh` is the whole process: it runs the battery
 (`./run-tests.sh`), builds with `uv build`, publishes fixed asset names, creates
 the annotated tag and the GitHub release through `gh`.
+
+Two gates, and the second one is why an installer cannot ship untested: the
+battery is headless and never runs `install.sh`, so after the build
+`tools/release-check.sh --dist dist` installs the artifacts just built in a
+container (the real `install.sh`, a local server standing in for the release),
+and only then does the tag exist. After publishing the same check runs again with
+`--tag`, on the published URLs. It was added after 0.0.43 shipped an installer
+that broke a working venv; `--dist` is the pass that would have caught it.
 
 It derives the tag from `__version__` — never typed, so tag and package cannot
 diverge — and refuses to run on a dirty tree, on HEAD other than `origin/main`,

@@ -21,6 +21,11 @@
 #   tools/release.sh --notes FILE    release notes from FILE (default: generated)
 #   tools/release.sh --skip-tests    skips ./run-tests.sh (do not: it is the gate)
 #
+# Two gates, in this order: ./run-tests.sh (headless battery) and
+# tools/release-check.sh --dist dist (a container installs the artifacts it just
+# built, through the real install.sh). Only then the tag exists. After
+# publishing, the same check runs again against the published URLs with --tag.
+#
 # Only the owner runs this (it pushes a tag and creates the release).
 #
 # MIT (see LICENSE).
@@ -100,6 +105,17 @@ else
     say "   sha256 $(cut -d' ' -f1 dist/SHA256SUMS)"
 fi
 
+# -- container gate -----------------------------------------------------------
+# The battery is headless: it never runs the installer. This does, on the
+# artifacts just built, with TORTTY_RELEASE_BASE pointing at a local server, so a
+# release that cannot install never gets a tag.
+say "== release check (local artifacts)"
+if [ "$DRY" = 1 ]; then
+    say "+ ./tools/release-check.sh --dist dist"
+else
+    ./tools/release-check.sh --dist dist || die "tools/release-check.sh failed: nothing published"
+fi
+
 # -- publish -------------------------------------------------------------------
 say "== tag and release"
 run git tag -a "$TAG" -m "$PKG $VER"
@@ -111,6 +127,14 @@ if [ -n "$NOTES" ]; then
 else
     run gh release create "$TAG" --title "$PKG $VER" --generate-notes \
         "dist/$PKG.whl" dist/SHA256SUMS dist/install.sh "$WHL" "$SDIST"
+fi
+
+if [ "$DRY" = 1 ]; then
+    say "+ ./tools/release-check.sh --tag $TAG"
+else
+    say "== release check (published)"
+    ./tools/release-check.sh --tag "$TAG" \
+        || die "the published $TAG failed tools/release-check.sh — inspect and delete the release"
 fi
 
 say
