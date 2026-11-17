@@ -262,6 +262,13 @@ this section carried the very names it was warning about. The GitHub release sur
 name, not to the object.
 
 ## Implementation pitfalls
+- **A venv on uv's CPython cannot see Debian's `gi`**: `include-system-site-packages`
+  adds the site-packages of the venv's *own* base prefix, and uv's managed python
+  has its own; `/usr/lib/python3/dist-packages` is outside it. `pipx install
+  --force` keeps the existing venv's interpreter and ignores `--python`, so the
+  way out is `pipx uninstall` and a fresh `pipx install --python /usr/bin/python3`.
+  Check with `<venv>/bin/python -c 'import gi'`: `--selftest` does not load `gi`
+  by design and passes on a venv that cannot open a window.
 - **Verify the installer in a clean container, not on this machine**: the
   first-run path differs (no `~/.local/bin` in PATH, no pipx, no gi). Recipe:
   `docker run --rm -v "$PWD/install.sh:/i.sh:ro" ubuntu:24.04 bash /i.sh` for the

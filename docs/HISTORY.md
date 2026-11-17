@@ -711,6 +711,15 @@ through the same `CHECKS` as the file, so a value out of range is a usage error
 (exit 2) instead of a silent default, and `cli.parse_args` returns a named
 `Args` instead of a nine-tuple.
 
+### B39 — The desktop shortcut started nothing (2026-11-17)
+
+The shortcut was correct; the venv behind it was not. `pipx install --force`
+keeps the interpreter of the existing venv and ignores `--python`, so the one
+here was built on uv's CPython — whose site-packages never include Debian's
+`dist-packages`, where `gi` lives. The app printed "missing gi" and exited.
+The installer now checks `import gi` in the venv and rebuilds it on the python
+that has it, so `--selftest` (which needs no `gi`) can no longer pass alone.
+
 ### B38 — The installer gave up after a successful install (2026-11-17)
 
 On a machine that never had the app, `~/.local/bin` is not in PATH yet, so the

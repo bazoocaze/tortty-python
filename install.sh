@@ -331,15 +331,29 @@ install() {
     fi
 
     drop_old_pkg
-    # --force only when a venv already exists: pipx ignores --python when it is
-    # given, and a fresh venv has to be built on the python that sees gi. With a
-    # venv in place, keeping it is the point (and pipx demands --force to replace
-    # the same version).
-    installed_now() { "${PIPX[@]}" list --short 2>/dev/null | awk '{print $1}' | grep -qx "$PKG"; }
-    if installed_now; then
+    # pipx keeps the interpreter of an existing venv and ignores --python there,
+    # so a venv built on another python (uv's CPython, for instance) never sees
+    # the distro's gi and the app starts only to complain. When the venv in place
+    # cannot import gi, drop it and build a new one on the python that can.
+    venv_python() {
+        local root
+        root=$("${PIPX[@]}" environment --value PIPX_LOCAL_VENVS 2>/dev/null) || root=""
+        [ -n "$root" ] || root="$HOME/.local/share/pipx/venvs"
+        printf '%s/%s/bin/python' "$root" "$PKG"
+    }
+    venv_sees_gi() { [ -x "$1" ] && "$1" -c 'import gi' >/dev/null 2>&1; }
+    VP=$(venv_python)
+    if venv_sees_gi "$VP"; then
         run "${PIPX[@]}" install --force --system-site-packages "$spec"
     else
+        if [ -x "$VP" ]; then
+            say "== the venv at ${VP%/bin/python} does not see gi: rebuilding on $PY"
+            "${PIPX[@]}" uninstall "$PKG" >/dev/null 2>&1 || true
+        fi
         run "${PIPX[@]}" install --system-site-packages --python "$PY" "$spec"
+    fi
+    if ! venv_sees_gi "$VP"; then
+        die "installed, but ${VP%/bin/python} cannot import gi — $PY can; try: pipx reinstall $PKG --python $PY" 5
     fi
 
     if [ "$DRY" = 1 ]; then
