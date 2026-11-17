@@ -1,13 +1,16 @@
 # TorTTY-Python
 
+[![tests](https://github.com/bazoocaze/tortty-python/actions/workflows/tests.yml/badge.svg)](https://github.com/bazoocaze/tortty-python/actions/workflows/tests.yml)
+
 Minimal functional port of the TorTTY terminal (in Rust) to **Python**. This project is an experimental implementation created from the main TorTTY version: the goal of the Python version is to evaluate the behavior of the main version's current and future features, as well as to analyze performance.
 
 A real terminal (pty + VT parse + grid + cairo) written in **pure Python**,
 with no C and no compilation. It was born as an experiment to answer a question
 — *could you build a whole terminal in Python?* — and the answer was **yes**:
 it is a real application, used every day, and measurement remains the yardstick.
-It is not a distributed product: no release and no support (installing on the
-machine is one pipx line, in [How to run](#how-to-run)) — what is not done is in
+It is not a supported product: no support, and the releases are snapshots of
+what works (installing on the machine is one `curl | bash` line, in
+[How to run](#how-to-run)) — what is not done is in
 [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md). The pending backlog is in
 [`docs/BACKLOG.md`](docs/BACKLOG.md); what has already been done, the fixed bugs
 and the testing pitfalls are in [`docs/HISTORY.md`](docs/HISTORY.md).

@@ -1,0 +1,35 @@
+name: tests
+
+# The battery is the gate: it runs the same command the developer runs locally,
+# headless. It is cheap here because the checks import only palette, term,
+# graphics, mouse and kitty_kbd — nothing pulls gi, so no GTK and no display.
+#
+# A tag gets one extra check: v<tag> must equal __version__. tools/release.sh
+# derives the tag from __version__, so they cannot diverge there; this guards a
+# tag made by hand.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  battery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: battery (lint + selftest + pytest)
+        run: ./run-tests.sh
+
+      - name: tag matches __version__
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          v=$(python3 -c 'import re,sys; print(re.search(r"__version__ = \"([^\"]+)\"", open("tortty_python/__init__.py").read()).group(1))')
+          echo "tag ${GITHUB_REF_NAME} / __version__ $v"
+          [ "v$v" = "${GITHUB_REF_NAME}" ] || { echo "::error::tag and package version diverged"; exit 1; }
