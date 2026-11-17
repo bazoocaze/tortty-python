@@ -227,6 +227,39 @@ when it opens, the window shows a security warning toast with the socket path.
 - An invalid request answers `{"ok": false, "err": ...}`; the dispatch is pure
   and the `debug_socket` check covers it with a fake target.
 
+## Before making the repository public
+
+A secret scan is not a private-data scan: looking for `AKIA…`, `ghp_…`, private
+keys and `password=` found nothing here, while the user name of the machine sat
+in a test (`assert t.cwd == "/home/user"`) and in a HISTORY sentence
+(`user@host`). Both are harmless for credentials and both identify the
+person and the machine. The shape to grep before publishing:
+
+```sh
+git grep -In -e '/home/[a-z]' -e 'user' -e "$(hostname)" HEAD -- .
+git log --all -p | grep -i -e 'user' -e "$(hostname)"
+git log --all --format='%ae|%ce' | sort -u     # authors are public too
+```
+
+Cleaning the working tree is a normal commit; cleaning the history is a rewrite
+and needs the repository private first, because every hash after the first
+affected commit changes:
+
+```sh
+printf 'user==>user\nhost==>host\n' > /tmp/replace.txt
+git filter-repo --force --replace-text /tmp/replace.txt --replace-message /tmp/replace.txt
+git remote add origin git@github.com:bazoocaze/tortty-python.git
+git push --force origin main && git push --force origin v0.0.40 v0.0.41
+```
+
+filter-repo drops the commits that became empty (the fix commit was one of them:
+once history never contained the old string, the commit that changed it had
+nothing left to change) and repacks, which removes the old objects locally.
+Verify in a fresh clone: `git log --all -p | grep -c <string>` must be 0, and
+the tree of the tip must be the same tree as before the rewrite (the code is
+untouched). The GitHub release survives a tag move: it is attached to the tag
+name, not to the object.
+
 ## Implementation pitfalls
 - **Verify the installer in a clean container, not on this machine**: the
   first-run path differs (no `~/.local/bin` in PATH, no pipx, no gi). Recipe:
