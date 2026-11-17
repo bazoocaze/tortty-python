@@ -717,8 +717,9 @@ The shortcut was correct; the venv behind it was not. `pipx install --force`
 keeps the interpreter of the existing venv and ignores `--python`, so the one
 here was built on uv's CPython — whose site-packages never include Debian's
 `dist-packages`, where `gi` lives. The app printed "missing gi" and exited.
-The installer now checks `import gi` in the venv and rebuilds it on the python
-that has it, so `--selftest` (which needs no `gi`) can no longer pass alone.
+The installer now removes the package and installs a fresh venv with `--python`
+(the only way pipx honours it), then checks `import gi` in that venv: the
+`--force` branch it had was itself breaking working installs.
 
 ### B38 — The installer gave up after a successful install (2026-11-17)
 

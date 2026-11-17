@@ -289,6 +289,16 @@ with zipfile.ZipFile(sys.argv[1]) as z:
 EOF
 }
 
+# The venv has to run on the python that sees gi, not on whatever python pipx
+# happens to use (uv's CPython never sees Debian's dist-packages).
+venv_python() {
+    local root
+    root=$("${PIPX[@]}" environment --value PIPX_LOCAL_VENVS 2>/dev/null) || root=""
+    [ -n "$root" ] || root="$HOME/.local/share/pipx/venvs"
+    printf '%s/%s/bin/python' "$root" "$PKG"
+}
+venv_sees_gi() { [ -x "$1" ] && "$1" -c 'import gi' >/dev/null 2>&1; }
+
 # Where pipx puts the console script. A fresh machine has no ~/.local/bin in PATH
 # yet, so calling the app by name would fail right after a successful install.
 bin_dir() {
@@ -331,30 +341,15 @@ install() {
     fi
 
     drop_old_pkg
-    # pipx keeps the interpreter of an existing venv and ignores --python there,
-    # so a venv built on another python (uv's CPython, for instance) never sees
-    # the distro's gi and the app starts only to complain. When the venv in place
-    # cannot import gi, drop it and build a new one on the python that can.
-    venv_python() {
-        local root
-        root=$("${PIPX[@]}" environment --value PIPX_LOCAL_VENVS 2>/dev/null) || root=""
-        [ -n "$root" ] || root="$HOME/.local/share/pipx/venvs"
-        printf '%s/%s/bin/python' "$root" "$PKG"
-    }
-    venv_sees_gi() { [ -x "$1" ] && "$1" -c 'import gi' >/dev/null 2>&1; }
-    VP=$(venv_python)
-    if venv_sees_gi "$VP"; then
-        run "${PIPX[@]}" install --force --system-site-packages "$spec"
-    else
-        if [ -x "$VP" ]; then
-            say "== the venv at ${VP%/bin/python} does not see gi: rebuilding on $PY"
-            "${PIPX[@]}" uninstall "$PKG" >/dev/null 2>&1 || true
-        fi
-        run "${PIPX[@]}" install --system-site-packages --python "$PY" "$spec"
+    # pipx rebuilds the venv on its own default python when replacing an installed
+    # package (--force), and ignores --python there — under uvx that python is uv's
+    # CPython, which never sees Debian's dist-packages, so `import gi` fails and
+    # the window never opens. Removing the package first is what makes --python win.
+    installed_now() { "${PIPX[@]}" list --short 2>/dev/null | awk '{print $1}' | grep -qx "$PKG"; }
+    if installed_now; then
+        "${PIPX[@]}" uninstall "$PKG" >/dev/null 2>&1 || true
     fi
-    if ! venv_sees_gi "$VP"; then
-        die "installed, but ${VP%/bin/python} cannot import gi — $PY can; try: pipx reinstall $PKG --python $PY" 5
-    fi
+    run "${PIPX[@]}" install --system-site-packages --python "$PY" "$spec"
 
     if [ "$DRY" = 1 ]; then
         say "+ $EXE --selftest"
@@ -367,6 +362,11 @@ install() {
     [ -x "$BIN/$EXE" ] || die "pipx finished, but $BIN/$EXE is not there" 5
     if ! command -v "$EXE" >/dev/null 2>&1; then
         warn "== note: $BIN is not in PATH yet — open a new shell, or run: pipx ensurepath"
+    fi
+    local VP
+    VP=$(venv_python)
+    if ! venv_sees_gi "$VP"; then
+        die "installed, but ${VP%/bin/python} cannot import gi — $PY can, so the window would not open" 5
     fi
     say "== verification"
     if ! "$BIN/$EXE" --selftest | tail -1; then
