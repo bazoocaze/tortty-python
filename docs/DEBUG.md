@@ -257,7 +257,8 @@ once history never contained the old string, the commit that changed it had
 nothing left to change) and repacks, which removes the old objects locally.
 Verify in a fresh clone: `git log --all -p | grep -c <string>` must be 0, and
 the tree of the tip must be the same tree as before the rewrite (the code is
-untouched). The GitHub release survives a tag move: it is attached to the tag
+untouched). Run the grep again after writing *about* the audit: the first pass of
+this section carried the very names it was warning about. The GitHub release survives a tag move: it is attached to the tag
 name, not to the object.
 
 ## Implementation pitfalls
