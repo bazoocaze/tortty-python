@@ -26,8 +26,11 @@
 # MIT (see LICENSE).
 set -euo pipefail
 
-HERE=$(cd "$(dirname "$0")/.." && pwd)
-cd "$HERE"
+# $0 can be a bare name ("bash release.sh"): resolve it before any cd, or the
+# help below cannot read its own header.
+SELF=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
+HERE=$(cd "$(dirname "$SELF")/.." && pwd)
+cd "$HERE" || exit 1
 
 PKG=tortty-python
 REMOTE=origin
@@ -39,7 +42,7 @@ while [ $# -gt 0 ]; do
         --notes)      NOTES="${2:-}"; shift || { echo "--notes needs a file" >&2; exit 2; } ;;
         --notes=*)    NOTES="${1#*=}" ;;
         --skip-tests) TESTS=0 ;;
-        -h|--help)    awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
+        -h|--help)    awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$SELF"; exit 0 ;;
         *) echo "release: unknown option $1 (see -h)" >&2; exit 2 ;;
     esac
     shift

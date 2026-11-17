@@ -17,7 +17,10 @@
 # Sai 0 só se tudo passar.
 set -u
 
-HERE=$(cd "$(dirname "$0")" && pwd)
+# $0 can be a bare name ("bash run-tests.sh"): resolve it before any cd, or the
+# help below cannot read its own header.
+SELF=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
+HERE=$(cd "$(dirname "$SELF")" && pwd)
 cd "$HERE" || exit 1
 
 ONLY=0
@@ -26,7 +29,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --selftest-only) ONLY=1; shift ;;
         --no-lint) LINT=0; shift ;;
-        -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$0"; exit 0 ;;
+        -h|--help) awk 'NR>1 && /^#/ {sub(/^# ?/, ""); print; next} NR>1 {exit}' "$SELF"; exit 0 ;;
         *) break ;;
     esac
 done
@@ -49,6 +52,18 @@ if [ "$LINT" = 1 ]; then
     fi
     echo
 fi
+
+# Cada script imprime o próprio cabeçalho no --help. Já quebrou quando o $0 era
+# relativo: depois do cd, o awk não achava o arquivo (tools/release.sh --help).
+echo "== help dos scripts (lê o próprio cabeçalho)"
+for s in install.sh tools/bench.sh tools/debug.sh tools/release.sh; do
+    n=$(./"$s" --help 2>/dev/null | wc -l)
+    if [ ! -x "$s" ] || [ "$n" -lt 3 ]; then
+        echo "help quebrado: $s ($n linhas)" >&2
+        fails=1
+    fi
+done
+echo
 
 echo "== selftest (sem dependências, sem display)"
 python3 -m tortty_python --selftest || fails=1
