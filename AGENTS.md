@@ -20,9 +20,12 @@ All are written for agent reading; only README.md is for humans.
   error rules and the not-yet (no map/unmap, no include).
 - docs/BACKLOG.md — pending backlog and the queue rules (record,
   close, where things that are not items go).
-- docs/LIMITATIONS.md — what is not done and why (accepted decision/limit, not
-  queue). Before implementing something "obvious", check here: it may be a
-  decision.
+- docs/LIMITATIONS.md — what a user lives as a defect (not a queue; planned
+  work is BACKLOG.md). Listed: a feature done halfway (the cut deceives); an
+  absence the user expects (CJK unaligned, a scroll region not honoured) — he
+  calls it broken, not missing; a decision that stops a rework. Not listed: an
+  absence nobody expects, because silence means it is not there. Before
+  implementing something "obvious", check here: it may be a decision.
 - docs/HISTORY.md — completed backlog, fixed bugs and the git
   note: dated narrative only (the record of the day, not current reading), with
   the writing rules at the top of the file itself.
