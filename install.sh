@@ -41,6 +41,12 @@ VERSION="${TORTTY_VERSION:-@VERSION@}"
 say()  { printf '%s\n' "$*"; }
 warn() { printf '%s\n' "$*" >&2; }
 die()  { warn "tortty-python: $*"; exit "${2:-1}"; }
+# Piped in, there is no file to point at: bash reports "" / "bash" / "main".
+self_name() {
+    local s="${BASH_SOURCE[0]:-}"
+    if [ -n "$s" ] && [ -f "$s" ]; then printf '%s' "$s"; else printf 'this installer'; fi
+}
+has_pipx() { command -v pipx >/dev/null 2>&1 || command -v uvx >/dev/null 2>&1; }
 
 DRY=0; CHECK=0; SHORTCUT=1; FORCE=0; MODE=install; WANT_TAG=0
 while [ $# -gt 0 ]; do
@@ -103,14 +109,15 @@ dep_hint() {
 missing_report() {
     local what="ies"
     [ "${#MISSING[@]}" = 1 ] && what="y"
-    warn "tortty-python: missing system dependenc$what:"
+    warn "tortty-python: cannot install yet — missing dependenc$what:"
     local m
     for m in "${MISSING[@]}"; do warn "  - $m"; done
     warn
     warn "install them and run this again (this script never uses sudo):"
-    dep_hint >&2
+    have_gtk || dep_hint >&2
+    has_pipx || pipx_hint >&2
     warn
-    warn "to see the whole inventory first: $0 --check"
+    warn "to see the whole inventory first: $(self_name) --check"
 }
 
 inventory() {
@@ -146,22 +153,26 @@ pick_pipx() {
     return 1
 }
 
-no_pipx_report() {
-    warn "tortty-python: pipx and uv are both missing — that is where the app's own venv lives."
-    warn
-    warn "install one of them:"
+pipx_hint() {
     local pm
     for pm in apt-get dnf pacman zypper; do
         command -v "$pm" >/dev/null 2>&1 || continue
         case "$pm" in
-            apt-get) warn "  sudo apt install pipx" ;;
-            dnf)     warn "  sudo dnf install pipx" ;;
-            pacman)  warn "  sudo pacman -S python-pipx" ;;
-            zypper)  warn "  sudo zypper install python3-pipx" ;;
+            apt-get) say "  sudo apt install pipx" ;;
+            dnf)     say "  sudo dnf install pipx" ;;
+            pacman)  say "  sudo pacman -S python-pipx" ;;
+            zypper)  say "  sudo zypper install python3-pipx" ;;
         esac
         break
     done
-    warn "  uv (no root):  curl -LsSf https://astral.sh/uv/install.sh | sh"
+    say "  uv (no root):  curl -LsSf https://astral.sh/uv/install.sh | sh"
+}
+
+no_pipx_report() {
+    warn "tortty-python: pipx and uv are both missing — that is where the app's own venv lives."
+    warn
+    warn "install one of them:"
+    pipx_hint >&2
     warn
     warn "then run this again."
 }
@@ -198,9 +209,11 @@ release_base() {
     # test hook: a local directory served over http mimics a release
     if [ -n "${TORTTY_RELEASE_BASE:-}" ]; then printf '%s' "$TORTTY_RELEASE_BASE"; return 0; fi
     case "${VERSION:-}" in
-        v[0-9]*) printf '%s/releases/download/%s' "$REPO_URL" "$VERSION" ;;
-        "")      printf '%s/releases/latest/download' "$REPO_URL" ;;
-        *)       die "invalid version '$VERSION' (expected a tag such as v0.0.40)" ;;
+        v[0-9]*)         printf '%s/releases/download/%s' "$REPO_URL" "$VERSION" ;;
+        # the placeholder is what the repo file carries before a release
+        # substitutes it: taken from main, it means "the latest release"
+        ""|'@VERSION@')  printf '%s/releases/latest/download' "$REPO_URL" ;;
+        *)               die "invalid version '$VERSION' (expected a tag such as v0.0.40)" ;;
     esac
 }
 
@@ -251,6 +264,12 @@ with zipfile.ZipFile(sys.argv[1]) as z:
             print(line[9:].strip())
             break
 EOF
+}
+
+# Where pipx puts the console script. A fresh machine has no ~/.local/bin in PATH
+# yet, so calling the app by name would fail right after a successful install.
+bin_dir() {
+    "${PIPX[@]}" environment --value PIPX_BIN_DIR 2>/dev/null || printf '%s' "$HOME/.local/bin"
 }
 
 # -- install -------------------------------------------------------------------
@@ -306,9 +325,14 @@ install() {
         [ -n "$tmp" ] && say "+ rm -rf $tmp"
         return 0
     fi
-    command -v "$EXE" >/dev/null 2>&1 || die "installed, but '$EXE' is not in PATH: add ~/.local/bin" 5
+    local BIN
+    BIN=$(bin_dir)
+    [ -x "$BIN/$EXE" ] || die "pipx finished, but $BIN/$EXE is not there" 5
+    if ! command -v "$EXE" >/dev/null 2>&1; then
+        warn "== note: $BIN is not in PATH yet — open a new shell, or run: pipx ensurepath"
+    fi
     say "== verification"
-    if ! "$EXE" --selftest | tail -1; then
+    if ! "$BIN/$EXE" --selftest | tail -1; then
         warn "tortty-python: the installed app does not start — the venv most likely"
         warn "was built on a python that does not see gi. Recreate it with:"
         warn "  ${PIPX[*]} reinstall $PKG --python $PY"
@@ -320,7 +344,7 @@ install() {
 
     if [ "$SHORTCUT" = 1 ]; then
         say "== desktop entry"
-        run "$EXE" --install-shortcut
+        run "$BIN/$EXE" --install-shortcut
     fi
 
     say
@@ -340,15 +364,16 @@ local_tree() {
 }
 
 uninstall() {
-    local old_exe
+    local old_exe BIN
     old_exe=$(command -v "$OLD_EXE" 2>/dev/null) || old_exe=""
-    # The shortcut goes first: after the pipx uninstall the command is gone.
-    if command -v "$EXE" >/dev/null 2>&1; then
-        run "$EXE" --remove-shortcut || true
-    elif command -v "$OLD_EXE" >/dev/null 2>&1; then
-        run "$OLD_EXE" --remove-shortcut || true
-    fi
     pick_pipx || { no_pipx_report; exit 4; }
+    BIN=$(bin_dir)
+    # The shortcut goes first: after the pipx uninstall the command is gone.
+    if [ -x "$BIN/$EXE" ]; then
+        run "$BIN/$EXE" --remove-shortcut || true
+    elif [ -x "$BIN/$OLD_EXE" ]; then
+        run "$BIN/$OLD_EXE" --remove-shortcut || true
+    fi
     run "${PIPX[@]}" uninstall "$PKG"
     drop_old_pkg
     drop_old_exe "$old_exe"

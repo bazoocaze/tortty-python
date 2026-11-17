@@ -711,6 +711,15 @@ through the same `CHECKS` as the file, so a value out of range is a usage error
 (exit 2) instead of a silent default, and `cli.parse_args` returns a named
 `Args` instead of a nine-tuple.
 
+### B38 — The installer gave up after a successful install (2026-11-17)
+
+On a machine that never had the app, `~/.local/bin` is not in PATH yet, so the
+`command -v` check right after `pipx install` failed and the script exited 5 —
+with the app installed, the shortcut missing and no `--selftest`. The binary is
+now called by the path pipx reports and the missing PATH is a note, not an error.
+The clean-container run also showed the tree's `@VERSION@` placeholder reaching
+the download ("invalid version"): taken from main it now means the latest release.
+
 ### B37 — Dragging a tab left the app on the old tab (2026-11-15)
 
 Dragging a tab reorders the pages of the `Gtk.Notebook`, but `Workspace.views`

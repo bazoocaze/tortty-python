@@ -228,6 +228,12 @@ when it opens, the window shows a security warning toast with the socket path.
   and the `debug_socket` check covers it with a fake target.
 
 ## Implementation pitfalls
+- **Verify the installer in a clean container, not on this machine**: the
+  first-run path differs (no `~/.local/bin` in PATH, no pipx, no gi). Recipe:
+  `docker run --rm -v "$PWD/install.sh:/i.sh:ro" ubuntu:24.04 bash /i.sh` for the
+  "missing deps" message, and the same with `python3-gi python3-gi-cairo
+  gir1.2-gtk-3.0 pipx` installed for the happy path. Two defects only showed up
+  there: the PATH check killing the install and the `@VERSION@` placeholder.
 - **Copy mode swallows every key**: while `view.cm_cur` is set, `on_key` gives
   the key to `copy_key` and nothing reaches the child (that is the point of a
   mode). A probe that types and sees nothing arrive should check whether the
