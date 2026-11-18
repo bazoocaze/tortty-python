@@ -391,6 +391,11 @@ def link_allowed(uri):
     return uri.lower().startswith(LINK_SCHEMES)
 
 
+def _readable(s):
+    """String from the child without its control characters (C0, DEL, C1)."""
+    return "".join(c for c in s if unicodedata.category(c) != "Cc")
+
+
 def _link_ident(params):
     """O `id=` dos parâmetros do `OSC 8` (P76); vazio = sem agrupamento."""
     for tok in params.split(":"):
@@ -963,6 +968,9 @@ class Term:
 
     def _link_id(self, uri, ident=""):
         """Index of the link in the table: same URI and same `id=` reuse the same int."""
+        # a URI with a control character in it is never a real link, and it ends
+        # up in a menu and in xdg-open: the filter is here, before the table
+        uri = _readable(uri)
         if not uri:
             return 0
         i = self._link_ids.get((uri, ident))

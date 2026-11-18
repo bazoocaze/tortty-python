@@ -1340,6 +1340,22 @@ def link_table_cap():
     assert len(t2.links) == 1
 
 
+def link_uri_clean():
+    """OSC 8: a control character never reaches the link table (it goes to a menu
+    and to xdg-open), and a URI of nothing but control is no link at all."""
+    t = Term(20, 2)
+    t.feed("\x1b]8;;http://a\x01b\x7fc\x1b\\x\x1b]8;;\x1b\\")
+    assert t.links == ["http://abc"]
+    assert t.link_of(t.cell(0, 0)[4]) == "http://abc"
+    t2 = Term(20, 2)
+    t2.feed("\x1b]8;;\x01\x02\x1b\\x\x1b]8;;\x1b\\")
+    assert t2.links == [] and t2.link == 0
+    # o resto do URI passa inteiro, espaço inclusive
+    t3 = Term(20, 2)
+    t3.feed("\x1b]8;;mailto:a b@c\x1b\\x\x1b]8;;\x1b\\")
+    assert t3.links == ["mailto:a b@c"]
+
+
 def chrome_config():
     """P75: as cores do chrome vêm da configuração e vão para o CSS."""
     from . import config, style
@@ -2629,6 +2645,7 @@ ALL = (
     hyperlinks,
     osc8_link_id,
     link_table_cap,
+    link_uri_clean,
     combining_marks,
     mark_on_blank_row,
     cell_packed_roundtrip,
