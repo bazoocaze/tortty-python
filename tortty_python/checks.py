@@ -230,7 +230,7 @@ def argv_parsing():
     )
     assert over.over == {"font_family": "Fira Code", "font_size": "11.5", "scrollback": "200"}
     assert over.erro is None and cli.parse_args(["x", "--font-size"]).erro == "--font-size"
-    # --dpi (P109): a resolução do pt->px; fora da faixa é erro de uso
+    # --dpi (P109): the pt->px resolution; out of range is a usage error
     assert cli.parse_args(["x", "--dpi", "144"]).dpi == 144.0
     assert cli.parse_args(["x"]).dpi is None
     for ruim in ("abc", "0", "-5", "2000"):
@@ -1337,9 +1337,9 @@ def link_table_cap():
     for n in range(modterm.LINK_MAX + 8):
         t.feed(f"\x1b]8;;http://x/{n}\x1b\\a\x1b]8;;\x1b\\")
     assert len(t.links) == modterm.LINK_MAX
-    assert t.link == 0  # a célula depois do teto não tem link
+    assert t.link == 0  # past the ceiling the cell has no link
     assert "a" in t.row_text(t.rows - 1)
-    # URI repetida continua reusando o índice: o teto conta URIs distintas
+    # a repeated URI still reuses its index: the ceiling counts distinct ones
     t2 = Term(20, 2)
     for _ in range(modterm.LINK_MAX + 8):
         t2.feed("\x1b]8;;http://same\x1b\\a\x1b]8;;\x1b\\")

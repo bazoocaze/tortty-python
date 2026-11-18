@@ -184,7 +184,7 @@ def main(argv=None):
     # atalho do sistema não acha a janela. Casa com StartupWMClass do .desktop.
     GLib.set_prgname(shortcut.APP)
     Gdk.set_program_class(shortcut.WMCLASS)
-    view.set_dpi(args.dpi)  # --dpi: a resolução do pt->px, antes de medir a grade
+    view.set_dpi(args.dpi)  # --dpi: the pt->px resolution, before the grid is measured
 
     win = TorttyWindow(
         cmd=args.cmd,

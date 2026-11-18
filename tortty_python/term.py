@@ -390,8 +390,8 @@ DEFAULT_TITLE = "TorTTY (Python)"
 # not get to choose which desktop handler runs.
 LINK_SCHEMES = ("http://", "https://", "file://", "ftp://", "mailto:")
 
-# Teto da tabela de links: um filho que inventa uma URI por célula não a faz
-# crescer sem limite (paridade com o LINK_MAX do Rust).
+# Link table ceiling: a child inventing one URI per cell cannot grow it
+# without bound (the Rust LINK_MAX).
 LINK_MAX = 4096
 
 

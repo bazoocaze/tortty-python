@@ -58,7 +58,7 @@ _PROF = bool(os.environ.get("PYTERM_PROF"))  # mede o custo de draw e de pty
 _NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem desenho
 _NOPARSE = bool(os.environ.get("PYTERM_NOPARSE"))  # sonda: só lê o pty e descarta
 _DEBUG_LOG = None  # log JSONL do ?2026 x scroll; None = desligado (B22)
-_DPI = None  # --dpi: resolução do pt->px; None = a do display (Xft.dpi)
+_DPI = None  # --dpi: pt->px resolution; None = the display's (Xft.dpi)
 _SYNC_MS = 200  # teto da transação ?2026: app que esquece de fechar não congela
 UL_BITS = UL | UL_MASK  # presença + estilo do sublinhado, como vai para o run
 # o que o run carrega de decoração: sublinhado (+ estilo), riscado e sobrelinha
