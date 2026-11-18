@@ -41,7 +41,8 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   all) are configurable, but the machine's default Monospace (DejaVu) has
   almost no ligature — whoever wants it needs a Fira Code or JetBrains
   installed and to pick it. `font_size` is in **points** (terminal convention,
-  converted by the display's DPI), not pixels.
+  converted by the display's DPI — or by `--dpi N`, which forces that
+  resolution), not pixels.
 
 ## VT parser (what is not interpreted)
 
