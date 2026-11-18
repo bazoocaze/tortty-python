@@ -158,6 +158,15 @@ _CSI_MAX = 1024
 NOTIF_MAX = 512
 # title stack (`CSI 22`/`23 t`): the Rust stops at 16 too
 TITLE_STACK_MAX = 16
+# Title characters that draw nothing and only move the layout: the title comes
+# from the child and a U+202E reverses the rest of the tab text (Rust B4).
+_INVISIBLE_ONE = "\u00ad\ufeff"
+_INVISIBLE_RANGES = (
+    ("\u200b", "\u200f"),
+    ("\u202a", "\u202e"),
+    ("\u2060", "\u2064"),
+    ("\u2066", "\u206f"),
+)
 # OSC/APC body ceiling (P88): a payload past this is consumed and discarded
 OSC_MAX = 16 << 20  # 16 MB: above any real image, bounded anyway (P88)
 
@@ -389,6 +398,18 @@ LINK_MAX = 4096
 def link_allowed(uri):
     """Only the known schemes go to xdg-open."""
     return uri.lower().startswith(LINK_SCHEMES)
+
+
+def _invisible(c):
+    """Draws nothing and only moves the layout: control, zero-width, bidi, BOM."""
+    if unicodedata.category(c) == "Cc":
+        return True
+    return c in _INVISIBLE_ONE or any(lo <= c <= hi for lo, hi in _INVISIBLE_RANGES)
+
+
+def sanitize_title(s):
+    """Title fit to draw: no control character, no zero-width, no direction mark."""
+    return "".join(c for c in s if not _invisible(c))
 
 
 def _readable(s):
@@ -1855,7 +1876,7 @@ class Term:
             self.osc_drop = False
             return
         if o[:2] in ("0;", "2;"):
-            self.title = o[2:]
+            self.title = sanitize_title(o[2:])
         elif o.startswith("7;"):
             self._osc_cwd(o[2:])
         elif o.startswith("9;"):

@@ -1356,6 +1356,26 @@ def link_uri_clean():
     assert t3.links == ["mailto:a b@c"]
 
 
+def title_sanitized():
+    """OSC 0/2: the title carries no control, zero-width or direction mark, and
+    what is text survives untouched (same rule as the Rust `sanitize_title`)."""
+    from .term import sanitize_title
+
+    # a U+202E would reverse the rest of the tab text; a control only breaks it
+    assert sanitize_title("proj\r\n\x1b[31m\u202ex") == "proj[31mx"
+    t = Term(20, 2)
+    t.feed("\x1b]2;proj\r\n\x01\u202ex\u200b\u2060\u00ad\x7f\u009b\x07")
+    assert t.title == "projx"
+    # the title stack keeps the clean value too
+    t.feed("\x1b[22;0t\x1b]0;outro\x07")
+    assert t.title == "outro"
+    t.feed("\x1b[23;0t")
+    assert t.title == "projx"
+    # normal text, space included, is not touched
+    t.feed("\x1b]0;caf\u00e9 \u65e5\u672c \U0001f370\x07")
+    assert t.title == "caf\u00e9 \u65e5\u672c \U0001f370"
+
+
 def chrome_config():
     """P75: as cores do chrome vêm da configuração e vão para o CSS."""
     from . import config, style
@@ -2646,6 +2666,7 @@ ALL = (
     osc8_link_id,
     link_table_cap,
     link_uri_clean,
+    title_sanitized,
     combining_marks,
     mark_on_blank_row,
     cell_packed_roundtrip,

@@ -802,6 +802,13 @@ URI ends up in a context menu and in `xdg-open`; here it reached the table as it
 came (`http://a\x01b`). Now `_readable` filters C0/DEL/C1, and a URI that was
 nothing but control is no link at all.
 
+### P108 — The title cannot move the layout around (2026-11-17)
+
+`sanitize_title` came from Rust (B4): the title arrives from the child and a
+`U+202E` in it reversed the rest of the tab label, so control, zero-width,
+direction marks and BOM are dropped at the `Term`. The cwd turned into a tab name
+goes through the same filter, since a directory name carries anything.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

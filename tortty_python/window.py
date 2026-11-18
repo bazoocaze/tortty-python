@@ -17,7 +17,7 @@ import sys
 from . import config as config_mod
 from . import debugsock, mouse, state, style
 from .gui import Gdk, GdkX11, GLib, Gtk, Pango
-from .term import DEFAULT_TITLE, row_text
+from .term import DEFAULT_TITLE, row_text, sanitize_title
 from .view import TermView, set_debug_log, set_prof
 
 SIDEBAR_W = 170  # largura fixa (arrastável fica pra depois)
@@ -456,7 +456,8 @@ class Workspace:
             # sem OSC 0/2: o cwd do shell — `OSC 7` quando ele avisa (P47), senão o
             # diretório com que a sessão nasceu
             cwd = view.term.cwd or view.start_cwd
-            text = os.path.basename(cwd or "") or "TorTTY (Python)"
+            # the directory name can carry anything too: same filter as the title
+            text = sanitize_title(os.path.basename(cwd or "")) or "TorTTY (Python)"
         # os prefixos (status P103, progresso P65) só no rótulo da aba e no
         # tooltip: título da janela, cartão e dump ficam limpos
         if not progress:
