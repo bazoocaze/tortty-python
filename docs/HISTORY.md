@@ -809,6 +809,13 @@ nothing but control is no link at all.
 direction marks and BOM are dropped at the `Term`. The cwd turned into a tab name
 goes through the same filter, since a directory name carries anything.
 
+### P109 — `--dpi`, the resolution that turns points into pixels (2026-11-17)
+
+Rust takes `--dpi` (default 96) in `font_size_pt * dpi / 72`; here the resolution
+came from the display (`Xft.dpi`) and nothing could force it. `view.set_dpi` fixes
+it for both the metric layout and the drawing layout — the grid stays aligned —
+and `--dpi 192` doubles the cell (10×19 → 19×38), measured on Xvfb.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

@@ -18,6 +18,8 @@ usage: tortty-python [options]
   --font-family NAME font family, over the configuration file
   --font-size PT     font size in points (4..30), over the configuration file
   --scrollback N     history lines (1..10000), over the configuration file
+  --dpi N            resolution that turns points into pixels (24..960; default:
+                     the display's, e.g. Xft.dpi)
   --quit-after SEG   closes by itself after SEG seconds
   --dump-to FILE     saves the visible grid on exit
   --debug-log FILE   JSONL debug log of ?2026 x scroll (default: the option
@@ -45,6 +47,7 @@ class Args(NamedTuple):
     cols: object = None
     rows: object = None
     over: dict = {}
+    dpi: object = None
 
 
 # Opções que só sobrescrevem a configuração (P98): valor livre, validado lá
@@ -54,11 +57,16 @@ OVER_OPTS = {
     "--scrollback": "scrollback",
 }
 
+# `--dpi` is not a configuration key: it is what the display would say (Xft.dpi),
+# forced (Rust `--dpi`). Out of this range the grid is nonsense, not small/large.
+DPI_MIN, DPI_MAX = 24.0, 960.0
+
 
 def parse_args(argv):
     """Só leitura de argv — separado para poder testar sem Gtk."""
     cmd, quit_after, dump_to, conf, dlog, dsock = None, 0, None, None, None, None
     cols = rows = None
+    dpi = None
     over = {}
 
     def erro(a):
@@ -79,6 +87,13 @@ def parse_args(argv):
                 cols = n
             else:
                 rows = n
+        elif a == "--dpi" and args:
+            try:
+                dpi = float(args.pop(0))
+            except ValueError:
+                return erro(a)
+            if not DPI_MIN <= dpi <= DPI_MAX:
+                return erro(a)
         elif a == "--cmd" and args:
             cmd = args.pop(0)
         elif a in ("-c", "--config") and args:
@@ -95,7 +110,7 @@ def parse_args(argv):
             over[OVER_OPTS[a]] = args.pop(0)
         else:
             return erro(a)
-    return Args(cmd, quit_after, dump_to, conf, dlog, dsock, None, cols, rows, over)
+    return Args(cmd, quit_after, dump_to, conf, dlog, dsock, None, cols, rows, over, dpi)
 
 
 def run():
@@ -148,6 +163,7 @@ def main(argv=None):
         return 2
     # import tardio: --selftest e --help rodam sem tocar em Gtk/PyGObject
     try:
+        from . import view
         from .gui import Gdk, GdkX11, GLib, Gtk
         from .window import TorttyWindow
     except ModuleNotFoundError as e:
@@ -168,6 +184,7 @@ def main(argv=None):
     # atalho do sistema não acha a janela. Casa com StartupWMClass do .desktop.
     GLib.set_prgname(shortcut.APP)
     Gdk.set_program_class(shortcut.WMCLASS)
+    view.set_dpi(args.dpi)  # --dpi: a resolução do pt->px, antes de medir a grade
 
     win = TorttyWindow(
         cmd=args.cmd,

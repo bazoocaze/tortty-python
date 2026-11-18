@@ -58,6 +58,7 @@ _PROF = bool(os.environ.get("PYTERM_PROF"))  # mede o custo de draw e de pty
 _NODRAW = bool(os.environ.get("PYTERM_NODRAW"))  # sonda: só pty -> grade, sem desenho
 _NOPARSE = bool(os.environ.get("PYTERM_NOPARSE"))  # sonda: só lê o pty e descarta
 _DEBUG_LOG = None  # log JSONL do ?2026 x scroll; None = desligado (B22)
+_DPI = None  # --dpi: resolução do pt->px; None = a do display (Xft.dpi)
 _SYNC_MS = 200  # teto da transação ?2026: app que esquece de fechar não congela
 UL_BITS = UL | UL_MASK  # presença + estilo do sublinhado, como vai para o run
 # o que o run carrega de decoração: sublinhado (+ estilo), riscado e sobrelinha
@@ -68,6 +69,12 @@ def set_prof(on):
     """Liga/desliga a medição de custo em execução (verbo `prof` do socket)."""
     global _PROF
     _PROF = bool(on)
+
+
+def set_dpi(dpi):
+    """Fixes the resolution that turns points into pixels; None = the display's."""
+    global _DPI
+    _DPI = float(dpi) if dpi else None
 
 
 def set_debug_log(path):
@@ -825,7 +832,9 @@ class TermView(Gtk.DrawingArea):
         return self._font_desc
 
     def dpi(self):
-        """Resolução do display (Xft.dpi), a mesma que a grade usa."""
+        """Resolução do pt->px: a do display (Xft.dpi) ou a que `--dpi` fixou."""
+        if _DPI:
+            return _DPI
         if self._dpi is None:
             dpi = PangoCairo.context_get_resolution(self.get_pango_context())
             if dpi <= 0:

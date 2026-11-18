@@ -230,6 +230,12 @@ def argv_parsing():
     )
     assert over.over == {"font_family": "Fira Code", "font_size": "11.5", "scrollback": "200"}
     assert over.erro is None and cli.parse_args(["x", "--font-size"]).erro == "--font-size"
+    # --dpi (P109): a resolução do pt->px; fora da faixa é erro de uso
+    assert cli.parse_args(["x", "--dpi", "144"]).dpi == 144.0
+    assert cli.parse_args(["x"]).dpi is None
+    for ruim in ("abc", "0", "-5", "2000"):
+        assert cli.parse_args(["x", "--dpi", ruim]).erro == "--dpi"
+    assert cli.parse_args(["x", "--dpi"]).erro == "--dpi"
     assert cli.parse_args(["tortty_python", "--cmd"])[6] == "--cmd"
     assert cli.parse_args(["tortty_python", "--nada"])[6] == "--nada"
     out, err = io.StringIO(), io.StringIO()

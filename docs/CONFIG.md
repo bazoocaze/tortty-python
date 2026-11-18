@@ -27,7 +27,7 @@ the file and the code cannot drift apart silently.
 window still open behind it. Saving applies it to every tab on the spot: font,
 padding, cursor, colours, scrollback and chrome. `--version` prints the version;
 the other command line options are in `tortty-python -h` and they win over the
-file (`--cmd`, `--debug-log`, `--cols`/`--rows`).
+file (`--cmd`, `--debug-log`, `--cols`/`--rows`, `--dpi`).
 
 ## Keys
 
@@ -140,6 +140,8 @@ with no restart.
 - **No override for every key**: the command line wins over the file only for
   `--font-family`, `--font-size` and `--scrollback` (`--cols`/`--rows` pin the
   grid instead, and skip session restore). Everything else is the file's.
+  `--dpi` is not a key at all: it forces the resolution that turns points into
+  pixels (the display's, `Xft.dpi`, is the default).
 
 ## When this page is wrong
 
