@@ -191,6 +191,15 @@ def csi_with_intermediate():
     assert _row_text(t.grid[0]).rstrip() == "A"
 
 
+def csi_hpa():
+    """HPA (`) moves to the column, as CHA does, with the same default of 1."""
+    t = Term(cols=20, rows=2)
+    t.feed("abcd\x1b[2`X")
+    assert _row_text(t.grid[0]).rstrip() == "aXcd"
+    t.feed("\r\n\x1b[`Y")
+    assert _row_text(t.grid[1]).rstrip() == "Y"
+
+
 # -- linha de comando --------------------------------------------------
 def argv_parsing():
     """--help sai sem abrir janela; opção inválida é erro de uso (exit 2)."""
@@ -2562,6 +2571,7 @@ ALL = (
     alt_screen_keeps_scrollback,
     charset_and_replies,
     csi_with_intermediate,
+    csi_hpa,
     argv_parsing,
     debug_socket,
     kitty_keyboard,

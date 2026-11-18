@@ -782,6 +782,12 @@ move, `v` marks, `y` copies, `Esc` leaves), the view follows it and the output
 stops dragging the text away. It also fixed the copy path: a selection ending at
 column 0 of a line brought that line's first character, not just the newline.
 
+### P105 — HPA, the missing final (2026-11-17)
+
+Diffing the two CSI dispatchers, the Rust set turned out to be the Python set plus
+one final: `` ` `` (HPA), the same column as `CHA` under another name. It joined the
+`G` arm, so `CSI 5` and `CSI 5\`` land on the same column.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

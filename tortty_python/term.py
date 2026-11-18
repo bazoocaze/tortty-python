@@ -1418,7 +1418,7 @@ class Term:
 
         if final == "m":
             self.sgr(params or [0])
-        elif final in "ABCDEFG":
+        elif final in "ABCDEFG`":
             k = get(0, 1) or 1
             if final in "AE":
                 self.cursor_to(self.cy - k if final == "A" else self.cy + k, self.cx)
@@ -1428,7 +1428,7 @@ class Term:
                 self.cursor_to(self.cy + k, self.cx)
             elif final == "F":
                 self.cursor_to(self.cy - k, 0)
-            elif final == "G":
+            elif final in "G`":  # CHA and HPA: the same column, two names
                 self.cursor_to(self.cy, k - 1)
         elif final in "Hf":
             self.cursor_to(self.row_abs(get(0, 1) - 1), get(1, 1) - 1)
