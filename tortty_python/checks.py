@@ -1323,6 +1323,23 @@ def osc8_link_id():
     assert (t.links, t.link_keys) == ([], [])
 
 
+def link_table_cap():
+    """OSC 8: the table stops at LINK_MAX — past it the text is still text."""
+    from . import term as modterm
+
+    t = Term(20, 4)
+    for n in range(modterm.LINK_MAX + 8):
+        t.feed(f"\x1b]8;;http://x/{n}\x1b\\a\x1b]8;;\x1b\\")
+    assert len(t.links) == modterm.LINK_MAX
+    assert t.link == 0  # a célula depois do teto não tem link
+    assert "a" in t.row_text(t.rows - 1)
+    # URI repetida continua reusando o índice: o teto conta URIs distintas
+    t2 = Term(20, 2)
+    for _ in range(modterm.LINK_MAX + 8):
+        t2.feed("\x1b]8;;http://same\x1b\\a\x1b]8;;\x1b\\")
+    assert len(t2.links) == 1
+
+
 def chrome_config():
     """P75: as cores do chrome vêm da configuração e vão para o CSS."""
     from . import config, style
@@ -2611,6 +2628,7 @@ ALL = (
     double_and_triple_click,
     hyperlinks,
     osc8_link_id,
+    link_table_cap,
     combining_marks,
     mark_on_blank_row,
     cell_packed_roundtrip,

@@ -381,6 +381,10 @@ DEFAULT_TITLE = "TorTTY (Python)"
 # not get to choose which desktop handler runs.
 LINK_SCHEMES = ("http://", "https://", "file://", "ftp://", "mailto:")
 
+# Teto da tabela de links: um filho que inventa uma URI por célula não a faz
+# crescer sem limite (paridade com o LINK_MAX do Rust).
+LINK_MAX = 4096
+
 
 def link_allowed(uri):
     """Only the known schemes go to xdg-open."""
@@ -963,6 +967,8 @@ class Term:
             return 0
         i = self._link_ids.get((uri, ident))
         if i is None:
+            if len(self.links) >= LINK_MAX:  # past the cap: the text stays text
+                return 0
             self.links.append(uri)
             # with no `id=` the grouping is the URI itself: two cells of the same
             # URI are still a single link

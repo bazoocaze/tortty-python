@@ -788,6 +788,13 @@ Diffing the two CSI dispatchers, the Rust set turned out to be the Python set pl
 one final: `` ` `` (HPA), the same column as `CHA` under another name. It joined the
 `G` arm, so `CSI 5` and `CSI 5\`` land on the same column.
 
+### P106 — The link table has a ceiling (2026-11-17)
+
+`OSC 8` grew one entry per distinct URI, so a child inventing a URI per cell grew
+it without limit. Now it stops at `LINK_MAX` (4096, the Rust number) and past it
+the text is still text, only without a link; a repeated URI keeps reusing its
+index, so the ceiling counts distinct URIs.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth
