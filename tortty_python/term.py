@@ -1553,7 +1553,9 @@ class Term:
             # app sem saber com quem está falando.
             self.child_out += b"\x1b[>1;100;0c"
         elif final == "c" and not prefix and params in ((), (0,)):
-            self.child_out += b"\x1b[?62c"  # DA1: VT102
+            # DA1: VT102 with attribute 4 = sixel, which this terminal draws
+            # (P83); without it a client probing for graphics stays on text.
+            self.child_out += b"\x1b[?62;4c"
         elif final == "p" and inter == "!" and (not params or params == (0,)):
             # DECSTR (P59): soft reset — não toca na grade nem no histórico
             self.soft_reset()

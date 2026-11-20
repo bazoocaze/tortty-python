@@ -825,6 +825,13 @@ it stands for, before the encoder, so modifiers, DECCKM and the kitty protocol
 come for free — and `KP_5` with NumLock off sends `\E[E`. Verified on Xvfb
 through the socket: `1+.-*/`, then `\E[A \E[H \E[5~ \E[6~ \E[F \E[E \E[D \E[3~`.
 
+### P111 — The DA1 advertises sixel (2026-11-19)
+
+The reply was `\E[?62c`. Attribute 4 is sixel graphics, which has worked since
+`P83`, so a client that asks the terminal what it can draw (`chafa`, `notcurses`)
+found no graphics at all and stayed on the text fallback. The reply is now
+`\E[?62;4c`.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

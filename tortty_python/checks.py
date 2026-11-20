@@ -142,7 +142,8 @@ def charset_and_replies():
     assert t.row_text(0)[:4] == "────"
     t = Term()
     t.feed("\x1b[c")
-    assert bytes(t.child_out) == b"\x1b[?62c"
+    # P111: the DA1 carries attribute 4 (sixel), which this terminal draws
+    assert bytes(t.child_out) == b"\x1b[?62;4c"
     t.child_out = bytearray()
     # DA2 tem de responder no formato DA2 ('>'); o DA1 ficou com o dele
     t.feed("\x1b[>c")
