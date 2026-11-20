@@ -587,6 +587,11 @@ name, not to the object.
   invalidates on reflow, on `CSI 3J` and on the alt-screen buffer switch, but
   **not** on the `scrollback` ceiling trim — there the absolute line stays the
   same (P32/B17).
+- `keys.py` sits outside the battery: it imports `Gdk` for the keyval constants,
+  and the checks must run without `gi` (that is what CI has). A key is verified
+  with a window instead — the socket `keys` verb takes any X keysym name, so
+  `"KP_1"`, `"KP_Add"` and `"KP_Home"` go through the encoder, and a child that
+  echoes (or a tty with echo on) shows the bytes that reached it.
 
 ## Installation (pipx and shell)
 

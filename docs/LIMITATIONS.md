@@ -32,7 +32,8 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   spans two columns in the parser, the reflow and the drawing.
 - **No cell combining for a complex grapheme**: each cell carries one
   character, and a mark emitted separately by an app now glues to the cell
-  before it (`e` + acute is one cell). Marks below a base cell at the start of
+  before it (`e` + acute is one cell) — up to three, past which the mark is
+  dropped (`P114`). Marks below a base cell at the start of
   the line still get a cell of their own, and a grapheme that needs **two base
   characters** (a Hangul jamo sequence, a ZWJ emoji) is shaped only inside the
   cell it lands in.
@@ -58,7 +59,9 @@ Accepted or still unresolved limitations. Planned work lives in `BACKLOG.md`
   as in xterm.
 - **The keypad application mode is state only**: `DECKPAM`/`DECKPNM` (`ESC =` /
   `ESC >`) and the `?66` query are answered, but the keypad keys send the same
-  bytes either way — same decision as the Rust.
+  bytes either way — same decision as the Rust. The keys themselves do type
+  (`P110`): digits and operators in numeric mode, the navigation sequences in
+  the cluster.
 
 ## OSC (what is not served)
 

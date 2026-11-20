@@ -16,7 +16,9 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   app's own cursor shape/blink (`DECSCUSR`, `CSI Ps SP q`),
   **alt-screen** (`?1047`/`?1049`), DEC charset (`ESC ( 0`) for box drawing,
   title through `OSC 0/2`, `OSC 7` (the shell's cwd, which the tab label
-  follows), `DA`/`DA2`/`CPR`/`DECRQM` replies back to the child, the cell size
+  follows), `DA`/`DA2`/`CPR`/`DECRQM` answers back to the child (the `DA1`
+  carries attribute `4`, sixel; `DSR 5 n` answers `\E[0n` and `CSI ? 6 n` gets
+  the private form of the cursor report), the cell size
   and the text area in characters (`CSI 16 t`/`18 t`, which `pi` and `nvim`
   ask for at startup),
   **drawing transaction** (`?2026`, synchronized output: the frame only goes out
@@ -32,8 +34,9 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   decoration stay.
 - **Combining marks glue to the cell before** (`e` + acute, emoji + VS16): the
   mark joins the previous cell instead of taking one of its own, so the line
-  stops shifting a column right. A per-string cache keeps the check out of the
-  fast path.
+  stops shifting a column right, and a cell keeps at most three of them (`P114`:
+  past that the mark is dropped, so a child cannot grow one cell without bound).
+  A per-string cache keeps the check out of the fast path.
 - **Blink** (`5`/`6`, and `25` stops it): the cell alternates visible/hidden
   with a timer of its own that runs only while a visible cell blinks — `6`
   shares the rhythm of `5`, as xterm does.
@@ -79,7 +82,10 @@ pending: [BACKLOG.md](BACKLOG.md); dated record: [HISTORY.md](HISTORY.md).
   while it runs) and it answers before the
   mouse report, so it works inside `mc` and `vim`.
 - **Keyboard**: letters (including UTF-8), arrows, Home/End, PgUp/PgDn,
-  Insert/Delete, F1–F24, Ctrl+letter, Alt+letter, Shift+Tab. It respects
+  Insert/Delete, F1–F24, Ctrl+letter, Alt+letter, Shift+Tab. The **numeric
+  keypad** types its digits and operators (`P110`), and with NumLock off it is
+  the navigation cluster (arrows, Home/End, PgUp/PgDn, Ins/Del, `KP_5` as
+  `\E[E`), as in an xterm. It respects
   **DECCKM (`?1`)**: with application mode on (which `mc`, `vim` and `less`
   do in full screen) the arrows become `\EOA`..`\EOD`, as in the xterm
   terminfo — without that `mc` ignored the arrows.
