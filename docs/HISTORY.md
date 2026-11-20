@@ -838,6 +838,13 @@ The device status report fell into the ignored branch, so a script that asks "ar
 you there" and waits concluded the terminal was gone. It answers `\E[0n`, as
 xterm does.
 
+### P113 — `CSI ? 6 n` answers in the private form (2026-11-19)
+
+The prefix was dropped and every cursor position report came back as `\E[r;cR`,
+so the private question got the answer of the public one. Rust and xterm answer
+`\E[?r;cR` when the question carries the question mark; the same `n` arm now
+honours the prefix.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

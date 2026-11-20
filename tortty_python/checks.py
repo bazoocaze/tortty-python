@@ -162,6 +162,10 @@ def charset_and_replies():
     t.child_out = bytearray()
     t.feed("\x1b[5;9H\x1b[6n")
     assert bytes(t.child_out) == b"\x1b[5;9R"
+    # P113: the private question gets the private answer
+    t.child_out = bytearray()
+    t.feed("\x1b[?6n")
+    assert bytes(t.child_out) == b"\x1b[?5;9R"
     # P112: "are you there" is answered, as xterm does
     t.child_out = bytearray()
     t.feed("\x1b[5n")

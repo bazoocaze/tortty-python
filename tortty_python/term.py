@@ -1599,8 +1599,9 @@ class Term:
         elif final == "n" and params == (5,):
             self.child_out += b"\x1b[0n"  # DSR: the terminal is there and well
         elif final == "n" and params == (6,):
-            # DSR: informa posição do cursor
-            self.child_out += f"\x1b[{self.cy + 1};{self.cx + 1}R".encode()
+            # DSR: cursor position, private form when the question came private
+            q = "?" if prefix == "?" else ""
+            self.child_out += f"\x1b[{q}{self.cy + 1};{self.cx + 1}R".encode()
         # resto: ignorado silenciosamente (não implementado)
 
     # -- parser -------------------------------------------------------
