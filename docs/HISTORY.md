@@ -816,6 +816,15 @@ came from the display (`Xft.dpi`) and nothing could force it. `view.set_dpi` fix
 it for both the metric layout and the drawing layout — the grid stays aligned —
 and `--dpi 192` doubles the cell (10×19 → 19×38), measured on Xvfb.
 
+### P110 — The numeric keypad types again (2026-11-19)
+
+Only `KP_Enter` was in the `keys.py` tables, so the keypad was mute: digits,
+operators and the navigation cluster (with NumLock off) reached the encoder and
+fell out at the end. A `KEYPAD` table maps each KP keyval to the main-board key
+it stands for, before the encoder, so modifiers, DECCKM and the kitty protocol
+come for free — and `KP_5` with NumLock off sends `\E[E`. Verified on Xvfb
+through the socket: `1+.-*/`, then `\E[A \E[H \E[5~ \E[6~ \E[F \E[E \E[D \E[3~`.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

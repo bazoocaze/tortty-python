@@ -55,6 +55,7 @@ SIMPLE = {
     Gdk.KEY_Left: "\x1b[D",
     Gdk.KEY_Home: "\x1b[H",
     Gdk.KEY_End: "\x1b[F",
+    Gdk.KEY_Begin: "\x1b[E",  # KP_5 with NumLock off (P110)
     Gdk.KEY_Insert: "\x1b[2~",
     Gdk.KEY_Delete: "\x1b[3~",
     Gdk.KEY_Page_Up: "\x1b[5~",
@@ -99,6 +100,40 @@ APP_CURSOR = {
     Gdk.KEY_Left: "\x1bOD",
     Gdk.KEY_Home: "\x1bOH",
     Gdk.KEY_End: "\x1bOF",
+}
+
+# The keypad (P110): each KP keyval is the key it stands for on the main board,
+# so modifier, DECCKM and the kitty protocol see one key, not two.
+KEYPAD = {
+    Gdk.KEY_KP_0: Gdk.KEY_0,
+    Gdk.KEY_KP_1: Gdk.KEY_1,
+    Gdk.KEY_KP_2: Gdk.KEY_2,
+    Gdk.KEY_KP_3: Gdk.KEY_3,
+    Gdk.KEY_KP_4: Gdk.KEY_4,
+    Gdk.KEY_KP_5: Gdk.KEY_5,
+    Gdk.KEY_KP_6: Gdk.KEY_6,
+    Gdk.KEY_KP_7: Gdk.KEY_7,
+    Gdk.KEY_KP_8: Gdk.KEY_8,
+    Gdk.KEY_KP_9: Gdk.KEY_9,
+    Gdk.KEY_KP_Decimal: Gdk.KEY_period,
+    Gdk.KEY_KP_Separator: Gdk.KEY_comma,
+    Gdk.KEY_KP_Divide: Gdk.KEY_slash,
+    Gdk.KEY_KP_Multiply: Gdk.KEY_asterisk,
+    Gdk.KEY_KP_Subtract: Gdk.KEY_minus,
+    Gdk.KEY_KP_Add: Gdk.KEY_plus,
+    Gdk.KEY_KP_Equal: Gdk.KEY_equal,
+    Gdk.KEY_KP_Space: Gdk.KEY_space,
+    Gdk.KEY_KP_Home: Gdk.KEY_Home,
+    Gdk.KEY_KP_Left: Gdk.KEY_Left,
+    Gdk.KEY_KP_Up: Gdk.KEY_Up,
+    Gdk.KEY_KP_Right: Gdk.KEY_Right,
+    Gdk.KEY_KP_Down: Gdk.KEY_Down,
+    Gdk.KEY_KP_Prior: Gdk.KEY_Page_Up,
+    Gdk.KEY_KP_Next: Gdk.KEY_Page_Down,
+    Gdk.KEY_KP_End: Gdk.KEY_End,
+    Gdk.KEY_KP_Begin: Gdk.KEY_Begin,
+    Gdk.KEY_KP_Insert: Gdk.KEY_Insert,
+    Gdk.KEY_KP_Delete: Gdk.KEY_Delete,
 }
 
 
@@ -183,6 +218,7 @@ def encode_key(
     # sequência sai a mesma de F1 com Shift.
     if kv in F_KEY_SHIFT:
         kv, shift = F_KEY_SHIFT[kv], True
+    kv = KEYPAD.get(kv, kv)  # P110: the keypad is the key it stands for
     out = None
 
     if kbd_flags and not dead_mark:
