@@ -832,6 +832,12 @@ The reply was `\E[?62c`. Attribute 4 is sixel graphics, which has worked since
 found no graphics at all and stayed on the text fallback. The reply is now
 `\E[?62;4c`.
 
+### P112 — `CSI 5 n` is answered (2026-11-19)
+
+The device status report fell into the ignored branch, so a script that asks "are
+you there" and waits concluded the terminal was gone. It answers `\E[0n`, as
+xterm does.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

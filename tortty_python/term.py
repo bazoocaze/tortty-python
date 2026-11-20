@@ -1596,6 +1596,8 @@ class Term:
                 self.app_cursor_style = (forma, ps % 2 == 1)
             else:
                 self.app_cursor_style = None
+        elif final == "n" and params == (5,):
+            self.child_out += b"\x1b[0n"  # DSR: the terminal is there and well
         elif final == "n" and params == (6,):
             # DSR: informa posição do cursor
             self.child_out += f"\x1b[{self.cy + 1};{self.cx + 1}R".encode()
