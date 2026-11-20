@@ -845,6 +845,14 @@ so the private question got the answer of the public one. Rust and xterm answer
 `\E[?r;cR` when the question carries the question mark; the same `n` arm now
 honours the prefix.
 
+### P114 — A cell keeps three combining marks (2026-11-19)
+
+`put` appended every mark to the cell before it without a limit: a child sending
+a base character followed by megabytes of `U+0301` made one cell hold all of
+them, and the drawing paid for it on every frame. `MARKS_MAX = 3` is the Rust
+`MAX_MARKS`; past it the mark is dropped, and the cell stays a string, so the
+frozen-row rule (`len(text) == len(ch)`) is untouched.
+
 ## Bugs found and fixed (useful history)
 
 All of them were found with measurement, not by reading — the method is worth

@@ -394,6 +394,9 @@ LINK_SCHEMES = ("http://", "https://", "file://", "ftp://", "mailto:")
 # without bound (the Rust LINK_MAX).
 LINK_MAX = 4096
 
+# Marks one cell keeps after its base character (the Rust MAX_MARKS), P114.
+MARKS_MAX = 3
+
 
 def link_allowed(uri):
     """Only the known schemes go to xdg-open."""
@@ -1033,7 +1036,9 @@ class Term:
             col = self.cols - 1 if self.wrap_pending else self.cx - 1
             if col >= 0:
                 row = self.grid[self.cy]
-                row.ch[col] = row.ch[col] + ch
+                cell = row.ch[col]
+                if len(cell) < MARKS_MAX + 1:
+                    row.ch[col] = cell + ch
                 self.dirty.add(self.cy)
                 return
         if self.wrap_pending:

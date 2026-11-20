@@ -1217,6 +1217,13 @@ def combining_marks():
     t3.feed("ab\u0301")
     assert t3.cell(0, 1)[0] == "b\u0301"
     assert (t3.cy, t3.cx) == (0, 1)
+    # P114: past three marks the cell drops the rest instead of growing
+    t4 = Term(4, 2)
+    t4.feed("e" + "\u0301" * 6)
+    assert t4.cell(0, 0)[0] == "e" + "\u0301" * 3, repr(t4.cell(0, 0)[0])
+    assert t4.cx == 1  # the dropped marks do not walk the row either
+    t4.feed("x\u0301\u0308")
+    assert t4.cell(0, 1)[0] == "x\u0301\u0308"  # under the cap, all of them
 
 
 def mark_on_blank_row():
